@@ -1,8 +1,11 @@
 """
-Code to provide a canvas to render to.
+rendercanvas: one canvas API, multiple backends
 """
 
-from . import _gui_utils  # noqa: F401
+# ruff: noqa: F401
+
+from ._version import __version__, version_info
+from . import _gui_utils
 from .base import WgpuCanvasInterface, WgpuCanvasBase, WgpuAutoGui
 
 __all__ = [
