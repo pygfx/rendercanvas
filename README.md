@@ -23,12 +23,13 @@ same to the code that renders to them. Yet, the GUI systems are very different
 ## Purpose
 
 * Provide a generic canvas API to render to.
+* Provide an event loop for scheduling events and draws.
+* Provide a simple but powerful event system with standardized event objects.
 * Provide various canvas implementations:
   * One that is light and easily installed (glfw).
   * For various GUI libraries (e.g. qt and wx), so visuzalizations can be embedded in a GUI.
   * For specific platforms (e.g. Jupyter, browser).
-* Provide a simple but powerful event system with standardized event objects.
-* Provide an event loop for scheduling events and draws.
+
 
 The main use-case is rendering with [wgpu](https://github.com/pygfx/wgpu-py),
 but ``rendercanvas``can be used by anything that can render based on a window-id or
@@ -52,11 +53,11 @@ Also see the [online documentation](https://rendercanvas.readthedocs.io) and the
 
 ```py
 # Select either the glfw, qt or jupyter backend
-from rendercanvas.gui.auto import WgpuCanvas, loop
+from rendercanvas.auto import WgpuCanvas, loop
 
 # Visualizations can be embedded as a widget in a Qt application.
 # Supported qt libs are PySide6, PyQt6, PySide2 or PyQt5.
-from wgpu.gui.pyside6 import QWgpuWidget
+from rendercanvas.pyside6 import QWgpuWidget
 
 
 # Now specify what the canvas should do on a draw
