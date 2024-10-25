@@ -7,10 +7,10 @@ import logging
 import ctypes.util
 from contextlib import contextmanager
 
-from .._coreutils import error_message_hash
+from ._coreutils import error_message_hash
 
 
-logger = logging.getLogger("wgpu")
+logger = logging.getLogger("rendercanvas")
 
 
 # ===== GUI lib support
