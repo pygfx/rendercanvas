@@ -4,6 +4,8 @@ Run a wgpu example on the Qt backend.
 Works with either PySide6, PyQt6, PyQt5 or PySide2.
 """
 
+# ruff: noqa: E402
+
 import importlib
 
 # The `rendercanvas.qt` module checks what Qt libs is imported, so we need to import that first.
