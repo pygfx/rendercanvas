@@ -1,0 +1,60 @@
+# ===== Project info
+
+[project]
+dynamic = ["version"]
+name = "rendercanvas"
+description = "One canvas API, multiple backends"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Almar Klein" }, { name = "Korijn van Golen" }]
+keywords = [
+    "canvas",
+    "rendering",
+    "graphics",
+    "wgpu",
+    "qt",
+    "wx",
+    "glfw",
+    "jupyter",
+]
+requires-python = ">= 3.9"
+dependencies = [] # no dependencies!
+[project.optional-dependencies]
+# For users
+jupyter = ["jupyter_rfb>=0.4.2"]
+glfw = ["glfw>=1.9"]
+# For devs / ci
+lint = ["ruff", "pre-commit"]
+examples = ["numpy", "wgpu", "glfw", "pyside6"]
+docs = ["sphinx>7.2", "sphinx_rtd_theme", "sphinx-gallery"]
+tests = ["pytest", "psutil", "glfw", "pyside6"]
+dev = ["rendercanvas[lint,tests,examples,docs]"]
+
+[project.entry-points."pyinstaller40"]
+hook-dirs = "rendercanvas.__pyinstaller:get_hook_dirs"
+tests = "rendercanvas.__pyinstaller:get_test_dirs"
+
+[project.urls]
+Homepage = "https://github.com/pygfx/rendercanvas"
+Documentation = "https://rendercanvas.readthedocs.io"
+Repository = "https://github.com/pygfx/rendercanvas"
+
+# ===== Building
+
+# Flit is great solution for simple pure-Python projects.
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+# ===== Tooling
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["F", "E", "W", "N", "B", "RUF"]
+ignore = [
+    "E501", # Line too long
+    "E731", # Do not assign a `lambda` expression, use a `def`
+    "B007", # Loop control variable `x` not used within loop body
+]
