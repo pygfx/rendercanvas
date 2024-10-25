@@ -7,7 +7,7 @@ from rendercanvas.glfw import WgpuCanvas, run
 from rendercanvas.utils.cube import setup_drawing_sync
 
 
-canvas = WgpuCanvas(size=(640, 480), title=f"The wgpu cube example on glfw")
+canvas = WgpuCanvas(size=(640, 480), title="The wgpu cube example on glfw")
 draw_frame = setup_drawing_sync(canvas)
 
 
