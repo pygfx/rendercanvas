@@ -4,7 +4,7 @@ Test the EventEmitter.
 
 import time
 
-from wgpu.gui._events import EventEmitter, WgpuEventType
+from rendercanvas._events import EventEmitter, WgpuEventType
 from testutils import run_tests
 import pytest
 

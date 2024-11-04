@@ -62,10 +62,12 @@ class WgpuCanvasInterface:
         # here the only valid arg is 'webgpu', which is also made the default.
         assert kind == "webgpu"
         if self._canvas_context is None:
-            backend_module = sys.modules["wgpu"].gpu.__module__
-            if backend_module == "wgpu._classes":
+            backend_module = ""
+            if "wgpu" in sys.modules:
+                backend_module = sys.modules["wgpu"].gpu.__module__
+            if backend_module in ("", "wgpu._classes"):
                 raise RuntimeError(
-                    "A backend must be selected (e.g. with request_adapter()) before canvas.get_context() can be called."
+                    "A backend must be selected (e.g. with wgpu.gpu.request_adapter()) before canvas.get_context() can be called."
                 )
             CanvasContext = sys.modules[backend_module].GPUCanvasContext  # noqa: N806
             self._canvas_context = CanvasContext(self)

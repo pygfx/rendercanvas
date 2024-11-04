@@ -3,13 +3,11 @@ Test the canvas, and parts of the rendering that involves a canvas,
 like the canvas context and surface texture.
 """
 
-import sys
 import time
 import weakref
 import asyncio
 import gc
 
-import wgpu
 from pytest import skip
 from testutils import run_tests, can_use_glfw, can_use_wgpu_lib, is_pypy
 # from renderutils import render_to_texture, render_to_screen
@@ -26,23 +24,24 @@ def setup_module():
 
 
 def teardown_module():
-    from wgpu.gui.glfw import poll_glfw_briefly
+    from rendercanvas.glfw import poll_glfw_briefly
 
     poll_glfw_briefly()
     pass  # Do not glfw.terminate() because other tests may still need glfw
 
 
 def test_is_canvas_base():
-    from wgpu.gui.glfw import WgpuCanvas
+    from rendercanvas import WgpuCanvasBase
+    from rendercanvas.glfw import WgpuCanvas
 
-    assert issubclass(WgpuCanvas, wgpu.gui.WgpuCanvasBase)
+    assert issubclass(WgpuCanvas, WgpuCanvasBase)
 
 
 def test_glfw_canvas_basics():
     """Create a window and check some of its behavior. No wgpu calls here."""
 
     import glfw
-    from wgpu.gui.glfw import WgpuCanvas
+    from rendercanvas.glfw import WgpuCanvas
 
     canvas = WgpuCanvas()
 
@@ -66,7 +65,7 @@ def test_glfw_canvas_basics():
 
 
 def test_glfw_canvas_del():
-    from wgpu.gui.glfw import WgpuCanvas, loop
+    from rendercanvas.glfw import WgpuCanvas, loop
 
     def run_briefly():
         asyncio_loop = loop._loop
@@ -103,8 +102,9 @@ fn fs_main() -> @location(0) vec4<f32> {
 def test_glfw_canvas_render():
     """Render an orange square ... in a glfw window."""
 
+    import wgpu
     import glfw
-    from wgpu.gui.glfw import WgpuCanvas, loop
+    from rendercanvas.glfw import WgpuCanvas, loop
 
     def run_briefly():
         asyncio_loop = loop._loop
@@ -149,55 +149,9 @@ def test_glfw_canvas_render():
     glfw.poll_events()
 
 
-def test_glfw_canvas_render_custom_canvas():
-    """Render an orange square ... in a glfw window. But not using WgpuCanvas.
-    This helps make sure that WgpuCanvasInterface is indeed the minimal
-    required canvas API.
-    """
-
-    import glfw
-    from wgpu.gui.glfw import get_glfw_present_info
-
-    class CustomCanvas:  # implements wgpu.WgpuCanvasInterface
-        def __init__(self):
-            glfw.window_hint(glfw.CLIENT_API, glfw.NO_API)
-            glfw.window_hint(glfw.RESIZABLE, True)
-            self.window = glfw.create_window(300, 200, "canvas", None, None)
-            self._present_context = None
-
-        def get_present_info(self):
-            return get_glfw_present_info(self.window)
-
-        def get_physical_size(self):
-            psize = glfw.get_framebuffer_size(self.window)
-            return int(psize[0]), int(psize[1])
-
-        def get_context(self):
-            if self._present_context is None:
-                backend_module = sys.modules["wgpu"].gpu.__module__
-                PC = sys.modules[backend_module].GPUCanvasContext  # noqa N806
-                self._present_context = PC(self)
-            return self._present_context
-
-    canvas = CustomCanvas()
-
-    # Also pass canvas here, to touch that code somewhere
-    adapter = wgpu.gpu.request_adapter_sync(
-        canvas=canvas, power_preference="high-performance"
-    )
-    device = adapter.request_device_sync()
-    draw_frame = _get_draw_function(device, canvas)
-
-    for i in range(5):
-        time.sleep(0.01)
-        glfw.poll_events()
-        draw_frame()
-        canvas.get_context().present()  # WgpuCanvasBase normally automates this
-
-    glfw.hide_window(canvas.window)
-
-
 def _get_draw_function(device, canvas):
+    import wgpu
+
     # Bindings and layout
     pipeline_layout = device.create_pipeline_layout(bind_group_layouts=[])
 

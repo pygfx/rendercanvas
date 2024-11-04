@@ -10,13 +10,13 @@ from testutils import is_pypy, run_tests
 
 
 def test_offscreen_selection_using_env_var():
-    from wgpu.gui.offscreen import WgpuManualOffscreenCanvas
+    from rendercanvas.offscreen import WgpuManualOffscreenCanvas
 
     ori = os.environ.get("WGPU_FORCE_OFFSCREEN", "")
     os.environ["WGPU_FORCE_OFFSCREEN"] = "1"
 
     # We only need the func, but this triggers the auto-import
-    from wgpu.gui.auto import select_backend
+    from rendercanvas.auto import select_backend
 
     try:
         if not os.getenv("CI"):
@@ -38,7 +38,7 @@ def test_offscreen_event_loop():
     """Check that the event loop handles queued tasks and then returns."""
     # Note: if this test fails, it may run forever, so it's a good idea to have a timeout on the CI job or something
 
-    from wgpu.gui.offscreen import loop
+    from rendercanvas.offscreen import loop
 
     ran = False
 
@@ -53,7 +53,7 @@ def test_offscreen_event_loop():
 
 
 def test_offscreen_canvas_del():
-    from wgpu.gui.offscreen import WgpuCanvas
+    from rendercanvas.offscreen import WgpuCanvas
 
     canvas = WgpuCanvas()
     ref = weakref.ref(canvas)

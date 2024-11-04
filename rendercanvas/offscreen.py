@@ -83,7 +83,7 @@ class StubWgpuTimer(WgpuTimer):
 class StubLoop(WgpuLoop):
     # If we consider the use-cases for using this offscreen canvas:
     #
-    # * Using wgpu.gui.auto in test-mode: in this case run() should not hang,
+    # * Using rendercanvas.auto in test-mode: in this case run() should not hang,
     #   and call_later should not cause lingering refs.
     # * Using the offscreen canvas directly, in a script: in this case you
     #   do not have/want an event system.

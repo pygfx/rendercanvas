@@ -1,11 +1,11 @@
 import gc
 
-import wgpu.gui
+import rendercanvas
 from testutils import run_tests, is_pypy
 
 
 def test_weakbind():
-    weakbind = wgpu.gui._gui_utils.weakbind
+    weakbind = rendercanvas._gui_utils.weakbind
 
     xx = []
 

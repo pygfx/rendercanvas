@@ -11,7 +11,7 @@ A nice demo, and very convenient to test the different backends.
 
 import time
 
-from wgpu.gui.auto import WgpuCanvas, loop
+from rendercanvas.auto import WgpuCanvas, loop
 
 from cube import setup_drawing_sync
 

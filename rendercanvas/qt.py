@@ -41,7 +41,7 @@ if libname:
         Keys = QtCore.Qt
 else:
     raise ImportError(
-        "Before importing wgpu.gui.qt, import one of PySide6/PySide2/PyQt6/PyQt5 to select a Qt toolkit."
+        "Before importing rendercanvas.qt, import one of PySide6/PySide2/PyQt6/PyQt5 to select a Qt toolkit."
     )
 
 

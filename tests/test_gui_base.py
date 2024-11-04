@@ -6,28 +6,17 @@ import sys
 import subprocess
 
 import numpy as np
-import wgpu.gui
+import rendercanvas
 from testutils import run_tests, can_use_wgpu_lib
-from pytest import mark, raises
+from pytest import mark
 
 
 def test_base_canvas_context():
-    assert not issubclass(wgpu.gui.WgpuCanvasInterface, wgpu.GPUCanvasContext)
-    assert hasattr(wgpu.gui.WgpuCanvasInterface, "get_context")
-
-
-def test_base_canvas_cannot_use_context():
-    canvas = wgpu.gui.WgpuCanvasInterface()
-    with raises(NotImplementedError):
-        wgpu.GPUCanvasContext(canvas)
-
-    canvas = wgpu.gui.WgpuCanvasBase()
-    with raises(NotImplementedError):
-        canvas.get_context()
+    assert hasattr(rendercanvas.WgpuCanvasInterface, "get_context")
 
 
 def test_canvas_get_context_needs_backend_to_be_selected():
-    code = "from wgpu.gui import WgpuCanvasBase; canvas = WgpuCanvasBase(); canvas.get_context()"
+    code = "from rendercanvas import WgpuCanvasBase; canvas = WgpuCanvasBase(); canvas.get_context()"
 
     result = subprocess.run(
         [sys.executable, "-c", code],
@@ -42,7 +31,7 @@ def test_canvas_get_context_needs_backend_to_be_selected():
     assert "canvas.get_context" in out.lower()
 
 
-class CanvasThatRaisesErrorsDuringDrawing(wgpu.gui.WgpuCanvasBase):
+class CanvasThatRaisesErrorsDuringDrawing(rendercanvas.WgpuCanvasBase):
     def __init__(self):
         super().__init__()
         self._count = 0
@@ -102,7 +91,7 @@ def test_canvas_logging(caplog):
     assert text.count("intended-fail") == 4
 
 
-class MyOffscreenCanvas(wgpu.gui.WgpuCanvasBase):
+class MyOffscreenCanvas(rendercanvas.WgpuCanvasBase):
     def __init__(self):
         super().__init__()
         self.frame_count = 0
@@ -134,7 +123,7 @@ def test_run_bare_canvas():
 
     # This is (more or less) the equivalent of:
     #
-    #     from wgpu.gui.auto import WgpuCanvas, loop
+    #     from rendercanvas.auto import WgpuCanvas, loop
     #     canvas = WgpuCanvas()
     #     loop.run()
     #
@@ -145,7 +134,9 @@ def test_run_bare_canvas():
 
 
 @mark.skipif(not can_use_wgpu_lib, reason="Needs wgpu lib")
-def test_simpple_offscreen_canvas():
+def test_simple_offscreen_canvas():
+    import wgpu
+
     canvas = MyOffscreenCanvas()
     device = wgpu.gpu.request_adapter_sync().request_device_sync()
     present_context = canvas.get_context()
@@ -211,7 +202,7 @@ def test_simpple_offscreen_canvas():
 
 
 def test_canvas_base_events():
-    c = wgpu.gui.WgpuCanvasBase()
+    c = rendercanvas.WgpuCanvasBase()
 
     # We test events extensively in another test module. This is just
     # to make sure that events are working for the base canvas.

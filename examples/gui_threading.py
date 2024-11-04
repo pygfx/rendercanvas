@@ -17,7 +17,7 @@ stuff.
 import time
 import threading
 
-from wgpu.gui.offscreen import WgpuCanvas
+from rendercanvas.offscreen import WgpuCanvas
 
 from cube import setup_drawing_sync
 

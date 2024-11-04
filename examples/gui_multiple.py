@@ -4,7 +4,7 @@ Run triangle and cube examples two canvases.
 
 # test_example = true
 
-from wgpu.gui.auto import WgpuCanvas, loop
+from rendercanvas.auto import WgpuCanvas, loop
 
 from triangle import setup_drawing_sync as setup_drawing_sync_triangle
 from cube import setup_drawing_sync as setup_drawing_sync_cube
