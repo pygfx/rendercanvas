@@ -5,14 +5,69 @@ from ._loop import Scheduler, BaseLoop, BaseTimer  # noqa: F401
 from ._gui_utils import log_exception
 
 
-class RenderCanvasInterface:
-    """The minimal interface to be a valid canvas.
+class BaseRenderCanvas:
+    """The base canvas class.
 
-    Any object that implements these methods is a canvas that wgpu can work with.
-    The object does not even have to derive from this class.
+    This class provides a uniform canvas API so render systems can use
+    code that is portable accross multiple GUI libraries and canvas targets.
 
-    In most cases it's more convenient to subclass :class:`BaseRenderCanvas <wgpu.gui.BaseRenderCanvas>`.
+    Arguments:
+        update_mode (EventType): The mode for scheduling draws and events. Default 'ondemand'.
+        min_fps (float): A minimal frames-per-second to use when the ``update_mode`` is 'ondemand'.
+            The default is 1: even without draws requested, it still draws every second.
+        max_fps (float): A maximal frames-per-second to use when the ``update_mode`` is 'ondemand' or 'continuous'.
+            The default is 30, which is usually enough.
+        vsync (bool): Whether to sync the draw with the monitor update.  Helps
+            against screen tearing, but can reduce fps. Default True.
+        present_method (str | None): The method to present the rendered image.
+            Can be set to 'screen' or 'image'. Default None (auto-select).
+
     """
+
+    def __init__(
+        self,
+        *args,
+        update_mode="ondemand",
+        min_fps=1.0,
+        max_fps=30.0,
+        vsync=True,
+        present_method=None,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self._vsync = bool(vsync)
+        present_method  # noqa - We just catch the arg here in case a backend does implement it
+
+        # Canvas
+        self.__raw_title = ""
+        self.__title_kwargs = {
+            "fps": "?",
+            "backend": self.__class__.__name__,
+        }
+
+        self.__is_drawing = False
+        self._events = EventEmitter()
+        self._scheduler = None
+        loop = self._get_loop()
+        if loop:
+            self._scheduler = Scheduler(
+                self, loop, min_fps=min_fps, max_fps=max_fps, mode=update_mode
+            )
+
+    def __del__(self):
+        # On delete, we call the custom close method.
+        try:
+            self.close()
+        except Exception:
+            pass
+        # Since this is sometimes used in a multiple inheritance, the
+        # superclass may (or may not) have a __del__ method.
+        try:
+            super().__del__()
+        except Exception:
+            pass
+
+    # === Implement WgpuCanvasInterface
 
     _canvas_context = None  # set in get_context()
 
@@ -81,69 +136,6 @@ class RenderCanvasInterface:
         this method.
         """
         raise NotImplementedError()
-
-
-class BaseRenderCanvas(RenderCanvasInterface):
-    """The base canvas class.
-
-    This class provides a uniform canvas API so render systems can use
-    code that is portable accross multiple GUI libraries and canvas targets.
-
-    Arguments:
-        update_mode (EventType): The mode for scheduling draws and events. Default 'ondemand'.
-        min_fps (float): A minimal frames-per-second to use when the ``update_mode`` is 'ondemand'.
-            The default is 1: even without draws requested, it still draws every second.
-        max_fps (float): A maximal frames-per-second to use when the ``update_mode`` is 'ondemand' or 'continuous'.
-            The default is 30, which is usually enough.
-        vsync (bool): Whether to sync the draw with the monitor update.  Helps
-            against screen tearing, but can reduce fps. Default True.
-        present_method (str | None): The method to present the rendered image.
-            Can be set to 'screen' or 'image'. Default None (auto-select).
-
-    """
-
-    def __init__(
-        self,
-        *args,
-        update_mode="ondemand",
-        min_fps=1.0,
-        max_fps=30.0,
-        vsync=True,
-        present_method=None,
-        **kwargs,
-    ):
-        super().__init__(*args, **kwargs)
-        self._vsync = bool(vsync)
-        present_method  # noqa - We just catch the arg here in case a backend does implement it
-
-        # Canvas
-        self.__raw_title = ""
-        self.__title_kwargs = {
-            "fps": "?",
-            "backend": self.__class__.__name__,
-        }
-
-        self.__is_drawing = False
-        self._events = EventEmitter()
-        self._scheduler = None
-        loop = self._get_loop()
-        if loop:
-            self._scheduler = Scheduler(
-                self, loop, min_fps=min_fps, max_fps=max_fps, mode=update_mode
-            )
-
-    def __del__(self):
-        # On delete, we call the custom close method.
-        try:
-            self.close()
-        except Exception:
-            pass
-        # Since this is sometimes used in a multiple inheritance, the
-        # superclass may (or may not) have a __del__ method.
-        try:
-            super().__del__()
-        except Exception:
-            pass
 
     # === Events
 
@@ -328,10 +320,6 @@ class BaseRenderCanvas(RenderCanvasInterface):
     # === Primary canvas management methods
 
     # todo: we require subclasses to implement public methods, while everywhere else the implementable-methods are private.
-
-    def get_physical_size(self):
-        """Get the physical size in integer pixels."""
-        raise NotImplementedError()
 
     def get_logical_size(self):
         """Get the logical size in float pixels."""

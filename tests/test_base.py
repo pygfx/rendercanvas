@@ -12,7 +12,7 @@ from pytest import mark
 
 
 def test_base_canvas_context():
-    assert hasattr(rendercanvas.RenderCanvasInterface, "get_context")
+    assert hasattr(rendercanvas.BaseRenderCanvas, "get_context")
 
 
 def test_canvas_get_context_needs_backend_to_be_selected():
