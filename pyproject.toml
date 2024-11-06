@@ -27,7 +27,7 @@ glfw = ["glfw>=1.9"]
 lint = ["ruff", "pre-commit"]
 examples = ["numpy", "wgpu", "glfw", "pyside6"]
 docs = ["sphinx>7.2", "sphinx_rtd_theme", "sphinx-gallery"]
-tests = ["pytest", "numpy", "psutil", "wgpu", "glfw"]
+tests = ["pytest", "numpy", "wgpu", "glfw"]
 dev = ["rendercanvas[lint,tests,examples,docs]"]
 
 [project.entry-points."pyinstaller40"]
