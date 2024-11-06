@@ -105,8 +105,6 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
         if array is not None:
             self._rfb_send_frame(array)
 
-    # Implementation needed for RenderCanvasInterface
-
     def get_present_info(self):
         # Use a format that maps well to PNG: rgba8norm. Use srgb for
         # perceptive color mapping. This is the common colorspace for
