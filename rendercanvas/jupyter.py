@@ -15,7 +15,7 @@ from IPython.display import display
 
 
 class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
-    """An ipywidgets widget providing a wgpu canvas. Needs the jupyter_rfb library."""
+    """An ipywidgets widget providing a render canvas. Needs the jupyter_rfb library."""
 
     def __init__(self, *, size=None, title=None, **kwargs):
         super().__init__(**kwargs)
@@ -131,7 +131,7 @@ class JupyterAsyncioLoop(AsyncioLoop):
         super().__init__()
         self._pending_jupyter_canvases = []
 
-    def _wgpu_gui_poll(self):
+    def _rc_gui_poll(self):
         pass  # Jupyter is running in a separate process :)
 
     def run(self):

@@ -22,13 +22,13 @@ from ._gui_utils import SYSTEM_IS_WAYLAND, weakbind, logger
 # Make sure that glfw is new enough
 glfw_version_info = tuple(int(i) for i in glfw.__version__.split(".")[:2])
 if glfw_version_info < (1, 9):
-    raise ImportError("wgpu-py requires glfw 1.9 or higher.")
+    raise ImportError("rendercanvas requires glfw 1.9 or higher.")
 
 # Do checks to prevent pitfalls on hybrid Xorg/Wayland systems
 is_wayland = False
 if sys.platform.startswith("linux") and SYSTEM_IS_WAYLAND:
     if not hasattr(glfw, "get_x11_window"):
-        # Probably glfw was imported before we wgpu was, so we missed our chance
+        # Probably glfw was imported before this module, so we missed our chance
         # to set the env var to make glfw use x11.
         is_wayland = True
         logger.warning("Using GLFW with Wayland, which is experimental.")
@@ -142,7 +142,7 @@ def get_physical_size(window):
 
 
 class GlfwRenderCanvas(BaseRenderCanvas):
-    """A glfw window providing a wgpu canvas."""
+    """A glfw window providing a render canvas."""
 
     # See https://www.glfw.org/docs/latest/group__window.html
 
@@ -201,7 +201,7 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         self.set_logical_size(*size)
         self.set_title(title)
 
-    # Callbacks to provide a minimal working canvas for wgpu
+    # Callbacks to provide a minimal working canvas
 
     def _on_pixelratio_change(self, *args):
         if self._changing_pixel_ratio:
@@ -539,7 +539,7 @@ class GlfwAsyncioLoop(AsyncioLoop):
             self._glfw_initialized = True
             atexit.register(glfw.terminate)
 
-    def _wgpu_gui_poll(self):
+    def _rc_gui_poll(self):
         glfw.post_empty_event()  # Awake the event loop, if it's in wait-mode
         glfw.poll_events()
         if self.stop_if_no_more_canvases and not tuple(self.all_glfw_canvases):

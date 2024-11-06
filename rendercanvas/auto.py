@@ -14,7 +14,7 @@ from ._gui_utils import logger, QT_MODULE_NAMES, get_imported_qt_lib, asyncio_is
 
 
 # Note that wx is not in here, because it does not (yet) fully implement base.BaseRenderCanvas
-WGPU_GUI_BACKEND_NAMES = ["glfw", "qt", "jupyter", "offscreen"]
+BACKEND_NAMES = ["glfw", "qt", "jupyter", "offscreen"]
 
 
 def _load_backend(backend_name):
@@ -30,7 +30,7 @@ def _load_backend(backend_name):
     elif backend_name == "offscreen":
         from . import offscreen as module
     else:  # no-cover
-        raise ImportError("Unknown wgpu gui backend: '{backend_name}'")
+        raise ImportError("Unknown rendercanvas backend: '{backend_name}'")
     return module
 
 
@@ -53,7 +53,7 @@ def select_backend():
 
     # Always report failed backends, because we only try them when it looks like we can.
     if failed_backends:
-        msg = "WGPU could not load some backends:"
+        msg = "rendercanvas could not load some backends:"
         for key, val in failed_backends.items():
             msg += f"\n{key}: {val}"
         logger.warning(msg)
@@ -61,10 +61,10 @@ def select_backend():
     # Return or raise
     if module is not None:
         log = logger.warning if failed_backends else logger.info
-        log(f"WGPU selected {backend_name} gui because {reason}.")
+        log(f"Rendercanvas selected {backend_name} backend because {reason}.")
         return module
     else:
-        msg = "WGPU Could not load any of the supported GUI backends."
+        msg = "Rendercanvas could not load any of the supported backends."
         if "jupyter" in failed_backends:
             msg += "\n  You may need to ``pip install -U jupyter_rfb``."
         else:
@@ -94,9 +94,9 @@ def backends_by_env_vars():
     # Env var to force a backend for general use
     backend_name = os.getenv("WGPU_GUI_BACKEND", "").lower().strip() or None
     if backend_name:
-        if backend_name not in WGPU_GUI_BACKEND_NAMES:
+        if backend_name not in BACKEND_NAMES:
             logger.warning(
-                f"Ignoring invalid WGPU_GUI_BACKEND '{backend_name}', must be one of {WGPU_GUI_BACKEND_NAMES}"
+                f"Ignoring invalid WGPU_GUI_BACKEND '{backend_name}', must be one of {BACKEND_NAMES}"
             )
             backend_name = None
     if backend_name:

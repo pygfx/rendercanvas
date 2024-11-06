@@ -128,10 +128,10 @@ def enable_hidpi():
         pass  # fail on older Qt's
 
 
-# If you import this module, you want to use wgpu in a way that does not suck
+# If you import this module, you want to render in a way that does not suck
 # on high-res monitors. So we apply the minimal configuration to make this so.
 # Most apps probably should also set AA_UseHighDpiPixmaps, but it's not
-# needed for wgpu, so not our responsibility (some users may NOT want it set).
+# needed, so not our responsibility (some users may NOT want it set).
 enable_hidpi()
 
 _show_image_method_warning = (
@@ -140,7 +140,7 @@ _show_image_method_warning = (
 
 
 class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
-    """A QWidget representing a wgpu canvas that can be embedded in a Qt application."""
+    """A QWidget representing a render canvas that can be embedded in a Qt application."""
 
     def __init__(self, *args, present_method=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -182,7 +182,7 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
     def paintEvent(self, event):  # noqa: N802 - this is a Qt method
         self._draw_frame_and_present()
 
-    # Methods that we add from wgpu (snake_case)
+    # Methods that we add for BaseRenderCanvas (snake_case)
 
     def _request_draw(self):
         # Ask Qt to do a paint event
@@ -447,7 +447,7 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
 
 
 class QRenderCanvas(BaseRenderCanvas, QtWidgets.QWidget):
-    """A toplevel Qt widget providing a wgpu canvas."""
+    """A toplevel Qt widget providing a render canvas."""
 
     # Most of this is proxying stuff to the inner widget.
     # We cannot use a toplevel widget directly, otherwise the window
@@ -494,7 +494,7 @@ class QRenderCanvas(BaseRenderCanvas, QtWidgets.QWidget):
         self._subwidget._is_closed = True
         self.submit_event({"event_type": "close"})
 
-    # Methods that we add from wgpu (snake_case)
+    # Methods that we add from BaseRenderCanvas (snake_case)
 
     def _request_draw(self):
         self._subwidget._request_draw()
@@ -549,7 +549,7 @@ RenderCanvas = QRenderCanvas
 
 
 class QtTimer(BaseTimer):
-    """Wgpu timer basef on Qt."""
+    """Timer basef on Qt."""
 
     def _init(self):
         self._qt_timer = QtCore.QTimer()
@@ -603,7 +603,7 @@ class QtLoop(BaseLoop):
         if not already_had_app_on_import:
             self._app.quit()
 
-    def _wgpu_gui_poll(self):
+    def _rc_gui_poll(self):
         pass  # we assume the Qt event loop is running. Calling processEvents() will cause recursive repaints.
 
 

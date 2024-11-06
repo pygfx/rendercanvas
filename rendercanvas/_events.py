@@ -10,7 +10,7 @@ class EventType(BaseEnum):
 
     This includes the events from the jupyter_rfb event spec (see
     https://jupyter-rfb.readthedocs.io/en/stable/events.html) plus some
-    wgpu-specific events.
+    rendercanvas-specific events.
     """
 
     # Jupter_rfb spec
@@ -207,7 +207,7 @@ class EventEmitter:
             with log_exception(f"Error during handling {event_type} event"):
                 callback(event)
 
-    def _wgpu_close(self):
+    def _rc_close(self):
         """Wrap up when the scheduler detects the canvas is closed/dead."""
         # This is a little feature because detecting a widget from closing can be tricky.
         if not self._closed:

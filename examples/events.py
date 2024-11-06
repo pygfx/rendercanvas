@@ -5,7 +5,7 @@ A simple example to demonstrate events.
 from rendercanvas.auto import RenderCanvas, run
 
 
-canvas = RenderCanvas(size=(640, 480), title="wgpu events")
+canvas = RenderCanvas(size=(640, 480), title="RenderCanvas events")
 
 
 @canvas.add_event_handler("*")

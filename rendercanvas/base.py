@@ -173,7 +173,7 @@ class BaseRenderCanvas(RenderCanvasInterface):
         # Get events from the GUI into our event mechanism.
         loop = self._get_loop()
         if loop:
-            loop._wgpu_gui_poll()
+            loop._rc_gui_poll()
 
         # Flush our events, so downstream code can update stuff.
         # Maybe that downstream code request a new draw.
@@ -245,7 +245,7 @@ class BaseRenderCanvas(RenderCanvasInterface):
     def _draw_frame_and_present(self):
         """Draw the frame and present the result.
 
-        Errors are logged to the "wgpu" logger. Should be called by the
+        Errors are logged to the "rendercanvas" logger. Should be called by the
         subclass at its draw event.
         """
 

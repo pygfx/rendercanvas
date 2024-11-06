@@ -135,7 +135,7 @@ class BaseLoop:
         #   loop usually stops when the last window is closed, so the close event may
         #   not be fired.
         # * Keep the GUI going even when the canvas loop is on pause e.g. because its
-        #   minimized (applies to backends that implement _wgpu_gui_poll).
+        #   minimized (applies to backends that implement _rc_gui_poll).
         self._gui_timer = self._TimerClass(self, self._tick, one_shot=False)
 
     def _register_scheduler(self, scheduler):
@@ -145,7 +145,7 @@ class BaseLoop:
 
     def _tick(self):
         # Keep the GUI alive on every tick
-        self._wgpu_gui_poll()
+        self._rc_gui_poll()
 
         # Check all schedulers
         schedulers_to_close = []
@@ -235,7 +235,7 @@ class BaseLoop:
         """
         self.call_later(0, callback, *args)
 
-    def _wgpu_gui_poll(self):
+    def _rc_gui_poll(self):
         """For the subclass to implement:
 
         Some event loops (e.g. asyncio) are just that and dont have a GUI to update.
@@ -343,7 +343,7 @@ class Scheduler:
         canvas = self._canvas_ref()
         if canvas is None or canvas.is_closed():
             # Pretty nice, we can send a close event, even if the canvas no longer exists
-            self._events._wgpu_close()
+            self._events._rc_close()
             return None
         else:
             return canvas

@@ -121,7 +121,7 @@ _show_image_method_warning = (
 
 
 class WxRenderWidget(BaseRenderCanvas, wx.Window):
-    """A wx Window representing a wgpu canvas that can be embedded in a wx application."""
+    """A wx Window representing a render canvas that can be embedded in a wx application."""
 
     def __init__(self, *args, present_method=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -310,7 +310,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
     def _on_mouse_move(self, event: wx.MouseEvent):
         self._mouse_event("pointer_move", event)
 
-    # Methods that we add from wgpu
+    # Methods that we add from BaseRenderCanvas
 
     def _get_surface_ids(self):
         if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
@@ -418,7 +418,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
 
 
 class WxRenderCanvas(BaseRenderCanvas, wx.Frame):
-    """A toplevel wx Frame providing a wgpu canvas."""
+    """A toplevel wx Frame providing a render canvas."""
 
     # Most of this is proxying stuff to the inner widget.
 
@@ -440,7 +440,7 @@ class WxRenderCanvas(BaseRenderCanvas, wx.Frame):
         if not size:
             size = 640, 480
 
-        self._subwidget = WxWgpuWindow(parent=self, **sub_kwargs)
+        self._subwidget = WxRenderWidget(parent=self, **sub_kwargs)
         self._events = self._subwidget._events
         self.Bind(wx.EVT_CLOSE, lambda e: self.Destroy())
 
@@ -524,7 +524,7 @@ class TimerWithCallback(wx.Timer):
         try:
             self._callback()
         except RuntimeError:
-            pass  # wrapped C/C++ object of type WxWgpuWindow has been deleted
+            pass  # wrapped C/C++ object of type WxRenderWidget has been deleted
 
 
 class WxTimer(BaseTimer):
@@ -565,7 +565,7 @@ class WxLoop(BaseLoop):
         self._frame_to_keep_loop_alive.Destroy()
         _frame_to_keep_loop_alive = None
 
-    def _wgpu_gui_poll(self):
+    def _rc_gui_poll(self):
         pass  # We can assume the wx loop is running.
 
     def process_wx_events(self):

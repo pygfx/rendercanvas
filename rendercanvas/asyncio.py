@@ -10,7 +10,7 @@ from .base import BaseLoop, BaseTimer
 
 
 class AsyncioTimer(BaseTimer):
-    """Wgpu timer based on asyncio."""
+    """Timer based on asyncio."""
 
     _handle = None
 
