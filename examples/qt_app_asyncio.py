@@ -1,7 +1,7 @@
 """
 An example demonstrating a qt app with a wgpu viz inside.
 
-This is the same as the ``gui_qt_embed.py`` example, except this uses
+This is the same as the ``qt_app.py`` example, except this uses
 the asyncio compatible mode that was introduced in Pyside 6.6.
 
 For more info see:
@@ -17,7 +17,7 @@ import time
 import asyncio
 
 from PySide6 import QtWidgets, QtAsyncio
-from rendercanvas.qt import QWgpuWidget
+from rendercanvas.qt import QRenderWidget
 from rendercanvas.utils.cube import setup_drawing_sync
 
 
@@ -49,7 +49,7 @@ class ExampleWidget(QtWidgets.QWidget):
 
         # todo: use update_mode = 'continuous' when that feature has arrived
         self.button = QtWidgets.QPushButton("Hello world", self)
-        self.canvas = QWgpuWidget(splitter)
+        self.canvas = QRenderWidget(splitter)
         self.output = QtWidgets.QTextEdit(splitter)
 
         # self.button.clicked.connect(self.whenButtonClicked)  # see above :(

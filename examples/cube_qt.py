@@ -18,12 +18,12 @@ for lib in ("PySide6", "PyQt6", "PySide2", "PyQt5"):
         pass
 
 
-from rendercanvas.qt import WgpuCanvas, run
+from rendercanvas.qt import RenderCanvas, run
 
 from rendercanvas.utils.cube import setup_drawing_sync
 
 
-canvas = WgpuCanvas(size=(640, 480), title=f"The wgpu cube example on {lib}")
+canvas = RenderCanvas(size=(640, 480), title=f"The wgpu cube example on {lib}")
 draw_frame = setup_drawing_sync(canvas)
 
 

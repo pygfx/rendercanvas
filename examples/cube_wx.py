@@ -1,15 +1,13 @@
 """
-Run a wgpu example on an automatically selected backend.
+Run a wgpu example on the wx backend.
 """
 
-from rendercanvas.auto import WgpuCanvas, run
+from rendercanvas.wx import RenderCanvas, run
 
 from rendercanvas.utils.cube import setup_drawing_sync
 
 
-canvas = WgpuCanvas(
-    size=(640, 480), title=f"The wgpu cube example on a {WgpuCanvas.__name__}"
-)
+canvas = RenderCanvas(size=(640, 480), title="The wgpu cube example on wx")
 draw_frame = setup_drawing_sync(canvas)
 
 

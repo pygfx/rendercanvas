@@ -31,19 +31,19 @@ def teardown_module():
 
 
 def test_is_canvas_base():
-    from rendercanvas import WgpuCanvasBase
-    from rendercanvas.glfw import WgpuCanvas
+    from rendercanvas import BaseRenderCanvas
+    from rendercanvas.glfw import RenderCanvas
 
-    assert issubclass(WgpuCanvas, WgpuCanvasBase)
+    assert issubclass(RenderCanvas, BaseRenderCanvas)
 
 
 def test_glfw_canvas_basics():
     """Create a window and check some of its behavior. No wgpu calls here."""
 
     import glfw
-    from rendercanvas.glfw import WgpuCanvas
+    from rendercanvas.glfw import RenderCanvas
 
-    canvas = WgpuCanvas()
+    canvas = RenderCanvas()
 
     canvas.set_logical_size(300, 200)
     etime = time.time() + 0.1
@@ -65,14 +65,14 @@ def test_glfw_canvas_basics():
 
 
 def test_glfw_canvas_del():
-    from rendercanvas.glfw import WgpuCanvas, loop
+    from rendercanvas.glfw import RenderCanvas, loop
 
     def run_briefly():
         asyncio_loop = loop._loop
         asyncio_loop.run_until_complete(asyncio.sleep(0.5))
         # poll_glfw_briefly()
 
-    canvas = WgpuCanvas()
+    canvas = RenderCanvas()
     ref = weakref.ref(canvas)
 
     assert ref() is not None
@@ -104,14 +104,14 @@ def test_glfw_canvas_render():
 
     import wgpu
     import glfw
-    from rendercanvas.glfw import WgpuCanvas, loop
+    from rendercanvas.glfw import RenderCanvas, loop
 
     def run_briefly():
         asyncio_loop = loop._loop
         asyncio_loop.run_until_complete(asyncio.sleep(0.5))
         # poll_glfw_briefly()
 
-    canvas = WgpuCanvas(max_fps=9999, update_mode="ondemand")
+    canvas = RenderCanvas(max_fps=9999, update_mode="ondemand")
 
     device = wgpu.gpu.request_adapter_sync().request_device_sync()
     draw_frame1 = _get_draw_function(device, canvas)

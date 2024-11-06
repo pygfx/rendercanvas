@@ -19,12 +19,12 @@ Since most users will want to render something to screen, we recommend installin
     pip install rendercanvas glfw
 
 
-GUI libraries
--------------
+Backends
+--------
 
-Multiple GUI backends are supported, see :doc:`the GUI API <gui>` for details:
+Multiple backends are supported, including multiple GUI libraries, see :doc:`the GUI API <gui>` for details:
 
-* `glfw <https://github.com/FlorianRhiem/pyGLFW>`_: a lightweight GUI for the desktop
-* `jupyter_rfb <https://jupyter-rfb.readthedocs.io>`_: only needed if you plan on using wgpu in Jupyter
+* `glfw <https://github.com/FlorianRhiem/pyGLFW>`_: a lightweight canvas for the desktop
+* `jupyter_rfb <https://jupyter-rfb.readthedocs.io>`_: only needed if you plan on using Jupyter
 * qt (PySide6, PyQt6, PySide2, PyQt5)
 * wx

@@ -1,4 +1,4 @@
-"""Private gui utilities."""
+"""Private utilities."""
 
 import os
 import sys
@@ -13,7 +13,7 @@ from ._coreutils import error_message_hash
 logger = logging.getLogger("rendercanvas")
 
 
-# ===== GUI lib support
+# ===== lib support
 
 QT_MODULE_NAMES = ["PySide6", "PyQt6", "PySide2", "PyQt5"]
 
@@ -130,7 +130,7 @@ _x11_display = None
 
 def get_alt_x11_display():
     """Get (the pointer to) a process-global x11 display instance."""
-    # Ideally we'd get the real display object used by the GUI toolkit.
+    # Ideally we'd get the real display object used by the backend.
     # But this is not always possible. In that case, using an alt display
     # object can be used.
     global _x11_display
@@ -147,7 +147,7 @@ _wayland_display = None
 
 def get_alt_wayland_display():
     """Get (the pointer to) a process-global Wayland display instance."""
-    # Ideally we'd get the real display object used by the GUI toolkit.
+    # Ideally we'd get the real display object used by the backend.
     # This creates a global object, similar to what we do for X11.
     # Unfortunately, this segfaults, so it looks like the real display object
     # is needed? Leaving this here for reference.

@@ -20,9 +20,9 @@ GUI toolkits are supported, see the :doc:`gui`. In general, it's easiest to let 
 
 .. code-block:: py
 
-    from wgpu.gui.auto import WgpuCanvas, run
+    from wgpu.gui.auto import RenderCanvas, run
 
-    canvas = WgpuCanvas(title="a wgpu example")
+    canvas = RenderCanvas(title="a wgpu example")
 
 
 Next, we can setup the render context, which we will need later on.

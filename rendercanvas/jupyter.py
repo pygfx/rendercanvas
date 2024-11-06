@@ -6,16 +6,16 @@ can be used as cell output, or embedded in an ipywidgets gui.
 import time
 import weakref
 
-from .base import WgpuCanvasBase
-from .asyncio import AsyncioWgpuLoop
+from .base import BaseRenderCanvas
+from .asyncio import AsyncioLoop
 
 import numpy as np
 from jupyter_rfb import RemoteFrameBuffer
 from IPython.display import display
 
 
-class JupyterWgpuCanvas(WgpuCanvasBase, RemoteFrameBuffer):
-    """An ipywidgets widget providing a wgpu canvas. Needs the jupyter_rfb library."""
+class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
+    """An ipywidgets widget providing a render canvas. Needs the jupyter_rfb library."""
 
     def __init__(self, *, size=None, title=None, **kwargs):
         super().__init__(**kwargs)
@@ -62,7 +62,7 @@ class JupyterWgpuCanvas(WgpuCanvasBase, RemoteFrameBuffer):
         self._draw_frame_and_present()
         return self._last_image
 
-    # Implementation needed for WgpuCanvasBase
+    # Implementation needed for BaseRenderCanvas
 
     def _get_loop(self):
         return loop
@@ -105,7 +105,7 @@ class JupyterWgpuCanvas(WgpuCanvasBase, RemoteFrameBuffer):
         if array is not None:
             self._rfb_send_frame(array)
 
-    # Implementation needed for WgpuCanvasInterface
+    # Implementation needed for RenderCanvasInterface
 
     def get_present_info(self):
         # Use a format that maps well to PNG: rgba8norm. Use srgb for
@@ -122,16 +122,16 @@ class JupyterWgpuCanvas(WgpuCanvasBase, RemoteFrameBuffer):
         self._last_image = np.frombuffer(image, np.uint8).reshape(image.shape)
 
 
-# Make available under a name that is the same for all gui backends
-WgpuCanvas = JupyterWgpuCanvas
+# Make available under a name that is the same for all backends
+RenderCanvas = JupyterRenderCanvas
 
 
-class JupyterAsyncioWgpuLoop(AsyncioWgpuLoop):
+class JupyterAsyncioLoop(AsyncioLoop):
     def __init__(self):
         super().__init__()
         self._pending_jupyter_canvases = []
 
-    def _wgpu_gui_poll(self):
+    def _rc_gui_poll(self):
         pass  # Jupyter is running in a separate process :)
 
     def run(self):
@@ -144,4 +144,4 @@ class JupyterAsyncioWgpuLoop(AsyncioWgpuLoop):
                 display(w)
 
 
-loop = JupyterAsyncioWgpuLoop()
+loop = JupyterAsyncioLoop()

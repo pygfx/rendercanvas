@@ -16,7 +16,7 @@ from ._gui_utils import (
     get_alt_x11_display,
     get_alt_wayland_display,
 )
-from .base import WgpuCanvasBase, WgpuLoop, WgpuTimer, pop_kwargs_for_base_canvas
+from .base import BaseRenderCanvas, BaseLoop, BaseTimer, pop_kwargs_for_base_canvas
 
 
 BUTTON_MAP = {
@@ -120,8 +120,8 @@ _show_image_method_warning = (
 )
 
 
-class WxWgpuWindow(WgpuCanvasBase, wx.Window):
-    """A wx Window representing a wgpu canvas that can be embedded in a wx application."""
+class WxRenderWidget(BaseRenderCanvas, wx.Window):
+    """A wx Window representing a render canvas that can be embedded in a wx application."""
 
     def __init__(self, *args, present_method=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -310,7 +310,7 @@ class WxWgpuWindow(WgpuCanvasBase, wx.Window):
     def _on_mouse_move(self, event: wx.MouseEvent):
         self._mouse_event("pointer_move", event)
 
-    # Methods that we add from wgpu
+    # Methods that we add from BaseRenderCanvas
 
     def _get_surface_ids(self):
         if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
@@ -371,7 +371,7 @@ class WxWgpuWindow(WgpuCanvasBase, wx.Window):
         if width < 0 or height < 0:
             raise ValueError("Window width and height must not be negative")
         parent = self.Parent
-        if isinstance(parent, WxWgpuCanvas):
+        if isinstance(parent, WxRenderCanvas):
             parent.SetSize(width, height)
         else:
             self.SetSize(width, height)
@@ -379,7 +379,7 @@ class WxWgpuWindow(WgpuCanvasBase, wx.Window):
     def _set_title(self, title):
         # Set title only on frame
         parent = self.Parent
-        if isinstance(parent, WxWgpuCanvas):
+        if isinstance(parent, WxRenderCanvas):
             parent.SetTitle(title)
 
     def _request_draw(self):
@@ -417,8 +417,8 @@ class WxWgpuWindow(WgpuCanvasBase, wx.Window):
         dc.DrawBitmap(bitmap, 0, 0, False)
 
 
-class WxWgpuCanvas(WgpuCanvasBase, wx.Frame):
-    """A toplevel wx Frame providing a wgpu canvas."""
+class WxRenderCanvas(BaseRenderCanvas, wx.Frame):
+    """A toplevel wx Frame providing a render canvas."""
 
     # Most of this is proxying stuff to the inner widget.
 
@@ -440,7 +440,7 @@ class WxWgpuCanvas(WgpuCanvasBase, wx.Frame):
         if not size:
             size = 640, 480
 
-        self._subwidget = WxWgpuWindow(parent=self, **sub_kwargs)
+        self._subwidget = WxRenderWidget(parent=self, **sub_kwargs)
         self._events = self._subwidget._events
         self.Bind(wx.EVT_CLOSE, lambda e: self.Destroy())
 
@@ -511,8 +511,8 @@ class WxWgpuCanvas(WgpuCanvasBase, wx.Frame):
 
 
 # Make available under a name that is the same for all gui backends
-WgpuWidget = WxWgpuWindow
-WgpuCanvas = WxWgpuCanvas
+RenderWidget = WxRenderWidget
+RenderCanvas = WxRenderCanvas
 
 
 class TimerWithCallback(wx.Timer):
@@ -524,10 +524,10 @@ class TimerWithCallback(wx.Timer):
         try:
             self._callback()
         except RuntimeError:
-            pass  # wrapped C/C++ object of type WxWgpuWindow has been deleted
+            pass  # wrapped C/C++ object of type WxRenderWidget has been deleted
 
 
-class WxWgpuTimer(WgpuTimer):
+class WxTimer(BaseTimer):
     def _init(self):
         self._wx_timer = TimerWithCallback(self._tick)
 
@@ -538,8 +538,8 @@ class WxWgpuTimer(WgpuTimer):
         self._wx_timer.Stop()
 
 
-class WxWgpuLoop(WgpuLoop):
-    _TimerClass = WxWgpuTimer
+class WxLoop(BaseLoop):
+    _TimerClass = WxTimer
     _the_app = None
     _frame_to_keep_loop_alive = None
 
@@ -565,7 +565,7 @@ class WxWgpuLoop(WgpuLoop):
         self._frame_to_keep_loop_alive.Destroy()
         _frame_to_keep_loop_alive = None
 
-    def _wgpu_gui_poll(self):
+    def _rc_gui_poll(self):
         pass  # We can assume the wx loop is running.
 
     def process_wx_events(self):
@@ -577,5 +577,5 @@ class WxWgpuLoop(WgpuLoop):
         wx.GUIEventLoop.SetActive(old)
 
 
-loop = WxWgpuLoop()
+loop = WxLoop()
 run = loop.run  # backwards compat

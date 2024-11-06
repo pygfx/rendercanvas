@@ -17,13 +17,13 @@ stuff.
 import time
 import threading
 
-from rendercanvas.offscreen import WgpuCanvas
+from rendercanvas.offscreen import RenderCanvas
 
 from cube import setup_drawing_sync
 
 
 # create canvas
-canvas = WgpuCanvas()
+canvas = RenderCanvas()
 draw_frame = setup_drawing_sync(canvas)
 
 

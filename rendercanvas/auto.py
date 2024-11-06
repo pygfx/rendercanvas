@@ -1,11 +1,11 @@
 """
-Automatic GUI backend selection.
+Automatic backend selection.
 
 Right now we only chose between GLFW, Qt and Jupyter. We might add support
 for e.g. wx later. Or we might decide to stick with these three.
 """
 
-__all__ = ["WgpuCanvas", "loop", "run"]
+__all__ = ["RenderCanvas", "loop", "run"]
 
 import os
 import sys
@@ -13,12 +13,12 @@ import importlib
 from ._gui_utils import logger, QT_MODULE_NAMES, get_imported_qt_lib, asyncio_is_running
 
 
-# Note that wx is not in here, because it does not (yet) fully implement base.WgpuCanvasBase
-WGPU_GUI_BACKEND_NAMES = ["glfw", "qt", "jupyter", "offscreen"]
+# Note that wx is not in here, because it does not (yet) fully implement base.BaseRenderCanvas
+BACKEND_NAMES = ["glfw", "qt", "jupyter", "offscreen"]
 
 
 def _load_backend(backend_name):
-    """Load a gui backend by name."""
+    """Load a backend by name."""
     if backend_name == "glfw":
         from . import glfw as module
     elif backend_name == "qt":
@@ -30,7 +30,7 @@ def _load_backend(backend_name):
     elif backend_name == "offscreen":
         from . import offscreen as module
     else:  # no-cover
-        raise ImportError("Unknown wgpu gui backend: '{backend_name}'")
+        raise ImportError("Unknown rendercanvas backend: '{backend_name}'")
     return module
 
 
@@ -53,7 +53,7 @@ def select_backend():
 
     # Always report failed backends, because we only try them when it looks like we can.
     if failed_backends:
-        msg = "WGPU could not load some backends:"
+        msg = "rendercanvas could not load some backends:"
         for key, val in failed_backends.items():
             msg += f"\n{key}: {val}"
         logger.warning(msg)
@@ -61,10 +61,10 @@ def select_backend():
     # Return or raise
     if module is not None:
         log = logger.warning if failed_backends else logger.info
-        log(f"WGPU selected {backend_name} gui because {reason}.")
+        log(f"Rendercanvas selected {backend_name} backend because {reason}.")
         return module
     else:
-        msg = "WGPU Could not load any of the supported GUI backends."
+        msg = "Rendercanvas could not load any of the supported backends."
         if "jupyter" in failed_backends:
             msg += "\n  You may need to ``pip install -U jupyter_rfb``."
         else:
@@ -94,9 +94,9 @@ def backends_by_env_vars():
     # Env var to force a backend for general use
     backend_name = os.getenv("WGPU_GUI_BACKEND", "").lower().strip() or None
     if backend_name:
-        if backend_name not in WGPU_GUI_BACKEND_NAMES:
+        if backend_name not in BACKEND_NAMES:
             logger.warning(
-                f"Ignoring invalid WGPU_GUI_BACKEND '{backend_name}', must be one of {WGPU_GUI_BACKEND_NAMES}"
+                f"Ignoring invalid WGPU_GUI_BACKEND '{backend_name}', must be one of {BACKEND_NAMES}"
             )
             backend_name = None
     if backend_name:
@@ -167,9 +167,9 @@ def backends_by_imported_modules():
 
 
 def backends_by_trying_in_order():
-    """Generate backend names by trying to import the GUI lib in order. This is the final fallback."""
+    """Generate backend names by trying to import the corresponding lib in order. This is the final fallback."""
 
-    gui_lib_to_backend = {
+    lib_to_backend = {
         "glfw": "glfw",
         "PySide6": "qt",
         "PyQt6": "qt",
@@ -178,7 +178,7 @@ def backends_by_trying_in_order():
         # "wx": "wx",
     }
 
-    for libname, backend_name in gui_lib_to_backend.items():
+    for libname, backend_name in lib_to_backend.items():
         try:
             importlib.import_module(libname)
         except ModuleNotFoundError:
@@ -188,5 +188,5 @@ def backends_by_trying_in_order():
 
 # Load!
 module = select_backend()
-WgpuCanvas, loop = module.WgpuCanvas, module.loop
+RenderCanvas, loop = module.RenderCanvas, module.loop
 run = loop.run  # backwards compat

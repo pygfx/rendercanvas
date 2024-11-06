@@ -1,16 +1,16 @@
 """Implements an asyncio event loop."""
 
-# This is used for GUI backends that don't have an event loop by themselves, like glfw.
+# This is used for backends that don't have an event loop by themselves, like glfw.
 # Would be nice to also allow a loop based on e.g. Trio. But we can likely fit that in
 # when the time comes.
 
 import asyncio
 
-from .base import WgpuLoop, WgpuTimer
+from .base import BaseLoop, BaseTimer
 
 
-class AsyncioWgpuTimer(WgpuTimer):
-    """Wgpu timer based on asyncio."""
+class AsyncioTimer(BaseTimer):
+    """Timer based on asyncio."""
 
     _handle = None
 
@@ -30,8 +30,8 @@ class AsyncioWgpuTimer(WgpuTimer):
             self._handle = None
 
 
-class AsyncioWgpuLoop(WgpuLoop):
-    _TimerClass = AsyncioWgpuTimer
+class AsyncioLoop(BaseLoop):
+    _TimerClass = AsyncioTimer
     _the_loop = None
     _is_interactive = False
 

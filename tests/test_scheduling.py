@@ -6,10 +6,10 @@ as the behabior of the different update modes.
 
 import time
 from testutils import run_tests
-from rendercanvas import WgpuCanvasBase, WgpuLoop, WgpuTimer
+from rendercanvas import BaseRenderCanvas, BaseLoop, BaseTimer
 
 
-class MyTimer(WgpuTimer):
+class MyTimer(BaseTimer):
     def _start(self):
         pass
 
@@ -17,7 +17,7 @@ class MyTimer(WgpuTimer):
         pass
 
 
-class MyLoop(WgpuLoop):
+class MyLoop(BaseLoop):
     _TimerClass = MyTimer
 
     def __init__(self):
@@ -25,7 +25,7 @@ class MyLoop(WgpuLoop):
         self.__stopped = False
 
     def process_timers(self):
-        for timer in list(WgpuTimer._running_timers):
+        for timer in list(BaseTimer._running_timers):
             if timer.time_left <= 0:
                 timer._tick()
 
@@ -36,7 +36,7 @@ class MyLoop(WgpuLoop):
         self.__stopped = True
 
 
-class MyCanvas(WgpuCanvasBase):
+class MyCanvas(BaseRenderCanvas):
     _loop = MyLoop()
     _gui_draw_requested = False
 
@@ -80,7 +80,7 @@ class MyCanvas(WgpuCanvasBase):
             self.draw_if_necessary()
 
 
-def test_gui_scheduling_manual():
+def test_scheduling_manual():
     canvas = MyCanvas(min_fps=0.000001, max_fps=100, update_mode="manual")
 
     # Booting ...
@@ -104,7 +104,7 @@ def test_gui_scheduling_manual():
     assert canvas.draw_count == 1
 
 
-def test_gui_scheduling_ondemand():
+def test_scheduling_ondemand():
     canvas = MyCanvas(min_fps=0.000001, max_fps=100, update_mode="ondemand")
 
     # There's a small startup time, so no activity at first
@@ -135,7 +135,7 @@ def test_gui_scheduling_ondemand():
     assert canvas.events_count == 0
 
 
-def test_gui_scheduling_ondemand_always_request_draw():
+def test_scheduling_ondemand_always_request_draw():
     # Test that using ondemand mode with a request_draw() in the
     # draw function, is equivalent to continuous mode.
 
@@ -145,15 +145,15 @@ def test_gui_scheduling_ondemand_always_request_draw():
     def draw_func():
         canvas.request_draw()
 
-    _test_gui_scheduling_continuous(canvas)
+    _test_scheduling_continuous(canvas)
 
 
-def test_gui_scheduling_continuous():
+def test_scheduling_continuous():
     canvas = MyCanvas(max_fps=10, update_mode="continuous")
-    _test_gui_scheduling_continuous(canvas)
+    _test_scheduling_continuous(canvas)
 
 
-def _test_gui_scheduling_continuous(canvas):
+def _test_scheduling_continuous(canvas):
     # There's a small startup time, so no activity at first
     canvas.active_sleep(0.001)
     assert canvas.draw_count == 0
@@ -182,7 +182,7 @@ def _test_gui_scheduling_continuous(canvas):
     assert canvas.events_count == 0
 
 
-def test_gui_scheduling_fastest():
+def test_scheduling_fastest():
     canvas = MyCanvas(max_fps=10, update_mode="fastest")
 
     # There's a small startup time, so no activity at first

@@ -1,17 +1,17 @@
 import sys
 
-from ._events import EventEmitter, WgpuEventType  # noqa: F401
-from ._loop import Scheduler, WgpuLoop, WgpuTimer  # noqa: F401
+from ._events import EventEmitter, EventType  # noqa: F401
+from ._loop import Scheduler, BaseLoop, BaseTimer  # noqa: F401
 from ._gui_utils import log_exception
 
 
-class WgpuCanvasInterface:
+class RenderCanvasInterface:
     """The minimal interface to be a valid canvas.
 
     Any object that implements these methods is a canvas that wgpu can work with.
     The object does not even have to derive from this class.
 
-    In most cases it's more convenient to subclass :class:`WgpuCanvasBase <wgpu.gui.WgpuCanvasBase>`.
+    In most cases it's more convenient to subclass :class:`BaseRenderCanvas <wgpu.gui.BaseRenderCanvas>`.
     """
 
     _canvas_context = None  # set in get_context()
@@ -83,14 +83,14 @@ class WgpuCanvasInterface:
         raise NotImplementedError()
 
 
-class WgpuCanvasBase(WgpuCanvasInterface):
+class BaseRenderCanvas(RenderCanvasInterface):
     """The base canvas class.
 
-    This class provides a uniform canvas API so render systems can be use
+    This class provides a uniform canvas API so render systems can use
     code that is portable accross multiple GUI libraries and canvas targets.
 
     Arguments:
-        update_mode (WgpuEventType): The mode for scheduling draws and events. Default 'ondemand'.
+        update_mode (EventType): The mode for scheduling draws and events. Default 'ondemand'.
         min_fps (float): A minimal frames-per-second to use when the ``update_mode`` is 'ondemand'.
             The default is 1: even without draws requested, it still draws every second.
         max_fps (float): A maximal frames-per-second to use when the ``update_mode`` is 'ondemand' or 'continuous'.
@@ -173,7 +173,7 @@ class WgpuCanvasBase(WgpuCanvasInterface):
         # Get events from the GUI into our event mechanism.
         loop = self._get_loop()
         if loop:
-            loop._wgpu_gui_poll()
+            loop._rc_gui_poll()
 
         # Flush our events, so downstream code can update stuff.
         # Maybe that downstream code request a new draw.
@@ -245,7 +245,7 @@ class WgpuCanvasBase(WgpuCanvasInterface):
     def _draw_frame_and_present(self):
         """Draw the frame and present the result.
 
-        Errors are logged to the "wgpu" logger. Should be called by the
+        Errors are logged to the "rendercanvas" logger. Should be called by the
         subclass at its draw event.
         """
 
@@ -294,7 +294,7 @@ class WgpuCanvasBase(WgpuCanvasInterface):
     def _get_loop(self):
         """For the subclass to implement:
 
-        Must return the global loop instance (WgpuLoop) for the canvas subclass,
+        Must return the global loop instance (a BaseLoop subclass) for the canvas subclass,
         or None for a canvas without scheduled draws.
         """
         return None
@@ -371,7 +371,7 @@ class WgpuCanvasBase(WgpuCanvasInterface):
 
 def pop_kwargs_for_base_canvas(kwargs_dict):
     """Convenience functions for wrapper canvases like in Qt and wx."""
-    code = WgpuCanvasBase.__init__.__code__
+    code = BaseRenderCanvas.__init__.__code__
     base_kwarg_names = code.co_varnames[: code.co_argcount + code.co_kwonlyargcount]
     d = {}
     for key in base_kwarg_names:

@@ -4,7 +4,7 @@ Test the EventEmitter.
 
 import time
 
-from rendercanvas._events import EventEmitter, WgpuEventType
+from rendercanvas._events import EventEmitter, EventType
 from testutils import run_tests
 import pytest
 
@@ -16,7 +16,7 @@ def test_events_event_types():
         pass
 
     # All these are valid
-    valid_types = list(WgpuEventType)
+    valid_types = list(EventType)
     ee.add_handler(handler, *valid_types)
 
     # This is not

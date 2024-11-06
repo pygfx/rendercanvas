@@ -42,7 +42,7 @@ by producing rgba images.
 pip install rendercanvas
 ```
 
-To have at least one GUI backend, we recommend:
+To have at least one backend, we recommend:
 ```
 pip install rendercanvas glfw
 ```
@@ -53,11 +53,11 @@ Also see the [online documentation](https://rendercanvas.readthedocs.io) and the
 
 ```py
 # Select either the glfw, qt or jupyter backend
-from rendercanvas.auto import WgpuCanvas, loop
+from rendercanvas.auto import RenderCanvas, loop
 
 # Visualizations can be embedded as a widget in a Qt application.
 # Supported qt libs are PySide6, PyQt6, PySide2 or PyQt5.
-from rendercanvas.pyside6 import QWgpuWidget
+from rendercanvas.pyside6 import QRenderWidget
 
 
 # Now specify what the canvas should do on a draw

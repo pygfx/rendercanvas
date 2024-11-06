@@ -12,7 +12,7 @@ from ._coreutils import BaseEnum
 # That would e.g. allow using glfw with qt together. Probably a too weird use-case for the added complexity.
 
 
-class WgpuTimer:
+class BaseTimer:
     """Base class for a timer objects."""
 
     _running_timers = set()
@@ -43,7 +43,7 @@ class WgpuTimer:
             self._init()
         if self.is_running:
             self._stop()
-        WgpuTimer._running_timers.add(self)
+        BaseTimer._running_timers.add(self)
         self._interval = max(0.0, float(interval))
         self._expect_tick_at = time.perf_counter() + self._interval
         self._start()
@@ -55,7 +55,7 @@ class WgpuTimer:
         callback is *not* called. If the timer is currently not running,
         this method does nothing.
         """
-        WgpuTimer._running_timers.discard(self)
+        BaseTimer._running_timers.discard(self)
         self._expect_tick_at = None
         self._stop()
 
@@ -63,7 +63,7 @@ class WgpuTimer:
         """The implementations must call this method."""
         # Stop or restart
         if self._one_shot:
-            WgpuTimer._running_timers.discard(self)
+            BaseTimer._running_timers.discard(self)
             self._expect_tick_at = None
         else:
             self._expect_tick_at = time.perf_counter() + self._interval
@@ -120,7 +120,7 @@ class WgpuTimer:
         raise NotImplementedError()
 
 
-class WgpuLoop:
+class BaseLoop:
     """Base class for event-loop objects."""
 
     _TimerClass = None  # subclases must set this
@@ -135,7 +135,7 @@ class WgpuLoop:
         #   loop usually stops when the last window is closed, so the close event may
         #   not be fired.
         # * Keep the GUI going even when the canvas loop is on pause e.g. because its
-        #   minimized (applies to backends that implement _wgpu_gui_poll).
+        #   minimized (applies to backends that implement _rc_gui_poll).
         self._gui_timer = self._TimerClass(self, self._tick, one_shot=False)
 
     def _register_scheduler(self, scheduler):
@@ -145,7 +145,7 @@ class WgpuLoop:
 
     def _tick(self):
         # Keep the GUI alive on every tick
-        self._wgpu_gui_poll()
+        self._rc_gui_poll()
 
         # Check all schedulers
         schedulers_to_close = []
@@ -235,7 +235,7 @@ class WgpuLoop:
         """
         self.call_later(0, callback, *args)
 
-    def _wgpu_gui_poll(self):
+    def _rc_gui_poll(self):
         """For the subclass to implement:
 
         Some event loops (e.g. asyncio) are just that and dont have a GUI to update.
@@ -332,7 +332,7 @@ class Scheduler:
         assert loop is not None
 
         # Initialise the timer that runs our scheduling loop.
-        # Note that the gui may do a first draw earlier, starting the loop, and that's fine.
+        # Note that the backend may do a first draw earlier, starting the loop, and that's fine.
         self._last_tick_time = -0.1
         self._timer = loop.call_later(0.1, self._tick)
 
@@ -343,7 +343,7 @@ class Scheduler:
         canvas = self._canvas_ref()
         if canvas is None or canvas.is_closed():
             # Pretty nice, we can send a close event, even if the canvas no longer exists
-            self._events._wgpu_close()
+            self._events._rc_close()
             return None
         else:
             return canvas

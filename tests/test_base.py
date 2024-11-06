@@ -12,11 +12,11 @@ from pytest import mark
 
 
 def test_base_canvas_context():
-    assert hasattr(rendercanvas.WgpuCanvasInterface, "get_context")
+    assert hasattr(rendercanvas.RenderCanvasInterface, "get_context")
 
 
 def test_canvas_get_context_needs_backend_to_be_selected():
-    code = "from rendercanvas import WgpuCanvasBase; canvas = WgpuCanvasBase(); canvas.get_context()"
+    code = "from rendercanvas import BaseRenderCanvas; canvas = BaseRenderCanvas(); canvas.get_context()"
 
     result = subprocess.run(
         [sys.executable, "-c", code],
@@ -31,7 +31,7 @@ def test_canvas_get_context_needs_backend_to_be_selected():
     assert "canvas.get_context" in out.lower()
 
 
-class CanvasThatRaisesErrorsDuringDrawing(rendercanvas.WgpuCanvasBase):
+class CanvasThatRaisesErrorsDuringDrawing(rendercanvas.BaseRenderCanvas):
     def __init__(self):
         super().__init__()
         self._count = 0
@@ -91,7 +91,7 @@ def test_canvas_logging(caplog):
     assert text.count("intended-fail") == 4
 
 
-class MyOffscreenCanvas(rendercanvas.WgpuCanvasBase):
+class MyOffscreenCanvas(rendercanvas.BaseRenderCanvas):
     def __init__(self):
         super().__init__()
         self.frame_count = 0
@@ -123,8 +123,8 @@ def test_run_bare_canvas():
 
     # This is (more or less) the equivalent of:
     #
-    #     from rendercanvas.auto import WgpuCanvas, loop
-    #     canvas = WgpuCanvas()
+    #     from rendercanvas.auto import RenderCanvas, loop
+    #     canvas = RenderCanvas()
     #     loop.run()
     #
     # Note: loop.run() calls _draw_frame_and_present() in event loop.
@@ -202,7 +202,7 @@ def test_simple_offscreen_canvas():
 
 
 def test_canvas_base_events():
-    c = rendercanvas.WgpuCanvasBase()
+    c = rendercanvas.BaseRenderCanvas()
 
     # We test events extensively in another test module. This is just
     # to make sure that events are working for the base canvas.
