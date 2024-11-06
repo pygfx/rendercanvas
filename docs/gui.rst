@@ -78,7 +78,7 @@ Support for Qt
 There is support for PyQt5, PyQt6, PySide2 and PySide6. The rendercanvas library detects what
 library you are using by looking what module has been imported.
 For a toplevel widget, the ``rendercanvas.qt.RenderCanvas`` class can be imported. If you want to
-embed the canvas as a subwidget, use ``rendercanvas.qt.WgpuWidget`` instead.
+embed the canvas as a subwidget, use ``rendercanvas.qt.QRenderWidget`` instead.
 
 Also see the `Qt triangle example <https://github.com/pygfx/wgpu-py/blob/main/examples/triangle_qt.py>`_
 and `Qt triangle embed example <https://github.com/pygfx/wgpu-py/blob/main/examples/triangle_qt_embed.py>`_.
@@ -106,7 +106,7 @@ Support for wx
 
 There is support for embedding a wgpu visualization in wxPython.
 For a toplevel widget, the ``gui.wx.RenderCanvas`` class can be imported. If you want to
-embed the canvas as a subwidget, use ``gui.wx.WgpuWidget`` instead.
+embed the canvas as a subwidget, use ``gui.wx.RenderWidget`` instead.
 
 Also see the `wx triangle example <https://github.com/pygfx/wgpu-py/blob/main/examples/triangle_wx.py>`_
 and `wx triangle embed example <https://github.com/pygfx/wgpu-py/blob/main/examples/triangle_wx_embed.py>`_.

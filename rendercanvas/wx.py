@@ -120,7 +120,7 @@ _show_image_method_warning = (
 )
 
 
-class WxWgpuWindow(BaseRenderCanvas, wx.Window):
+class WxRenderWidget(BaseRenderCanvas, wx.Window):
     """A wx Window representing a wgpu canvas that can be embedded in a wx application."""
 
     def __init__(self, *args, present_method=None, **kwargs):
@@ -511,7 +511,7 @@ class WxRenderCanvas(BaseRenderCanvas, wx.Frame):
 
 
 # Make available under a name that is the same for all gui backends
-WgpuWidget = WxWgpuWindow
+RenderWidget = WxRenderWidget
 RenderCanvas = WxRenderCanvas
 
 

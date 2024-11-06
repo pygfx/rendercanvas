@@ -18,7 +18,7 @@ for lib in ("PySide6", "PyQt6", "PySide2", "PyQt5"):
     except ModuleNotFoundError:
         pass
 
-from rendercanvas.qt import QWgpuWidget
+from rendercanvas.qt import QRenderWidget
 from rendercanvas.utils.cube import setup_drawing_sync
 
 
@@ -31,7 +31,7 @@ class ExampleWidget(QtWidgets.QWidget):
         splitter = QtWidgets.QSplitter()
 
         self.button = QtWidgets.QPushButton("Hello world", self)
-        self.canvas = QWgpuWidget(splitter)
+        self.canvas = QRenderWidget(splitter)
         self.output = QtWidgets.QTextEdit(splitter)
 
         self.button.clicked.connect(self.whenButtonClicked)

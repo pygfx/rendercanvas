@@ -57,7 +57,7 @@ from rendercanvas.auto import RenderCanvas, loop
 
 # Visualizations can be embedded as a widget in a Qt application.
 # Supported qt libs are PySide6, PyQt6, PySide2 or PyQt5.
-from rendercanvas.pyside6 import QWgpuWidget
+from rendercanvas.pyside6 import QRenderWidget
 
 
 # Now specify what the canvas should do on a draw

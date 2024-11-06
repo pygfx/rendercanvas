@@ -139,7 +139,7 @@ _show_image_method_warning = (
 )
 
 
-class QWgpuWidget(BaseRenderCanvas, QtWidgets.QWidget):
+class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
     """A QWidget representing a wgpu canvas that can be embedded in a Qt application."""
 
     def __init__(self, *args, present_method=None, **kwargs):
@@ -471,7 +471,7 @@ class QRenderCanvas(BaseRenderCanvas, QtWidgets.QWidget):
         self.setAttribute(WA_DeleteOnClose, True)
         self.setMouseTracking(True)
 
-        self._subwidget = QWgpuWidget(self, **sub_kwargs)
+        self._subwidget = QRenderWidget(self, **sub_kwargs)
         self._events = self._subwidget._events
 
         # Note: At some point we called `self._subwidget.winId()` here. For some
@@ -544,7 +544,7 @@ class QRenderCanvas(BaseRenderCanvas, QtWidgets.QWidget):
 
 
 # Make available under a name that is the same for all gui backends
-WgpuWidget = QWgpuWidget
+RenderWidget = QRenderWidget
 RenderCanvas = QRenderCanvas
 
 
