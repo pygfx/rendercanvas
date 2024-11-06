@@ -1,7 +1,7 @@
-from .base import WgpuCanvasBase, WgpuLoop, WgpuTimer
+from .base import BaseRenderCanvas, WgpuLoop, WgpuTimer
 
 
-class WgpuManualOffscreenCanvas(WgpuCanvasBase):
+class WgpuManualOffscreenCanvas(BaseRenderCanvas):
     """An offscreen canvas intended for manual use.
 
     Call the ``.draw()`` method to perform a draw and get the result.
@@ -69,7 +69,7 @@ class WgpuManualOffscreenCanvas(WgpuCanvasBase):
         return self._last_image
 
 
-WgpuCanvas = WgpuManualOffscreenCanvas
+RenderCanvas = WgpuManualOffscreenCanvas
 
 
 class StubWgpuTimer(WgpuTimer):

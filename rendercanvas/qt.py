@@ -7,7 +7,7 @@ import sys
 import ctypes
 import importlib
 
-from .base import WgpuCanvasBase, WgpuLoop, WgpuTimer, pop_kwargs_for_base_canvas
+from .base import BaseRenderCanvas, WgpuLoop, WgpuTimer, pop_kwargs_for_base_canvas
 from ._gui_utils import (
     logger,
     SYSTEM_IS_WAYLAND,
@@ -139,7 +139,7 @@ _show_image_method_warning = (
 )
 
 
-class QWgpuWidget(WgpuCanvasBase, QtWidgets.QWidget):
+class QWgpuWidget(BaseRenderCanvas, QtWidgets.QWidget):
     """A QWidget representing a wgpu canvas that can be embedded in a Qt application."""
 
     def __init__(self, *args, present_method=None, **kwargs):
@@ -267,7 +267,7 @@ class QWgpuWidget(WgpuCanvasBase, QtWidgets.QWidget):
         if width < 0 or height < 0:
             raise ValueError("Window width and height must not be negative")
         parent = self.parent()
-        if isinstance(parent, QWgpuCanvas):
+        if isinstance(parent, QRenderCanvas):
             parent.resize(width, height)
         else:
             self.resize(width, height)  # See comment on pixel ratio
@@ -276,7 +276,7 @@ class QWgpuWidget(WgpuCanvasBase, QtWidgets.QWidget):
         # A QWidgets title can actually be shown when the widget is shown in a dock.
         # But the application should probably determine that title, not us.
         parent = self.parent()
-        if isinstance(parent, QWgpuCanvas):
+        if isinstance(parent, QRenderCanvas):
             parent.setWindowTitle(title)
 
     def close(self):
@@ -446,7 +446,7 @@ class QWgpuWidget(WgpuCanvasBase, QtWidgets.QWidget):
         # backingstore.flush(rect2)
 
 
-class QWgpuCanvas(WgpuCanvasBase, QtWidgets.QWidget):
+class QRenderCanvas(BaseRenderCanvas, QtWidgets.QWidget):
     """A toplevel Qt widget providing a wgpu canvas."""
 
     # Most of this is proxying stuff to the inner widget.
@@ -545,7 +545,7 @@ class QWgpuCanvas(WgpuCanvasBase, QtWidgets.QWidget):
 
 # Make available under a name that is the same for all gui backends
 WgpuWidget = QWgpuWidget
-WgpuCanvas = QWgpuCanvas
+RenderCanvas = QRenderCanvas
 
 
 class QtWgpuTimer(WgpuTimer):

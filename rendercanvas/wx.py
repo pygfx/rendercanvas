@@ -16,7 +16,7 @@ from ._gui_utils import (
     get_alt_x11_display,
     get_alt_wayland_display,
 )
-from .base import WgpuCanvasBase, WgpuLoop, WgpuTimer, pop_kwargs_for_base_canvas
+from .base import BaseRenderCanvas, WgpuLoop, WgpuTimer, pop_kwargs_for_base_canvas
 
 
 BUTTON_MAP = {
@@ -120,7 +120,7 @@ _show_image_method_warning = (
 )
 
 
-class WxWgpuWindow(WgpuCanvasBase, wx.Window):
+class WxWgpuWindow(BaseRenderCanvas, wx.Window):
     """A wx Window representing a wgpu canvas that can be embedded in a wx application."""
 
     def __init__(self, *args, present_method=None, **kwargs):
@@ -371,7 +371,7 @@ class WxWgpuWindow(WgpuCanvasBase, wx.Window):
         if width < 0 or height < 0:
             raise ValueError("Window width and height must not be negative")
         parent = self.Parent
-        if isinstance(parent, WxWgpuCanvas):
+        if isinstance(parent, WxRenderCanvas):
             parent.SetSize(width, height)
         else:
             self.SetSize(width, height)
@@ -379,7 +379,7 @@ class WxWgpuWindow(WgpuCanvasBase, wx.Window):
     def _set_title(self, title):
         # Set title only on frame
         parent = self.Parent
-        if isinstance(parent, WxWgpuCanvas):
+        if isinstance(parent, WxRenderCanvas):
             parent.SetTitle(title)
 
     def _request_draw(self):
@@ -417,7 +417,7 @@ class WxWgpuWindow(WgpuCanvasBase, wx.Window):
         dc.DrawBitmap(bitmap, 0, 0, False)
 
 
-class WxWgpuCanvas(WgpuCanvasBase, wx.Frame):
+class WxRenderCanvas(BaseRenderCanvas, wx.Frame):
     """A toplevel wx Frame providing a wgpu canvas."""
 
     # Most of this is proxying stuff to the inner widget.
@@ -512,7 +512,7 @@ class WxWgpuCanvas(WgpuCanvasBase, wx.Frame):
 
 # Make available under a name that is the same for all gui backends
 WgpuWidget = WxWgpuWindow
-WgpuCanvas = WxWgpuCanvas
+RenderCanvas = WxRenderCanvas
 
 
 class TimerWithCallback(wx.Timer):

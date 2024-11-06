@@ -6,7 +6,7 @@ as the behabior of the different update modes.
 
 import time
 from testutils import run_tests
-from rendercanvas import WgpuCanvasBase, WgpuLoop, WgpuTimer
+from rendercanvas import BaseRenderCanvas, WgpuLoop, WgpuTimer
 
 
 class MyTimer(WgpuTimer):
@@ -36,7 +36,7 @@ class MyLoop(WgpuLoop):
         self.__stopped = True
 
 
-class MyCanvas(WgpuCanvasBase):
+class MyCanvas(BaseRenderCanvas):
     _loop = MyLoop()
     _gui_draw_requested = False
 

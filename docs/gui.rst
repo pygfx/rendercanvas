@@ -13,8 +13,8 @@ moment these include GLFW, Jupyter, Qt, and wx.
 The Canvas base classes
 -----------------------
 
-For each supported GUI toolkit there is a module that implements a ``WgpuCanvas`` class,
-which inherits from :class:`WgpuCanvasBase`, providing a common API.
+For each supported GUI toolkit there is a module that implements a ``RenderCanvas`` class,
+which inherits from :class:`BaseRenderCanvas`, providing a common API.
 The GLFW, Qt, and Jupyter backends also inherit from  :class:`WgpuAutoGui` to include
 support for events (interactivity). In the next sections we demonstrates the different
 canvas classes that you can use.
@@ -23,7 +23,7 @@ canvas classes that you can use.
 Events
 ------
 
-To implement interaction with a ``WgpuCanvas``, use the :func:`WgpuCanvasBase.add_event_handler()` method.
+To implement interaction with a ``RenderCanvas``, use the :func:`BaseRenderCanvas.add_event_handler()` method.
 Events come in the following flavours:
 
 .. autoclass:: WgpuEventType
@@ -47,9 +47,9 @@ for details about the event objects.
 
 .. code-block:: py
 
-    from wgpu.gui.auto import WgpuCanvas, run, call_later
+    from wgpu.gui.auto import RenderCanvas, run, call_later
 
-    canvas = WgpuCanvas(title="Example")
+    canvas = RenderCanvas(title="Example")
     canvas.request_draw(your_draw_function)
 
     run()
@@ -64,9 +64,9 @@ but you can replace ``from rendercanvas.auto`` with ``from rendercanvas.glfw`` t
 
 .. code-block:: py
 
-    from wgpu.gui.glfw import WgpuCanvas, run, call_later
+    from wgpu.gui.glfw import RenderCanvas, run, call_later
 
-    canvas = WgpuCanvas(title="Example")
+    canvas = RenderCanvas(title="Example")
     canvas.request_draw(your_draw_function)
 
     run()
@@ -77,7 +77,7 @@ Support for Qt
 
 There is support for PyQt5, PyQt6, PySide2 and PySide6. The rendercanvas library detects what
 library you are using by looking what module has been imported.
-For a toplevel widget, the ``rendercanvas.qt.WgpuCanvas`` class can be imported. If you want to
+For a toplevel widget, the ``rendercanvas.qt.RenderCanvas`` class can be imported. If you want to
 embed the canvas as a subwidget, use ``rendercanvas.qt.WgpuWidget`` instead.
 
 Also see the `Qt triangle example <https://github.com/pygfx/wgpu-py/blob/main/examples/triangle_qt.py>`_
@@ -85,15 +85,15 @@ and `Qt triangle embed example <https://github.com/pygfx/wgpu-py/blob/main/examp
 
 .. code-block:: py
 
-    # Import any of the Qt libraries before importing the WgpuCanvas.
+    # Import any of the Qt libraries before importing the RenderCanvas.
     # This way wgpu knows which Qt library to use.
     from PySide6 import QtWidgets
-    from wgpu.gui.qt import WgpuCanvas
+    from wgpu.gui.qt import RenderCanvas
 
     app = QtWidgets.QApplication([])
 
     # Instantiate the canvas
-    canvas = WgpuCanvas(title="Example")
+    canvas = RenderCanvas(title="Example")
 
     # Tell the canvas what drawing function to call
     canvas.request_draw(your_draw_function)
@@ -105,7 +105,7 @@ Support for wx
 --------------
 
 There is support for embedding a wgpu visualization in wxPython.
-For a toplevel widget, the ``gui.wx.WgpuCanvas`` class can be imported. If you want to
+For a toplevel widget, the ``gui.wx.RenderCanvas`` class can be imported. If you want to
 embed the canvas as a subwidget, use ``gui.wx.WgpuWidget`` instead.
 
 Also see the `wx triangle example <https://github.com/pygfx/wgpu-py/blob/main/examples/triangle_wx.py>`_
@@ -114,12 +114,12 @@ and `wx triangle embed example <https://github.com/pygfx/wgpu-py/blob/main/examp
 .. code-block:: py
 
     import wx
-    from wgpu.gui.wx import WgpuCanvas
+    from wgpu.gui.wx import RenderCanvas
 
     app = wx.App()
 
     # Instantiate the canvas
-    canvas = WgpuCanvas(title="Example")
+    canvas = RenderCanvas(title="Example")
 
     # Tell the canvas what drawing function to call
     canvas.request_draw(your_draw_function)
@@ -137,10 +137,10 @@ object, but in some cases it's convenient to do so with a canvas-like API.
 
 .. code-block:: py
 
-    from wgpu.gui.offscreen import WgpuCanvas
+    from wgpu.gui.offscreen import RenderCanvas
 
     # Instantiate the canvas
-    canvas = WgpuCanvas(size=(500, 400), pixel_ratio=1)
+    canvas = RenderCanvas(size=(500, 400), pixel_ratio=1)
 
     # ...
 
@@ -160,10 +160,10 @@ subclass implementing a remote frame-buffer. There are also some `wgpu examples 
 
 .. code-block:: py
 
-    # from wgpu.gui.jupyter import WgpuCanvas  # Direct approach
-    from wgpu.gui.auto import WgpuCanvas  # Approach compatible with desktop usage
+    # from wgpu.gui.jupyter import RenderCanvas  # Direct approach
+    from wgpu.gui.auto import RenderCanvas  # Approach compatible with desktop usage
 
-    canvas = WgpuCanvas()
+    canvas = RenderCanvas()
 
     # ... wgpu code
 

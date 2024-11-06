@@ -11,12 +11,12 @@ A nice demo, and very convenient to test the different backends.
 
 import time
 
-from rendercanvas.auto import WgpuCanvas, loop
+from rendercanvas.auto import RenderCanvas, loop
 
 from cube import setup_drawing_sync
 
 
-canvas = WgpuCanvas(
+canvas = RenderCanvas(
     size=(640, 480),
     title="Canvas events on $backend - $fps fps",
     max_fps=10,

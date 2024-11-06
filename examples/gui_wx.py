@@ -2,12 +2,12 @@
 Run a wgpu example on the wx backend.
 """
 
-from rendercanvas.wx import WgpuCanvas, run
+from rendercanvas.wx import RenderCanvas, run
 
 from rendercanvas.utils.cube import setup_drawing_sync
 
 
-canvas = WgpuCanvas(size=(640, 480), title="The wgpu cube example on wx")
+canvas = RenderCanvas(size=(640, 480), title="The wgpu cube example on wx")
 draw_frame = setup_drawing_sync(canvas)
 
 

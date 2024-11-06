@@ -23,12 +23,12 @@ def test_offscreen_selection_using_env_var():
             for value in ["", "0", "false", "False", "wut"]:
                 os.environ["WGPU_FORCE_OFFSCREEN"] = value
                 module = select_backend()
-                assert module.WgpuCanvas is not WgpuManualOffscreenCanvas
+                assert module.RenderCanvas is not WgpuManualOffscreenCanvas
 
         for value in ["1", "true", "True"]:
             os.environ["WGPU_FORCE_OFFSCREEN"] = value
             module = select_backend()
-            assert module.WgpuCanvas is WgpuManualOffscreenCanvas
+            assert module.RenderCanvas is WgpuManualOffscreenCanvas
 
     finally:
         os.environ["WGPU_FORCE_OFFSCREEN"] = ori
@@ -53,9 +53,9 @@ def test_offscreen_event_loop():
 
 
 def test_offscreen_canvas_del():
-    from rendercanvas.offscreen import WgpuCanvas
+    from rendercanvas.offscreen import RenderCanvas
 
-    canvas = WgpuCanvas()
+    canvas = RenderCanvas()
     ref = weakref.ref(canvas)
 
     assert ref() is not None

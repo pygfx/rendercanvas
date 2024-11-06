@@ -5,13 +5,13 @@ from ._loop import Scheduler, WgpuLoop, WgpuTimer  # noqa: F401
 from ._gui_utils import log_exception
 
 
-class WgpuCanvasInterface:
+class RenderCanvasInterface:
     """The minimal interface to be a valid canvas.
 
     Any object that implements these methods is a canvas that wgpu can work with.
     The object does not even have to derive from this class.
 
-    In most cases it's more convenient to subclass :class:`WgpuCanvasBase <wgpu.gui.WgpuCanvasBase>`.
+    In most cases it's more convenient to subclass :class:`BaseRenderCanvas <wgpu.gui.BaseRenderCanvas>`.
     """
 
     _canvas_context = None  # set in get_context()
@@ -83,7 +83,7 @@ class WgpuCanvasInterface:
         raise NotImplementedError()
 
 
-class WgpuCanvasBase(WgpuCanvasInterface):
+class BaseRenderCanvas(RenderCanvasInterface):
     """The base canvas class.
 
     This class provides a uniform canvas API so render systems can be use
@@ -371,7 +371,7 @@ class WgpuCanvasBase(WgpuCanvasInterface):
 
 def pop_kwargs_for_base_canvas(kwargs_dict):
     """Convenience functions for wrapper canvases like in Qt and wx."""
-    code = WgpuCanvasBase.__init__.__code__
+    code = BaseRenderCanvas.__init__.__code__
     base_kwarg_names = code.co_varnames[: code.co_argcount + code.co_kwonlyargcount]
     d = {}
     for key in base_kwarg_names:

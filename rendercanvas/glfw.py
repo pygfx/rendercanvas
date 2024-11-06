@@ -14,7 +14,7 @@ import weakref
 
 import glfw
 
-from .base import WgpuCanvasBase
+from .base import BaseRenderCanvas
 from .asyncio import AsyncioWgpuLoop
 from ._gui_utils import SYSTEM_IS_WAYLAND, weakbind, logger
 
@@ -141,7 +141,7 @@ def get_physical_size(window):
     return int(psize[0]), int(psize[1])
 
 
-class GlfwWgpuCanvas(WgpuCanvasBase):
+class GlfwRenderCanvas(BaseRenderCanvas):
     """A glfw window providing a wgpu canvas."""
 
     # See https://www.glfw.org/docs/latest/group__window.html
@@ -523,7 +523,7 @@ class GlfwWgpuCanvas(WgpuCanvasBase):
 
 
 # Make available under a name that is the same for all gui backends
-WgpuCanvas = GlfwWgpuCanvas
+RenderCanvas = GlfwRenderCanvas
 
 
 class GlfwAsyncioWgpuLoop(AsyncioWgpuLoop):

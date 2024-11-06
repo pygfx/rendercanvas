@@ -6,7 +6,7 @@ from ._coreutils import BaseEnum
 
 
 class WgpuEventType(BaseEnum):
-    """The WgpuEventType enum specifies the possible events for a WgpuCanvas.
+    """The WgpuEventType enum specifies the possible events for a RenderCanvas.
 
     This includes the events from the jupyter_rfb event spec (see
     https://jupyter-rfb.readthedocs.io/en/stable/events.html) plus some
