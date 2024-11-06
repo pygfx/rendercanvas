@@ -20,6 +20,16 @@ support for events (interactivity). In the next sections we demonstrates the dif
 canvas classes that you can use.
 
 
+Events
+------
+
+To implement interaction with a ``WgpuCanvas``, use the :func:`WgpuCanvasBase.add_event_handler()` method.
+Events come in the following flavours:
+
+.. autoclass:: WgpuEventType
+    :members:
+
+
 The auto GUI backend
 --------------------
 

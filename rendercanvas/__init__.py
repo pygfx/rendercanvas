@@ -6,10 +6,13 @@ rendercanvas: one canvas API, multiple backends
 
 from ._version import __version__, version_info
 from . import _gui_utils
-from .base import WgpuCanvasInterface, WgpuCanvasBase, WgpuAutoGui
+from ._events import WgpuEventType
+from .base import WgpuCanvasInterface, WgpuCanvasBase, WgpuLoop, WgpuTimer
 
 __all__ = [
     "WgpuCanvasInterface",
     "WgpuCanvasBase",
-    "WgpuAutoGui",
+    "WgpuEventType",
+    "WgpuLoop",
+    "WgpuTimer",
 ]

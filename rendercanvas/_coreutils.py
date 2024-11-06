@@ -86,7 +86,7 @@ class EnumType(type):
 
     def __repr__(cls):
         if cls is BaseEnum:
-            return "<wgpu.utils.BaseEnum>"
+            return "<rendercanvas.BaseEnum>"
         pkg = cls.__module__.split(".")[0]
         name = cls.__name__
         options = []

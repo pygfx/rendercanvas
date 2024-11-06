@@ -12,7 +12,6 @@
 
 import os
 import sys
-import shutil
 
 
 ROOT_DIR = os.path.abspath(os.path.join(__file__, "..", ".."))
