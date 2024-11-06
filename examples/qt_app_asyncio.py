@@ -1,7 +1,7 @@
 """
 An example demonstrating a qt app with a wgpu viz inside.
 
-This is the same as the ``gui_qt_embed.py`` example, except this uses
+This is the same as the ``qt_app.py`` example, except this uses
 the asyncio compatible mode that was introduced in Pyside 6.6.
 
 For more info see:

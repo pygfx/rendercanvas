@@ -86,7 +86,7 @@ class RenderCanvasInterface:
 class BaseRenderCanvas(RenderCanvasInterface):
     """The base canvas class.
 
-    This class provides a uniform canvas API so render systems can be use
+    This class provides a uniform canvas API so render systems can use
     code that is portable accross multiple GUI libraries and canvas targets.
 
     Arguments:

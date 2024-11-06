@@ -332,7 +332,7 @@ class Scheduler:
         assert loop is not None
 
         # Initialise the timer that runs our scheduling loop.
-        # Note that the gui may do a first draw earlier, starting the loop, and that's fine.
+        # Note that the backend may do a first draw earlier, starting the loop, and that's fine.
         self._last_tick_time = -0.1
         self._timer = loop.call_later(0.1, self._tick)
 

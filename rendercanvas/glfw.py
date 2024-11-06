@@ -518,11 +518,11 @@ class GlfwRenderCanvas(BaseRenderCanvas):
     def present_image(self, image, **kwargs):
         raise NotImplementedError()
         # AFAIK glfw does not have a builtin way to blit an image. It also does
-        # not really need one, since it's the most reliable GUI backend to
+        # not really need one, since it's the most reliable backend to
         # render to the screen.
 
 
-# Make available under a name that is the same for all gui backends
+# Make available under a name that is the same for all backends
 RenderCanvas = GlfwRenderCanvas
 
 

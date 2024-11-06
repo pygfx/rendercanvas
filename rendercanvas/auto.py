@@ -1,5 +1,5 @@
 """
-Automatic GUI backend selection.
+Automatic backend selection.
 
 Right now we only chose between GLFW, Qt and Jupyter. We might add support
 for e.g. wx later. Or we might decide to stick with these three.
@@ -18,7 +18,7 @@ BACKEND_NAMES = ["glfw", "qt", "jupyter", "offscreen"]
 
 
 def _load_backend(backend_name):
-    """Load a gui backend by name."""
+    """Load a backend by name."""
     if backend_name == "glfw":
         from . import glfw as module
     elif backend_name == "qt":
@@ -167,9 +167,9 @@ def backends_by_imported_modules():
 
 
 def backends_by_trying_in_order():
-    """Generate backend names by trying to import the GUI lib in order. This is the final fallback."""
+    """Generate backend names by trying to import the corresponding lib in order. This is the final fallback."""
 
-    gui_lib_to_backend = {
+    lib_to_backend = {
         "glfw": "glfw",
         "PySide6": "qt",
         "PyQt6": "qt",
@@ -178,7 +178,7 @@ def backends_by_trying_in_order():
         # "wx": "wx",
     }
 
-    for libname, backend_name in gui_lib_to_backend.items():
+    for libname, backend_name in lib_to_backend.items():
         try:
             importlib.import_module(libname)
         except ModuleNotFoundError:

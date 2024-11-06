@@ -42,7 +42,7 @@ by producing rgba images.
 pip install rendercanvas
 ```
 
-To have at least one GUI backend, we recommend:
+To have at least one backend, we recommend:
 ```
 pip install rendercanvas glfw
 ```

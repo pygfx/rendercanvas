@@ -122,7 +122,7 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
         self._last_image = np.frombuffer(image, np.uint8).reshape(image.shape)
 
 
-# Make available under a name that is the same for all gui backends
+# Make available under a name that is the same for all backends
 RenderCanvas = JupyterRenderCanvas
 
 
