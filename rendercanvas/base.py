@@ -1,6 +1,6 @@
 import sys
 
-from ._events import EventEmitter, WgpuEventType  # noqa: F401
+from ._events import EventEmitter, EventType  # noqa: F401
 from ._loop import Scheduler, BaseLoop, BaseTimer  # noqa: F401
 from ._gui_utils import log_exception
 
@@ -90,7 +90,7 @@ class BaseRenderCanvas(RenderCanvasInterface):
     code that is portable accross multiple GUI libraries and canvas targets.
 
     Arguments:
-        update_mode (WgpuEventType): The mode for scheduling draws and events. Default 'ondemand'.
+        update_mode (EventType): The mode for scheduling draws and events. Default 'ondemand'.
         min_fps (float): A minimal frames-per-second to use when the ``update_mode`` is 'ondemand'.
             The default is 1: even without draws requested, it still draws every second.
         max_fps (float): A maximal frames-per-second to use when the ``update_mode`` is 'ondemand' or 'continuous'.

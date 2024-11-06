@@ -5,8 +5,8 @@ from ._gui_utils import log_exception
 from ._coreutils import BaseEnum
 
 
-class WgpuEventType(BaseEnum):
-    """The WgpuEventType enum specifies the possible events for a RenderCanvas.
+class EventType(BaseEnum):
+    """The EventType enum specifies the possible events for a RenderCanvas.
 
     This includes the events from the jupyter_rfb event spec (see
     https://jupyter-rfb.readthedocs.io/en/stable/events.html) plus some
@@ -116,7 +116,7 @@ class EventEmitter:
         for type in types:
             if not isinstance(type, str):
                 raise TypeError(f"Event types must be str, but got {type}")
-            if not (type == "*" or type in WgpuEventType):
+            if not (type == "*" or type in EventType):
                 raise ValueError(f"Adding handler with invalid event_type: '{type}'")
 
         def decorator(_callback):
@@ -153,7 +153,7 @@ class EventEmitter:
         Events are emitted later by the scheduler.
         """
         event_type = event["event_type"]
-        if event_type not in WgpuEventType:
+        if event_type not in EventType:
             raise ValueError(f"Submitting with invalid event_type: '{event_type}'")
         if event_type == "close":
             self._closed = True

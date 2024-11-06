@@ -26,7 +26,7 @@ Events
 To implement interaction with a ``RenderCanvas``, use the :func:`BaseRenderCanvas.add_event_handler()` method.
 Events come in the following flavours:
 
-.. autoclass:: WgpuEventType
+.. autoclass:: EventType
     :members:
 
 
