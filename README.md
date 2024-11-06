@@ -53,7 +53,7 @@ Also see the [online documentation](https://rendercanvas.readthedocs.io) and the
 
 ```py
 # Select either the glfw, qt or jupyter backend
-from rendercanvas.auto import WgpuCanvas, loop
+from rendercanvas.auto import RenderCanvas, loop
 
 # Visualizations can be embedded as a widget in a Qt application.
 # Supported qt libs are PySide6, PyQt6, PySide2 or PyQt5.

@@ -7,7 +7,7 @@ import sys
 import ctypes
 import importlib
 
-from .base import BaseRenderCanvas, WgpuLoop, WgpuTimer, pop_kwargs_for_base_canvas
+from .base import BaseRenderCanvas, BaseLoop, BaseTimer, pop_kwargs_for_base_canvas
 from ._gui_utils import (
     logger,
     SYSTEM_IS_WAYLAND,
@@ -548,7 +548,7 @@ WgpuWidget = QWgpuWidget
 RenderCanvas = QRenderCanvas
 
 
-class QtWgpuTimer(WgpuTimer):
+class QtTimer(BaseTimer):
     """Wgpu timer basef on Qt."""
 
     def _init(self):
@@ -564,8 +564,8 @@ class QtWgpuTimer(WgpuTimer):
         self._qt_timer.stop()
 
 
-class QtWgpuLoop(WgpuLoop):
-    _TimerClass = QtWgpuTimer
+class QtLoop(BaseLoop):
+    _TimerClass = QtTimer
 
     def init_qt(self):
         _ = self._app
@@ -607,5 +607,5 @@ class QtWgpuLoop(WgpuLoop):
         pass  # we assume the Qt event loop is running. Calling processEvents() will cause recursive repaints.
 
 
-loop = QtWgpuLoop()
+loop = QtLoop()
 run = loop.run  # backwards compat

@@ -15,7 +15,7 @@ import weakref
 import glfw
 
 from .base import BaseRenderCanvas
-from .asyncio import AsyncioWgpuLoop
+from .asyncio import AsyncioLoop
 from ._gui_utils import SYSTEM_IS_WAYLAND, weakbind, logger
 
 
@@ -526,7 +526,7 @@ class GlfwRenderCanvas(BaseRenderCanvas):
 RenderCanvas = GlfwRenderCanvas
 
 
-class GlfwAsyncioWgpuLoop(AsyncioWgpuLoop):
+class GlfwAsyncioLoop(AsyncioLoop):
     def __init__(self):
         super().__init__()
         self.all_glfw_canvases = weakref.WeakSet()
@@ -551,7 +551,7 @@ class GlfwAsyncioWgpuLoop(AsyncioWgpuLoop):
             poll_glfw_briefly()
 
 
-loop = GlfwAsyncioWgpuLoop()
+loop = GlfwAsyncioLoop()
 run = loop.run  # backwards compat
 
 

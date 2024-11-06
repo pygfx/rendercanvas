@@ -6,10 +6,10 @@
 
 import asyncio
 
-from .base import WgpuLoop, WgpuTimer
+from .base import BaseLoop, BaseTimer
 
 
-class AsyncioWgpuTimer(WgpuTimer):
+class AsyncioTimer(BaseTimer):
     """Wgpu timer based on asyncio."""
 
     _handle = None
@@ -30,8 +30,8 @@ class AsyncioWgpuTimer(WgpuTimer):
             self._handle = None
 
 
-class AsyncioWgpuLoop(WgpuLoop):
-    _TimerClass = AsyncioWgpuTimer
+class AsyncioLoop(BaseLoop):
+    _TimerClass = AsyncioTimer
     _the_loop = None
     _is_interactive = False
 

@@ -1,4 +1,4 @@
-from .base import BaseRenderCanvas, WgpuLoop, WgpuTimer
+from .base import BaseRenderCanvas, BaseLoop, BaseTimer
 
 
 class WgpuManualOffscreenCanvas(BaseRenderCanvas):
@@ -72,7 +72,7 @@ class WgpuManualOffscreenCanvas(BaseRenderCanvas):
 RenderCanvas = WgpuManualOffscreenCanvas
 
 
-class StubWgpuTimer(WgpuTimer):
+class StubTimer(BaseTimer):
     def _start(self):
         pass
 
@@ -80,7 +80,7 @@ class StubWgpuTimer(WgpuTimer):
         pass
 
 
-class StubLoop(WgpuLoop):
+class StubLoop(BaseLoop):
     # If we consider the use-cases for using this offscreen canvas:
     #
     # * Using rendercanvas.auto in test-mode: in this case run() should not hang,
@@ -94,11 +94,11 @@ class StubLoop(WgpuLoop):
     # In summary, we provide a call_later() and run() that behave pretty
     # well for the first case.
 
-    _TimerClass = StubWgpuTimer  # subclases must set this
+    _TimerClass = StubTimer  # subclases must set this
 
     def _process_timers(self):
         # Running this loop processes any timers
-        for timer in list(WgpuTimer._running_timers):
+        for timer in list(BaseTimer._running_timers):
             if timer.time_left <= 0:
                 timer._tick()
 

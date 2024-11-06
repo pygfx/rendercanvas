@@ -6,10 +6,10 @@ as the behabior of the different update modes.
 
 import time
 from testutils import run_tests
-from rendercanvas import BaseRenderCanvas, WgpuLoop, WgpuTimer
+from rendercanvas import BaseRenderCanvas, BaseLoop, BaseTimer
 
 
-class MyTimer(WgpuTimer):
+class MyTimer(BaseTimer):
     def _start(self):
         pass
 
@@ -17,7 +17,7 @@ class MyTimer(WgpuTimer):
         pass
 
 
-class MyLoop(WgpuLoop):
+class MyLoop(BaseLoop):
     _TimerClass = MyTimer
 
     def __init__(self):
@@ -25,7 +25,7 @@ class MyLoop(WgpuLoop):
         self.__stopped = False
 
     def process_timers(self):
-        for timer in list(WgpuTimer._running_timers):
+        for timer in list(BaseTimer._running_timers):
             if timer.time_left <= 0:
                 timer._tick()
 

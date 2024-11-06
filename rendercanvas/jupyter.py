@@ -7,7 +7,7 @@ import time
 import weakref
 
 from .base import BaseRenderCanvas
-from .asyncio import AsyncioWgpuLoop
+from .asyncio import AsyncioLoop
 
 import numpy as np
 from jupyter_rfb import RemoteFrameBuffer
@@ -126,7 +126,7 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
 RenderCanvas = JupyterRenderCanvas
 
 
-class JupyterAsyncioWgpuLoop(AsyncioWgpuLoop):
+class JupyterAsyncioLoop(AsyncioLoop):
     def __init__(self):
         super().__init__()
         self._pending_jupyter_canvases = []
@@ -144,4 +144,4 @@ class JupyterAsyncioWgpuLoop(AsyncioWgpuLoop):
                 display(w)
 
 
-loop = JupyterAsyncioWgpuLoop()
+loop = JupyterAsyncioLoop()

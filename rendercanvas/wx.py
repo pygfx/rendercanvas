@@ -16,7 +16,7 @@ from ._gui_utils import (
     get_alt_x11_display,
     get_alt_wayland_display,
 )
-from .base import BaseRenderCanvas, WgpuLoop, WgpuTimer, pop_kwargs_for_base_canvas
+from .base import BaseRenderCanvas, BaseLoop, BaseTimer, pop_kwargs_for_base_canvas
 
 
 BUTTON_MAP = {
@@ -527,7 +527,7 @@ class TimerWithCallback(wx.Timer):
             pass  # wrapped C/C++ object of type WxWgpuWindow has been deleted
 
 
-class WxWgpuTimer(WgpuTimer):
+class WxTimer(BaseTimer):
     def _init(self):
         self._wx_timer = TimerWithCallback(self._tick)
 
@@ -538,8 +538,8 @@ class WxWgpuTimer(WgpuTimer):
         self._wx_timer.Stop()
 
 
-class WxWgpuLoop(WgpuLoop):
-    _TimerClass = WxWgpuTimer
+class WxLoop(BaseLoop):
+    _TimerClass = WxTimer
     _the_app = None
     _frame_to_keep_loop_alive = None
 
@@ -577,5 +577,5 @@ class WxWgpuLoop(WgpuLoop):
         wx.GUIEventLoop.SetActive(old)
 
 
-loop = WxWgpuLoop()
+loop = WxLoop()
 run = loop.run  # backwards compat

@@ -12,7 +12,7 @@ from ._coreutils import BaseEnum
 # That would e.g. allow using glfw with qt together. Probably a too weird use-case for the added complexity.
 
 
-class WgpuTimer:
+class BaseTimer:
     """Base class for a timer objects."""
 
     _running_timers = set()
@@ -43,7 +43,7 @@ class WgpuTimer:
             self._init()
         if self.is_running:
             self._stop()
-        WgpuTimer._running_timers.add(self)
+        BaseTimer._running_timers.add(self)
         self._interval = max(0.0, float(interval))
         self._expect_tick_at = time.perf_counter() + self._interval
         self._start()
@@ -55,7 +55,7 @@ class WgpuTimer:
         callback is *not* called. If the timer is currently not running,
         this method does nothing.
         """
-        WgpuTimer._running_timers.discard(self)
+        BaseTimer._running_timers.discard(self)
         self._expect_tick_at = None
         self._stop()
 
@@ -63,7 +63,7 @@ class WgpuTimer:
         """The implementations must call this method."""
         # Stop or restart
         if self._one_shot:
-            WgpuTimer._running_timers.discard(self)
+            BaseTimer._running_timers.discard(self)
             self._expect_tick_at = None
         else:
             self._expect_tick_at = time.perf_counter() + self._interval
@@ -120,7 +120,7 @@ class WgpuTimer:
         raise NotImplementedError()
 
 
-class WgpuLoop:
+class BaseLoop:
     """Base class for event-loop objects."""
 
     _TimerClass = None  # subclases must set this

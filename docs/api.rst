@@ -1,14 +1,14 @@
 rendercanvas base classes
 =========================
 
-.. autoclass:: rendercanvas.base.WgpuCanvasInterface
+.. autoclass:: rendercanvas.base.RenderCanvasInterface
     :members:
 
-.. autoclass:: rendercanvas.base.WgpuCanvasBase
+.. autoclass:: rendercanvas.base.BaseRenderCanvas
     :members:
 
-.. .. autoclass:: rendercanvas.base.WgpuLoop
+.. .. autoclass:: rendercanvas.base.BaseLoop
 ..     :members:
 
-.. .. autoclass:: rendercanvas.base.WgpuTimer
+.. .. autoclass:: rendercanvas.base.BaseTimer
 ..     :members:

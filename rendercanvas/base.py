@@ -1,7 +1,7 @@
 import sys
 
 from ._events import EventEmitter, WgpuEventType  # noqa: F401
-from ._loop import Scheduler, WgpuLoop, WgpuTimer  # noqa: F401
+from ._loop import Scheduler, BaseLoop, BaseTimer  # noqa: F401
 from ._gui_utils import log_exception
 
 
@@ -294,7 +294,7 @@ class BaseRenderCanvas(RenderCanvasInterface):
     def _get_loop(self):
         """For the subclass to implement:
 
-        Must return the global loop instance (WgpuLoop) for the canvas subclass,
+        Must return the global loop instance (a BaseLoop subclass) for the canvas subclass,
         or None for a canvas without scheduled draws.
         """
         return None
