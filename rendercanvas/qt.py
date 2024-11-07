@@ -182,6 +182,11 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
     def paintEvent(self, event):  # noqa: N802 - this is a Qt method
         self._draw_frame_and_present()
 
+    def update(self):
+        # Bypass Qt's mechanics and request a draw so that the scheduling mechanics work as intended.
+        # Eventually this will call _request_draw().
+        self.request_draw()
+
     # Methods that we add for BaseRenderCanvas (snake_case)
 
     def _request_draw(self):
@@ -489,6 +494,10 @@ class QRenderCanvas(BaseRenderCanvas, QtWidgets.QWidget):
         self.show()
 
     # Qt methods
+
+    def update(self):
+        self._subwidget.request_draw()
+        super().update()
 
     def closeEvent(self, event):  # noqa: N802
         self._subwidget._is_closed = True
