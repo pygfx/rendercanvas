@@ -31,7 +31,7 @@ class ExampleWidget(QtWidgets.QWidget):
         splitter = QtWidgets.QSplitter()
 
         self.button = QtWidgets.QPushButton("Hello world", self)
-        self.canvas = QRenderWidget(splitter)
+        self.canvas = QRenderWidget(splitter, update_mode="continuous")
         self.output = QtWidgets.QTextEdit(splitter)
 
         self.button.clicked.connect(self.whenButtonClicked)

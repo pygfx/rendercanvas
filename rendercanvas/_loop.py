@@ -307,12 +307,14 @@ class Scheduler:
     # Note that any extra draws, e.g. via force_draw() or due to window resizes,
     # don't affect the scheduling loop; they are just extra draws.
 
-    def __init__(self, canvas, loop, *, mode="ondemand", min_fps=1, max_fps=30):
+    def __init__(self, canvas, events, loop, *, mode="ondemand", min_fps=1, max_fps=30):
+        assert loop is not None
+
         # We don't keep a ref to the canvas to help gc. This scheduler object can be
         # referenced via a callback in an event loop, but it won't prevent the canvas
         # from being deleted!
         self._canvas_ref = weakref.ref(canvas)
-        self._events = canvas._events
+        self._events = events
         # ... = canvas.get_context() -> No, context creation should be lazy!
 
         # Scheduling variables
@@ -328,8 +330,6 @@ class Scheduler:
 
         # Keep track of fps
         self._draw_stats = 0, time.perf_counter()
-
-        assert loop is not None
 
         # Initialise the timer that runs our scheduling loop.
         # Note that the backend may do a first draw earlier, starting the loop, and that's fine.
@@ -390,22 +390,22 @@ class Scheduler:
 
         if self._mode == "fastest":
             # fastest: draw continuously as fast as possible, ignoring fps settings.
-            canvas._request_draw()
+            canvas._rc_request_draw()
 
         elif self._mode == "continuous":
             # continuous: draw continuously, aiming for a steady max framerate.
-            canvas._request_draw()
+            canvas._rc_request_draw()
 
         elif self._mode == "ondemand":
             # ondemand: draw when needed (detected by calls to request_draw).
             # Aim for max_fps when drawing is needed, otherwise min_fps.
             if self._draw_requested:
-                canvas._request_draw()
+                canvas._rc_request_draw()
             elif (
                 self._min_fps > 0
                 and time.perf_counter() - self._last_draw_time > 1 / self._min_fps
             ):
-                canvas._request_draw()
+                canvas._rc_request_draw()
             else:
                 self._schedule_next_tick()
 

@@ -17,9 +17,7 @@ from IPython.display import display
 class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
     """An ipywidgets widget providing a render canvas. Needs the jupyter_rfb library."""
 
-    def __init__(self, *, size=None, title=None, **kwargs):
-        super().__init__(**kwargs)
-
+    def _rc_init(self, **_):
         # Internal variables
         self._last_image = None
         self._pixel_ratio = 1
@@ -29,22 +27,6 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
 
         # Register so this can be display'ed when run() is called
         loop._pending_jupyter_canvases.append(weakref.ref(self))
-
-        # Initialize size
-        if size is not None:
-            self.set_logical_size(*size)
-
-    # Implementation needed for RemoteFrameBuffer
-
-    def handle_event(self, event):
-        event_type = event.get("event_type")
-        if event_type == "close":
-            self._is_closed = True
-        elif event_type == "resize":
-            self._pixel_ratio = event["pixel_ratio"]
-            self._logical_size = event["width"], event["height"]
-
-        self.submit_event(event)
 
     def get_frame(self):
         # The _draw_frame_and_present() does the drawing and then calls
@@ -62,50 +44,12 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
         self._draw_frame_and_present()
         return self._last_image
 
-    # Implementation needed for BaseRenderCanvas
+    # %% Methods to implement RenderCanvas
 
-    def _get_loop(self):
+    def _rc_get_loop(self):
         return loop
 
-    def get_pixel_ratio(self):
-        return self._pixel_ratio
-
-    def get_logical_size(self):
-        return self._logical_size
-
-    def get_physical_size(self):
-        return int(self._logical_size[0] * self._pixel_ratio), int(
-            self._logical_size[1] * self._pixel_ratio
-        )
-
-    def set_logical_size(self, width, height):
-        self.css_width = f"{width}px"
-        self.css_height = f"{height}px"
-
-    def _set_title(self, title):
-        pass  # not supported yet
-
-    def close(self):
-        RemoteFrameBuffer.close(self)
-
-    def is_closed(self):
-        return self._is_closed
-
-    def _request_draw(self):
-        self._draw_request_time = time.perf_counter()
-        RemoteFrameBuffer.request_draw(self)
-
-    def _force_draw(self):
-        # A bit hacky to use the internals of jupyter_rfb this way.
-        # This pushes frames to the browser as long as the websocket
-        # buffer permits it. It works!
-        # But a better way would be `await canvas.wait_draw()`.
-        # Todo: would also be nice if jupyter_rfb had a public api for this.
-        array = self.get_frame()
-        if array is not None:
-            self._rfb_send_frame(array)
-
-    def get_present_info(self):
+    def _rc_get_present_info(self):
         # Use a format that maps well to PNG: rgba8norm. Use srgb for
         # perceptive color mapping. This is the common colorspace for
         # e.g. png and jpg images. Most tools (browsers included) will
@@ -115,9 +59,59 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
             "formats": ["rgba8unorm-srgb", "rgba8unorm"],
         }
 
-    def present_image(self, image, **kwargs):
+    def _rc_request_draw(self):
+        self._draw_request_time = time.perf_counter()
+        RemoteFrameBuffer.request_draw(self)
+
+    def _rc_force_draw(self):
+        # A bit hacky to use the internals of jupyter_rfb this way.
+        # This pushes frames to the browser as long as the websocket
+        # buffer permits it. It works!
+        # But a better way would be `await canvas.wait_draw()`.
+        # Todo: would also be nice if jupyter_rfb had a public api for this.
+        array = self.get_frame()
+        if array is not None:
+            self._rfb_send_frame(array)
+
+    def _rc_present_image(self, image, **kwargs):
         # Convert memoryview to ndarray (no copy)
         self._last_image = np.frombuffer(image, np.uint8).reshape(image.shape)
+
+    def _rc_get_physical_size(self):
+        return int(self._logical_size[0] * self._pixel_ratio), int(
+            self._logical_size[1] * self._pixel_ratio
+        )
+
+    def _rc_get_logical_size(self):
+        return self._logical_size
+
+    def _rc_get_pixel_ratio(self):
+        return self._pixel_ratio
+
+    def _rc_set_logical_size(self, width, height):
+        self.css_width = f"{width}px"
+        self.css_height = f"{height}px"
+
+    def _rc_close(self):
+        RemoteFrameBuffer.close(self)
+
+    def _rc_is_closed(self):
+        return self._is_closed
+
+    def _rc_set_title(self, title):
+        pass  # not supported yet
+
+    # %% Turn jupyter_rfb events into rendercanvas events
+
+    def handle_event(self, event):
+        event_type = event.get("event_type")
+        if event_type == "close":
+            self._is_closed = True
+        elif event_type == "resize":
+            self._pixel_ratio = event["pixel_ratio"]
+            self._logical_size = event["width"], event["height"]
+
+        self.submit_event(event)
 
 
 # Make available under a name that is the same for all backends
