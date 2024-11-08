@@ -37,8 +37,9 @@ class BaseRenderCanvas:
 
     """
 
-    #
-    __canvas_kwargs = dict(
+    def __init__(
+        self,
+        *args,
         size=(640, 480),
         title="$backend",
         update_mode="ondemand",
@@ -46,28 +47,17 @@ class BaseRenderCanvas:
         max_fps=30.0,
         vsync=True,
         present_method=None,
-    )
-
-    def __init__(self, *args, **kwargs):
-        # Extract canvas kwargs
-        canvas_kwargs = {}
-        for key, default in BaseRenderCanvas.__canvas_kwargs.items():
-            val = kwargs.pop(key, default)
-            if val is None:
-                val = default
-            canvas_kwargs[key] = val
-
+        **kwargs,
+    ):
         # Initialize superclass. Note that super() can be e.g. a QWidget, RemoteFrameBuffer, or object.
         super().__init__(*args, **kwargs)
 
-        # If this is a wrapper, it should pass the canvas kwargs to the subwidget.
+        # If this is a wrapper, no need to initialize furher
         if isinstance(self, WrapperRenderCanvas):
-            self._rc_init(**canvas_kwargs)
-            self._events = self._subwidget._events
             return
 
         # The vsync is not-so-elegantly strored on the canvas, and picked up by wgou's canvas contex.
-        self._vsync = bool(canvas_kwargs["vsync"])
+        self._vsync = bool(vsync)
 
         # Variables and flags used internally
         self.__is_drawing = False
@@ -86,17 +76,32 @@ class BaseRenderCanvas:
                 self,
                 self._events,
                 self._rc_get_loop(),
-                min_fps=canvas_kwargs["min_fps"],
-                max_fps=canvas_kwargs["max_fps"],
-                mode=canvas_kwargs["update_mode"],
+                min_fps=min_fps,
+                max_fps=max_fps,
+                mode=update_mode,
             )
 
-        # Initialze the canvas subclass
-        self._rc_init(**canvas_kwargs)
+        # We cannot initialize the size and title now, because the subclass may not have done
+        # the initialization to support this. So we require the subclass to call _final_canvas_init.
+        self.__kwargs_for_later = dict(size=size, title=title)
 
-        # Finalize the initialization
-        self.set_logical_size(*canvas_kwargs["size"])
-        self.set_title(canvas_kwargs["title"])
+    def _final_canvas_init(self):
+        """Must be called by the subclasses at the end of their ``__init__``.
+
+        This sets the canvas size and title, which must happen *after* the widget itself
+        is initialized. Doing this automatically can be done with a metaclass, but let's keep it simple.
+        """
+        # Pop kwargs
+        try:
+            kwargs = self.__kwargs_for_later
+        except AttributeError:
+            return
+        else:
+            del self.__kwargs_for_later
+        # Apply
+        if not isinstance(self, WrapperRenderCanvas):
+            self.set_logical_size(*kwargs["size"])
+            self.set_title(kwargs["title"])
 
     def __del__(self):
         # On delete, we call the custom close method.
@@ -366,14 +371,6 @@ class BaseRenderCanvas:
 
     # %% Methods for the subclass to implement
 
-    def _rc_init(self, **canvas_kwargs):
-        """Method to initialize the canvas.
-
-        This method is called near the end of the initialization
-        process, but before setting things like size and title.
-        """
-        pass
-
     def _rc_get_loop(self):
         """Get the loop instance for this backend.
 
@@ -438,6 +435,9 @@ class BaseRenderCanvas:
     def _rc_close(self):
         """Close the canvas.
 
+        For widgets that are wrapped by a WrapperRenderCanvas, this should probably
+        close the wrapper instead.
+
         Note that ``BaseRenderCanvas`` implements the ``close()`` method, which
         is a rather common name; it may be necessary to re-implement that too.
         """
@@ -450,6 +450,9 @@ class BaseRenderCanvas:
     def _rc_set_title(self, title):
         """Set the canvas title. May be ignored when it makes no sense.
 
+        For widgets that are wrapped by a WrapperRenderCanvas, this should probably
+        set the title of the wrapper instead.
+
         The default implementation does nothing.
         """
         pass
@@ -461,6 +464,17 @@ class WrapperRenderCanvas(BaseRenderCanvas):
     This base class implements all the re-direction logic, so that the subclass does not have to.
     Wrapper classes should not implement any of the ``_rc_`` methods.
     """
+
+    # Events
+
+    def add_event_handler(self, *args, **kwargs):
+        return self._subwidget._events.add_handler(*args, **kwargs)
+
+    def remove_event_handler(self, *args, **kwargs):
+        return self._subwidget._events.remove_handler(*args, **kwargs)
+
+    def submit_event(self, event):
+        return self._subwidget._events.submit(event)
 
     # Must implement
 

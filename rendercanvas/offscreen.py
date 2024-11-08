@@ -10,10 +10,9 @@ class ManualOffscreenRenderCanvas(BaseRenderCanvas):
     def __init__(self, *args, pixel_ratio=1.0, **kwargs):
         super().__init__(*args, **kwargs)
         self._pixel_ratio = pixel_ratio
-
-    def _rc_init(self, **_):
         self._closed = False
         self._last_image = None
+        self._final_canvas_init()
 
     # %% Methods to implement RenderCanvas
 

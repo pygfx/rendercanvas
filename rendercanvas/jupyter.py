@@ -17,7 +17,9 @@ from IPython.display import display
 class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
     """An ipywidgets widget providing a render canvas. Needs the jupyter_rfb library."""
 
-    def _rc_init(self, **_):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
         # Internal variables
         self._last_image = None
         self._pixel_ratio = 1
@@ -27,6 +29,9 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
 
         # Register so this can be display'ed when run() is called
         loop._pending_jupyter_canvases.append(weakref.ref(self))
+
+        # Set size, title, etc.
+        self._final_canvas_init()
 
     def get_frame(self):
         # The _draw_frame_and_present() does the drawing and then calls

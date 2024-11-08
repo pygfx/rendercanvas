@@ -128,7 +128,9 @@ _show_image_method_warning = (
 class WxRenderWidget(BaseRenderCanvas, wx.Window):
     """A wx Window representing a render canvas that can be embedded in a wx application."""
 
-    def _rc_init(self, present_method=None, **_):
+    def __init__(self, *args, present_method=None, **kwargs):
+        super().__init__(*args, **kwargs)
+
         # Determine present method
         self._surface_ids = None
         if not present_method:
@@ -161,6 +163,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         self.Bind(wx.EVT_MOTION, self._on_mouse_move)
 
         self.Show()
+        self._final_canvas_init()
 
     def _on_resize_done(self, *args):
         self._draw_lock = False
@@ -425,14 +428,14 @@ class WxRenderCanvas(WrapperRenderCanvas, wx.Frame):
 
     # Most of this is proxying stuff to the inner widget.
 
-    def __init__(self, *, parent=None, **kwargs):
+    def __init__(self, parent=None, **kwargs):
         loop.init_wx()
-        super().__init__(parent, **kwargs)
+        super().__init__(parent)
 
-    def _rc_init(self, **canvas_kwargs):
-        self._subwidget = WxRenderWidget(parent=self, **canvas_kwargs)
+        self._subwidget = WxRenderWidget(parent=self, **kwargs)
         self.Bind(wx.EVT_CLOSE, lambda e: self.Destroy())
         self.Show()
+        self._final_canvas_init()
 
     # wx methods
 

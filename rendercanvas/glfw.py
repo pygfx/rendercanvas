@@ -146,7 +146,9 @@ class GlfwRenderCanvas(BaseRenderCanvas):
 
     # See https://www.glfw.org/docs/latest/group__window.html
 
-    def _rc_init(self, *, present_method, **_):
+    def __init__(self, *args, present_method=None, **kwargs):
+        super().__init__(*args, **kwargs)
+
         loop.init_glfw()
 
         if present_method == "image":
@@ -194,6 +196,9 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         # Initialize the size
         self._pixel_ratio = -1
         self._screen_size_is_logical = False
+
+        # Set size, title, etc.
+        self._final_canvas_init()
 
     def _on_window_dirty(self, *args):
         self.request_draw()

@@ -147,7 +147,9 @@ _show_image_method_warning = (
 class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
     """A QWidget representing a render canvas that can be embedded in a Qt application."""
 
-    def _rc_init(self, *, present_method, **_):
+    def __init__(self, *args, present_method=None, **kwargs):
+        super().__init__(*args, **kwargs)
+
         # Determine present method
         self._surface_ids = None
         if not present_method:
@@ -174,6 +176,9 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         self.setAttribute(WA_InputMethodEnabled, True)
         self.setMouseTracking(True)
         self.setFocusPolicy(FocusPolicy.StrongFocus)
+
+        # Set size, title, etc.
+        self._final_canvas_init()
 
     def _get_surface_ids(self):
         if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
@@ -466,14 +471,13 @@ class QRenderCanvas(WrapperRenderCanvas, QtWidgets.QWidget):
     # size can be set to subpixel (logical) values, without being able to
     # detect this. See https://github.com/pygfx/wgpu-py/pull/68
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, parent=None, **kwargs):
         # When using Qt, there needs to be an
         # application before any widget is created
         loop.init_qt()
-        super().__init__(*args, **kwargs)
+        super().__init__(parent)
 
-    def _rc_init(self, **canvas_kwargs):
-        self._subwidget = QRenderWidget(self, **canvas_kwargs)
+        self._subwidget = QRenderWidget(self, **kwargs)
 
         self.setAttribute(WA_DeleteOnClose, True)
         self.setMouseTracking(True)
@@ -487,7 +491,9 @@ class QRenderCanvas(WrapperRenderCanvas, QtWidgets.QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
         layout.addWidget(self._subwidget)
+
         self.show()
+        self._final_canvas_init()
 
     # Qt methods
 
