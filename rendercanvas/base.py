@@ -352,7 +352,10 @@ class BaseRenderCanvas:
 
     def set_logical_size(self, width, height):
         """Set the window size (in logical pixels)."""
-        self._rc_set_logical_size(float(width), float(height))
+        width, height = float(width), float(height)
+        if width < 0 or height < 0:
+            raise ValueError("Canvas width and height must not be negative")
+        self._rc_set_logical_size(width, height)
 
     def set_title(self, title):
         """Set the window title."""

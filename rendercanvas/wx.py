@@ -160,6 +160,8 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         self.Bind(wx.EVT_MOUSE_EVENTS, self._on_mouse_events)
         self.Bind(wx.EVT_MOTION, self._on_mouse_move)
 
+        self.Show()
+
     def _on_resize_done(self, *args):
         self._draw_lock = False
         self.Refresh()
@@ -200,6 +202,11 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
 
     def _rc_get_present_info(self):
         if self._surface_ids is None:
+            # On wx it can take a little while for the handle to be available,
+            # causing GetHandle() to be initially 0, so getting a surface will fail.
+            etime = time.perf_counter() + 1
+            while self.GetHandle() == 0 and time.perf_counter() < etime:
+                loop.process_wx_events()
             self._surface_ids = self._get_surface_ids()
         global _show_image_method_warning
         if self._present_to_screen and self._surface_ids:
@@ -251,8 +258,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         return self.GetContentScaleFactor()
 
     def _rc_set_logical_size(self, width, height):
-        if width < 0 or height < 0:
-            raise ValueError("Window width and height must not be negative")
+        width, height = int(width), int(height)
         parent = self.Parent
         if isinstance(parent, WxRenderCanvas):
             parent.SetSize(width, height)
@@ -261,7 +267,11 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
 
     def _rc_close(self):
         self._is_closed = True
-        self.Hide()
+        parent = self.Parent
+        if isinstance(parent, WxRenderCanvas):
+            parent.Hide()
+        else:
+            self.Hide()
 
     def _rc_is_closed(self):
         return self._is_closed
@@ -415,21 +425,14 @@ class WxRenderCanvas(WrapperRenderCanvas, wx.Frame):
 
     # Most of this is proxying stuff to the inner widget.
 
-    def __init__(*args, **kwargs):
+    def __init__(self, *, parent=None, **kwargs):
         loop.init_wx()
-        super().__init__(*args, **kwargs)
+        super().__init__(parent, **kwargs)
 
     def _rc_init(self, **canvas_kwargs):
         self._subwidget = WxRenderWidget(parent=self, **canvas_kwargs)
-
         self.Bind(wx.EVT_CLOSE, lambda e: self.Destroy())
-
-        # Force the canvas to be shown, so that it gets a valid handle.
-        # Otherwise GetHandle() is initially 0, and getting a surface will fail.
         self.Show()
-        etime = time.perf_counter() + 1
-        while self._subwidget.GetHandle() == 0 and time.perf_counter() < etime:
-            loop.process_wx_events()
 
     # wx methods
 
