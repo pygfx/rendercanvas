@@ -147,9 +147,8 @@ class GlfwRenderCanvas(BaseRenderCanvas):
     # See https://www.glfw.org/docs/latest/group__window.html
 
     def __init__(self, *args, present_method=None, **kwargs):
-        super().__init__(*args, **kwargs)
-
         loop.init_glfw()
+        super().__init__(*args, **kwargs)
 
         if present_method == "image":
             logger.warning(

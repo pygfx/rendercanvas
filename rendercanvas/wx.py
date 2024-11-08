@@ -429,11 +429,16 @@ class WxRenderCanvas(WrapperRenderCanvas, wx.Frame):
     # Most of this is proxying stuff to the inner widget.
 
     def __init__(self, parent=None, **kwargs):
+        # There needs to be an application before any widget is created.
         loop.init_wx()
+        # Any kwargs that we want to pass to *this* class, must be explicitly
+        # specified in the signature. The rest goes to the subwidget.
         super().__init__(parent)
 
         self._subwidget = WxRenderWidget(parent=self, **kwargs)
+
         self.Bind(wx.EVT_CLOSE, lambda e: self.Destroy())
+
         self.Show()
         self._final_canvas_init()
 

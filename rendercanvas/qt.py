@@ -472,9 +472,10 @@ class QRenderCanvas(WrapperRenderCanvas, QtWidgets.QWidget):
     # detect this. See https://github.com/pygfx/wgpu-py/pull/68
 
     def __init__(self, parent=None, **kwargs):
-        # When using Qt, there needs to be an
-        # application before any widget is created
+        # There needs to be an application before any widget is created.
         loop.init_qt()
+        # Any kwargs that we want to pass to *this* class, must be explicitly
+        # specified in the signature. The rest goes to the subwidget.
         super().__init__(parent)
 
         self._subwidget = QRenderWidget(self, **kwargs)
