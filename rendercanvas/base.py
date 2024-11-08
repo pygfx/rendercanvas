@@ -63,7 +63,7 @@ class BaseRenderCanvas:
         # If this is a wrapper, it should pass the canvas kwargs to the subwidget.
         if isinstance(self, WrapperRenderCanvas):
             self._rc_init(**canvas_kwargs)
-            self.__events = self._subwidget.__events
+            self._events = self._subwidget._events
             return
 
         # The vsync is not-so-elegantly strored on the canvas, and picked up by wgou's canvas contex.
@@ -78,13 +78,13 @@ class BaseRenderCanvas:
         }
 
         # Events and scheduler
-        self.__events = EventEmitter()
+        self._events = EventEmitter()
         self.__scheduler = None
         loop = self._rc_get_loop()
         if loop is not None:
             self.__scheduler = Scheduler(
                 self,
-                self.__events,
+                self._events,
                 self._rc_get_loop(),
                 min_fps=canvas_kwargs["min_fps"],
                 max_fps=canvas_kwargs["max_fps"],
@@ -184,16 +184,16 @@ class BaseRenderCanvas:
     # %% Events
 
     def add_event_handler(self, *args, **kwargs):
-        return self.__events.add_handler(*args, **kwargs)
+        return self._events.add_handler(*args, **kwargs)
 
     def remove_event_handler(self, *args, **kwargs):
-        return self.__events.remove_handler(*args, **kwargs)
+        return self._events.remove_handler(*args, **kwargs)
 
     def submit_event(self, event):
         # Not strictly necessary for normal use-cases, but this allows
         # the ._event to be an implementation detail to subclasses, and it
         # allows users to e.g. emulate events in tests.
-        return self.__events.submit(event)
+        return self._events.submit(event)
 
     add_event_handler.__doc__ = EventEmitter.add_handler.__doc__
     remove_event_handler.__doc__ = EventEmitter.remove_handler.__doc__
@@ -215,7 +215,7 @@ class BaseRenderCanvas:
 
         # Flush our events, so downstream code can update stuff.
         # Maybe that downstream code request a new draw.
-        self.__events.flush()
+        self._events.flush()
 
         # TODO: implement later (this is a start but is not tested)
         # Schedule animation events until the lag is gone
@@ -224,16 +224,16 @@ class BaseRenderCanvas:
         # animation_iters = 0
         # while self._animation_time > time.perf_counter() - step:
         #     self._animation_time += step
-        #     self.__events.submit({"event_type": "animate", "step": step, "catch_up": 0})
+        #     self._events.submit({"event_type": "animate", "step": step, "catch_up": 0})
         #     # Do the animations. This costs time.
-        #     self.__events.flush()
+        #     self._events.flush()
         #     # Abort when we cannot keep up
         #     # todo: test this
         #     animation_iters += 1
         #     if animation_iters > 20:
         #         n = (time.perf_counter() - self._animation_time) // step
         #         self._animation_time += step * n
-        #         self.__events.submit(
+        #         self._events.submit(
         #             {"event_type": "animate", "step": step * n, "catch_up": n}
         #         )
 
@@ -301,7 +301,7 @@ class BaseRenderCanvas:
             # Process special events
             # Note that we must not process normal events here, since these can do stuff
             # with the canvas (resize/close/etc) and most GUI systems don't like that.
-            self.__events.emit({"event_type": "before_draw"})
+            self._events.emit({"event_type": "before_draw"})
 
             # Notify the scheduler
             if self.__scheduler is not None:
@@ -366,7 +366,7 @@ class BaseRenderCanvas:
 
     # %% Methods for the subclass to implement
 
-    def _rc_init(self, *, present_method):
+    def _rc_init(self, **canvas_kwargs):
         """Method to initialize the canvas.
 
         This method is called near the end of the initialization
@@ -441,13 +441,13 @@ class BaseRenderCanvas:
         Note that ``BaseRenderCanvas`` implements the ``close()`` method, which
         is a rather common name; it may be necessary to re-implement that too.
         """
-        raise NotImplementedError()
+        pass
 
     def _rc_is_closed(self):
         """Get whether the canvas is closed."""
-        raise NotImplementedError()
+        return False
 
-    def _rc_set_title(self):
+    def _rc_set_title(self, title):
         """Set the canvas title. May be ignored when it makes no sense.
 
         The default implementation does nothing.
