@@ -28,16 +28,15 @@ class BaseRenderCanvas:
     event systems.
 
     Arguments:
-        size (tuple): the logical size (width, height) of the canvas. title
-        (str): The title of the canvas. update_mode (EventType): The mode for
-        scheduling draws and events. Default 'ondemand'. min_fps (float): A
-        minimal frames-per-second to use when the ``update_mode`` is 'ondemand'.
-            The default is 1: even without draws requested, it still draws every
-            second.
-        max_fps (float): A maximal frames-per-second to use when the
-        ``update_mode`` is 'ondemand' or 'continuous'.
-            The default is 30, which is usually enough.
-        vsync (bool): Whether to sync the draw with the monitor update.  Helps
+        size (tuple): the logical size (width, height) of the canvas.
+        title (str): The title of the canvas. Can use '$backend' to show the RenderCanvas class name,
+            and '$fps' to show the fps.
+        update_mode (EventType): The mode for scheduling draws and events. Default 'ondemand'.
+        min_fps (float): A minimal frames-per-second to use when the ``update_mode`` is 'ondemand'.
+            The default is 1: even without draws requested, it still draws every second.
+        max_fps (float): A maximal frames-per-second to use when the ``update_mode`` is 'ondemand'
+            or 'continuous'. The default is 30, which is usually enough.
+        vsync (bool): Whether to sync the draw with the monitor update. Helps
             against screen tearing, but can reduce fps. Default True.
         present_method (str | None): The method to present the rendered image.
             Can be set to 'screen' or 'image'. Default None (auto-select).
