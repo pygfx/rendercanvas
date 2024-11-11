@@ -5,8 +5,7 @@ Implemens loop mechanics: The base timer, base loop, and scheduler.
 import time
 import weakref
 
-from ._gui_utils import log_exception
-from ._coreutils import BaseEnum
+from ._coreutils import log_exception, BaseEnum
 
 # Note: technically, we could have a global loop proxy object that defers to any of the other loops.
 # That would e.g. allow using glfw with qt together. Probably a too weird use-case for the added complexity.

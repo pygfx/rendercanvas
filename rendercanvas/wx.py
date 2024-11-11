@@ -10,7 +10,7 @@ from typing import Optional
 
 import wx
 
-from ._gui_utils import (
+from ._coreutils import (
     logger,
     SYSTEM_IS_WAYLAND,
     get_alt_x11_display,
@@ -183,7 +183,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
             }
         elif sys.platform.startswith("linux"):
             if False:
-                # We fall back to XWayland, see _gui_utils.py
+                # We fall back to XWayland, see _coreutils.py
                 return {
                     "platform": "wayland",
                     "window": int(self.GetHandle()),

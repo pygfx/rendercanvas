@@ -16,7 +16,7 @@ import glfw
 
 from .base import BaseRenderCanvas
 from .asyncio import AsyncioLoop
-from ._gui_utils import SYSTEM_IS_WAYLAND, weakbind, logger
+from ._coreutils import SYSTEM_IS_WAYLAND, weakbind, logger
 
 
 # Make sure that glfw is new enough

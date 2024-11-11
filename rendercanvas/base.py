@@ -2,7 +2,7 @@ import sys
 
 from ._events import EventEmitter, EventType  # noqa: F401
 from ._loop import Scheduler, BaseLoop, BaseTimer  # noqa: F401
-from ._gui_utils import log_exception
+from ._coreutils import log_exception
 
 
 # Notes on naming and prefixes:

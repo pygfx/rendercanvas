@@ -10,7 +10,7 @@ __all__ = ["RenderCanvas", "loop", "run"]
 import os
 import sys
 import importlib
-from ._gui_utils import logger, QT_MODULE_NAMES, get_imported_qt_lib, asyncio_is_running
+from ._coreutils import logger, QT_MODULE_NAMES, get_imported_qt_lib, asyncio_is_running
 
 
 # Note that wx is not in here, because it does not (yet) fully implement base.BaseRenderCanvas
