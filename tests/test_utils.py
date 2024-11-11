@@ -5,7 +5,7 @@ from testutils import run_tests, is_pypy
 
 
 def test_weakbind():
-    weakbind = rendercanvas._gui_utils.weakbind
+    weakbind = rendercanvas._coreutils.weakbind
 
     xx = []
 

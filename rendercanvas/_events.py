@@ -1,8 +1,7 @@
 import time
 from collections import defaultdict, deque
 
-from ._gui_utils import log_exception
-from ._coreutils import BaseEnum
+from ._coreutils import log_exception, BaseEnum
 
 
 class EventType(BaseEnum):
