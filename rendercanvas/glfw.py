@@ -539,8 +539,8 @@ class GlfwAsyncioLoop(AsyncioLoop):
         if self.stop_if_no_more_canvases and not tuple(self.all_glfw_canvases):
             self.stop()
 
-    def _run(self):
-        super()._run()
+    def _rc_run(self):
+        super()._rc_run()
         if not self._is_interactive:
             poll_glfw_briefly()
 

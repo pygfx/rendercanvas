@@ -79,10 +79,10 @@ RenderCanvas = ManualOffscreenRenderCanvas
 
 
 class StubTimer(BaseTimer):
-    def _start(self):
+    def _rc_start(self):
         pass
 
-    def _stop(self):
+    def _rc_stop(self):
         pass
 
 
@@ -108,10 +108,10 @@ class StubLoop(BaseLoop):
             if timer.time_left <= 0:
                 timer._tick()
 
-    def _run(self):
+    def _rc_run(self):
         self._process_timers()
 
-    def _stop(self):
+    def _rc_stop(self):
         pass
 
 

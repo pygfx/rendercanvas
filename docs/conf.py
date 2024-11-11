@@ -22,6 +22,7 @@ os.environ["WGPU_FORCE_OFFSCREEN"] = "true"
 
 # Load wglibu so autodoc can query docstrings
 import rendercanvas  # noqa: E402
+import rendercanvas.stub  # noqa: E402 - we use the stub backend to generate doccs
 
 
 # -- Project information -----------------------------------------------------

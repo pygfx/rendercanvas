@@ -10,10 +10,10 @@ from rendercanvas import BaseRenderCanvas, BaseLoop, BaseTimer
 
 
 class MyTimer(BaseTimer):
-    def _start(self):
+    def _rc_start(self):
         pass
 
-    def _stop(self):
+    def _rc_stop(self):
         pass
 
 
@@ -29,10 +29,10 @@ class MyLoop(BaseLoop):
             if timer.time_left <= 0:
                 timer._tick()
 
-    def _run(self):
+    def _rc_run(self):
         self.__stopped = False
 
-    def _stop(self):
+    def _rc_stop(self):
         self.__stopped = True
 
 

@@ -14,7 +14,7 @@ class AsyncioTimer(BaseTimer):
 
     _handle = None
 
-    def _start(self):
+    def _rc_start(self):
         def tick():
             self._handle = None
             self._tick()
@@ -24,7 +24,7 @@ class AsyncioTimer(BaseTimer):
         asyncio_loop = self._loop._loop
         self._handle = asyncio_loop.call_later(self._interval, tick)
 
-    def _stop(self):
+    def _rc_stop(self):
         if self._handle:
             self._handle.cancel()
             self._handle = None
@@ -56,16 +56,16 @@ class AsyncioLoop(BaseLoop):
         asyncio.set_event_loop(loop)
         return loop
 
-    def _run(self):
+    def _rc_run(self):
         if self._loop.is_running():
             self._is_interactive = True
         else:
             self._is_interactive = False
             self._loop.run_forever()
 
-    def _stop(self):
+    def _rc_stop(self):
         if not self._is_interactive:
             self._loop.stop()
 
-    def _call_soon(self, callback, *args):
+    def _rc_call_soon(self, callback, *args):
         self._loop.call_soon(callback, *args)
