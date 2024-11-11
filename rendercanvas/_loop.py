@@ -12,7 +12,11 @@ from ._coreutils import log_exception, BaseEnum
 
 
 class BaseTimer:
-    """Base class for a timer objects."""
+    """The Base class for a timer object.
+
+    Each backends provides its own timer subclass. The timer is used by the internal scheduling mechanics,
+    and is also returned by user-facing API such as ``loop.call_later()``.
+    """
 
     _running_timers = set()
 
@@ -85,12 +89,22 @@ class BaseTimer:
 
     @property
     def is_running(self):
-        """Whether the timer is running."""
+        """Whether the timer is running.
+
+        A running timer means that a new call to the callback is scheduled and
+        will happen in ``time_left`` seconds (assuming the event loop keeps
+        running).
+        """
         return self._expect_tick_at is not None
 
     @property
     def is_one_shot(self):
-        """Whether the timer is one-shot or continuous."""
+        """Whether the timer is one-shot or continuous.
+
+        A one-shot timer stops running after the currently scheduled call to the callback.
+        It can then be started again. A continuous timer (i.e. not one-shot) automatically
+        schedules new calls.
+        """
         return self._one_shot
 
     def _init(self):
@@ -120,7 +134,10 @@ class BaseTimer:
 
 
 class BaseLoop:
-    """Base class for event-loop objects."""
+    """The base class for an event-loop object.
+
+    Each backends provides its own loop subclass, so that rendercanvas can run cleanly in the backend's event loop.
+    """
 
     _TimerClass = None  # subclases must set this
 

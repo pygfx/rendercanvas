@@ -1,5 +1,5 @@
 """
-rendercanvas: one canvas API, multiple backends
+RenderCanvas: one canvas API, multiple backends.
 """
 
 # ruff: noqa: F401

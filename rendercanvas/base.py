@@ -19,16 +19,23 @@ from ._coreutils import log_exception
 class BaseRenderCanvas:
     """The base canvas class.
 
-    This class provides a uniform canvas API so render systems can use
-    code that is portable accross multiple GUI libraries and canvas targets.
+    Each backends provides its own canvas subclass by implementing a predefined
+    set of private methods.
+
+    This base class defines a uniform canvas API so render systems can use code
+    that is portable accross multiple GUI libraries and canvas targets. The
+    scheduling mechanics are generic, even though they run on different backend
+    event systems.
 
     Arguments:
-        size (tuple): the logical size (width, height) of the canvas.
-        title (str): The title of the canvas.
-        update_mode (EventType): The mode for scheduling draws and events. Default 'ondemand'.
-        min_fps (float): A minimal frames-per-second to use when the ``update_mode`` is 'ondemand'.
-            The default is 1: even without draws requested, it still draws every second.
-        max_fps (float): A maximal frames-per-second to use when the ``update_mode`` is 'ondemand' or 'continuous'.
+        size (tuple): the logical size (width, height) of the canvas. title
+        (str): The title of the canvas. update_mode (EventType): The mode for
+        scheduling draws and events. Default 'ondemand'. min_fps (float): A
+        minimal frames-per-second to use when the ``update_mode`` is 'ondemand'.
+            The default is 1: even without draws requested, it still draws every
+            second.
+        max_fps (float): A maximal frames-per-second to use when the
+        ``update_mode`` is 'ondemand' or 'continuous'.
             The default is 30, which is usually enough.
         vsync (bool): Whether to sync the draw with the monitor update.  Helps
             against screen tearing, but can reduce fps. Default True.
