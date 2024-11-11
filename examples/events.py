@@ -5,12 +5,12 @@ A simple example to demonstrate events.
 from rendercanvas.auto import RenderCanvas, run
 
 
-canvas = RenderCanvas(size=(640, 480), title="RenderCanvas events")
+canvas = RenderCanvas(title="RenderCanvas events")
 
 
 @canvas.add_event_handler("*")
 def process_event(event):
-    if event["event_type"] != "pointer_move":
+    if event["event_type"] not in ["pointer_move", "before_draw", "draw"]:
         print(event)
 
 

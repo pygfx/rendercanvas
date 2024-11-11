@@ -26,7 +26,7 @@ canvas = RenderCanvas(
 
 
 draw_frame = setup_drawing_sync(canvas)
-canvas.request_draw(lambda: (draw_frame(), canvas.request_draw()))
+canvas.request_draw(draw_frame)
 
 
 @canvas.add_event_handler("*")

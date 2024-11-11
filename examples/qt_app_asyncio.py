@@ -47,7 +47,6 @@ class ExampleWidget(QtWidgets.QWidget):
 
         splitter = QtWidgets.QSplitter()
 
-        # todo: use update_mode = 'continuous' when that feature has arrived
         self.button = QtWidgets.QPushButton("Hello world", self)
         self.canvas = QRenderWidget(splitter, update_mode="continuous")
         self.output = QtWidgets.QTextEdit(splitter)

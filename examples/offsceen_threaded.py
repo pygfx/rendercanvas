@@ -19,7 +19,7 @@ import threading
 
 from rendercanvas.offscreen import RenderCanvas
 
-from cube import setup_drawing_sync
+from rendercanvas.utils.cube import setup_drawing_sync
 
 
 # create canvas

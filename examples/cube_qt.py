@@ -19,18 +19,12 @@ for lib in ("PySide6", "PyQt6", "PySide2", "PyQt5"):
 
 
 from rendercanvas.qt import RenderCanvas, run
-
 from rendercanvas.utils.cube import setup_drawing_sync
 
 
-canvas = RenderCanvas(size=(640, 480), title=f"The wgpu cube example on {lib}")
+canvas = RenderCanvas(title=f"The wgpu cube example on {lib}", update_mode="continuous")
 draw_frame = setup_drawing_sync(canvas)
-
-
-@canvas.request_draw
-def animate():
-    draw_frame()
-    canvas.request_draw()
+canvas.request_draw(draw_frame)
 
 
 if __name__ == "__main__":
