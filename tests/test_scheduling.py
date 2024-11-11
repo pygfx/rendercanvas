@@ -46,8 +46,14 @@ class MyCanvas(BaseRenderCanvas):
         self.draw_count = 0
         self.events_count = 0
 
-    def _get_loop(self):
+    def _rc_get_loop(self):
         return self._loop
+
+    def _rc_close(self):
+        self._closed = True
+
+    def _rc_is_closed(self):
+        return self._closed
 
     def _process_events(self):
         super()._process_events()
@@ -57,7 +63,7 @@ class MyCanvas(BaseRenderCanvas):
         super()._draw_frame_and_present()
         self.draw_count += 1
 
-    def _request_draw(self):
+    def _rc_request_draw(self):
         self._gui_draw_requested = True
 
     def draw_if_necessary(self):
@@ -65,14 +71,8 @@ class MyCanvas(BaseRenderCanvas):
             self._gui_draw_requested = False
             self._draw_frame_and_present()
 
-    def close(self):
-        self._closed = True
-
-    def is_closed(self):
-        return self._closed
-
     def active_sleep(self, delay):
-        loop = self._get_loop()
+        loop = self._rc_get_loop()
         etime = time.perf_counter() + delay
         while time.perf_counter() < etime:
             time.sleep(0.001)

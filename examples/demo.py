@@ -13,7 +13,7 @@ import time
 
 from rendercanvas.auto import RenderCanvas, loop
 
-from cube import setup_drawing_sync
+from rendercanvas.utils.cube import setup_drawing_sync
 
 
 canvas = RenderCanvas(

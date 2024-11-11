@@ -16,7 +16,12 @@ from ._gui_utils import (
     get_alt_x11_display,
     get_alt_wayland_display,
 )
-from .base import BaseRenderCanvas, BaseLoop, BaseTimer, pop_kwargs_for_base_canvas
+from .base import (
+    WrapperRenderCanvas,
+    BaseRenderCanvas,
+    BaseLoop,
+    BaseTimer,
+)
 
 
 BUTTON_MAP = {
@@ -158,9 +163,11 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         self.Bind(wx.EVT_MOTION, self._on_mouse_move)
 
         self.Show()
+        self._final_canvas_init()
 
-    def _get_loop(self):
-        return loop
+    def _on_resize_done(self, *args):
+        self._draw_lock = False
+        self.Refresh()
 
     def on_paint(self, event):
         dc = wx.PaintDC(self)  # needed for wx
@@ -168,6 +175,117 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
             self._draw_frame_and_present()
         del dc
         event.Skip()
+
+    def _get_surface_ids(self):
+        if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
+            return {
+                "window": int(self.GetHandle()),
+            }
+        elif sys.platform.startswith("linux"):
+            if False:
+                # We fall back to XWayland, see _gui_utils.py
+                return {
+                    "platform": "wayland",
+                    "window": int(self.GetHandle()),
+                    "display": int(get_alt_wayland_display()),
+                }
+            else:
+                return {
+                    "platform": "x11",
+                    "window": int(self.GetHandle()),
+                    "display": int(get_alt_x11_display()),
+                }
+        else:
+            raise RuntimeError(f"Cannot get wx surface info on {sys.platform}.")
+
+    # %% Methods to implement RenderCanvas
+
+    def _rc_get_loop(self):
+        return loop
+
+    def _rc_get_present_info(self):
+        if self._surface_ids is None:
+            # On wx it can take a little while for the handle to be available,
+            # causing GetHandle() to be initially 0, so getting a surface will fail.
+            etime = time.perf_counter() + 1
+            while self.GetHandle() == 0 and time.perf_counter() < etime:
+                loop.process_wx_events()
+            self._surface_ids = self._get_surface_ids()
+        global _show_image_method_warning
+        if self._present_to_screen and self._surface_ids:
+            info = {"method": "screen"}
+            info.update(self._surface_ids)
+        else:
+            if _show_image_method_warning:
+                logger.warn(_show_image_method_warning)
+                _show_image_method_warning = None
+            info = {
+                "method": "image",
+                "formats": ["rgba8unorm-srgb", "rgba8unorm"],
+            }
+        return info
+
+    def _rc_request_draw(self):
+        if self._draw_lock:
+            return
+        try:
+            self.Refresh()
+        except Exception:
+            pass  # avoid errors when window no longer lives
+
+    def _rc_force_draw(self):
+        self.Refresh()
+        self.Update()
+
+    def _rc_present_image(self, image_data, **kwargs):
+        size = image_data.shape[1], image_data.shape[0]  # width, height
+
+        dc = wx.PaintDC(self)
+        bitmap = wx.Bitmap.FromBufferRGBA(*size, image_data)
+        dc.DrawBitmap(bitmap, 0, 0, False)
+
+    def _rc_get_physical_size(self):
+        lsize = self.Size[0], self.Size[1]
+        lsize = float(lsize[0]), float(lsize[1])
+        ratio = self.GetContentScaleFactor()
+        return round(lsize[0] * ratio + 0.01), round(lsize[1] * ratio + 0.01)
+
+    def _rc_get_logical_size(self):
+        lsize = self.Size[0], self.Size[1]
+        return float(lsize[0]), float(lsize[1])
+
+    def _rc_get_pixel_ratio(self):
+        # todo: this is not hidpi-ready (at least on win10)
+        # Observations:
+        # * On Win10 this always returns 1 - so hidpi is effectively broken
+        return self.GetContentScaleFactor()
+
+    def _rc_set_logical_size(self, width, height):
+        width, height = int(width), int(height)
+        parent = self.Parent
+        if isinstance(parent, WxRenderCanvas):
+            parent.SetSize(width, height)
+        else:
+            self.SetSize(width, height)
+
+    def _rc_close(self):
+        self._is_closed = True
+        parent = self.Parent
+        if isinstance(parent, WxRenderCanvas):
+            parent.Hide()
+        else:
+            self.Hide()
+
+    def _rc_is_closed(self):
+        return self._is_closed
+
+    def _rc_set_title(self, title):
+        # Set title only on frame
+        parent = self.Parent
+        if isinstance(parent, WxRenderCanvas):
+            parent.SetTitle(title)
+
+    # %% Turn Qt events into rendercanvas events
 
     def _on_resize(self, event: wx.SizeEvent):
         self._draw_lock = True
@@ -182,12 +300,6 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
             "pixel_ratio": self.get_pixel_ratio(),
         }
         self.submit_event(ev)
-
-    def _on_resize_done(self, *args):
-        self._draw_lock = False
-        self.Refresh()
-
-    # Methods for input events
 
     def _on_key_down(self, event: wx.KeyEvent):
         char_str = self._get_char_from_event(event)
@@ -310,204 +422,31 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
     def _on_mouse_move(self, event: wx.MouseEvent):
         self._mouse_event("pointer_move", event)
 
-    # Methods that we add from BaseRenderCanvas
 
-    def _get_surface_ids(self):
-        if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
-            return {
-                "window": int(self.GetHandle()),
-            }
-        elif sys.platform.startswith("linux"):
-            if False:
-                # We fall back to XWayland, see _gui_utils.py
-                return {
-                    "platform": "wayland",
-                    "window": int(self.GetHandle()),
-                    "display": int(get_alt_wayland_display()),
-                }
-            else:
-                return {
-                    "platform": "x11",
-                    "window": int(self.GetHandle()),
-                    "display": int(get_alt_x11_display()),
-                }
-        else:
-            raise RuntimeError(f"Cannot get wx surface info on {sys.platform}.")
-
-    def get_present_info(self):
-        if self._surface_ids is None:
-            self._surface_ids = self._get_surface_ids()
-        global _show_image_method_warning
-        if self._present_to_screen and self._surface_ids:
-            info = {"method": "screen"}
-            info.update(self._surface_ids)
-        else:
-            if _show_image_method_warning:
-                logger.warn(_show_image_method_warning)
-                _show_image_method_warning = None
-            info = {
-                "method": "image",
-                "formats": ["rgba8unorm-srgb", "rgba8unorm"],
-            }
-        return info
-
-    def get_pixel_ratio(self):
-        # todo: this is not hidpi-ready (at least on win10)
-        # Observations:
-        # * On Win10 this always returns 1 - so hidpi is effectively broken
-        return self.GetContentScaleFactor()
-
-    def get_logical_size(self):
-        lsize = self.Size[0], self.Size[1]
-        return float(lsize[0]), float(lsize[1])
-
-    def get_physical_size(self):
-        lsize = self.Size[0], self.Size[1]
-        lsize = float(lsize[0]), float(lsize[1])
-        ratio = self.GetContentScaleFactor()
-        return round(lsize[0] * ratio + 0.01), round(lsize[1] * ratio + 0.01)
-
-    def set_logical_size(self, width, height):
-        if width < 0 or height < 0:
-            raise ValueError("Window width and height must not be negative")
-        parent = self.Parent
-        if isinstance(parent, WxRenderCanvas):
-            parent.SetSize(width, height)
-        else:
-            self.SetSize(width, height)
-
-    def _set_title(self, title):
-        # Set title only on frame
-        parent = self.Parent
-        if isinstance(parent, WxRenderCanvas):
-            parent.SetTitle(title)
-
-    def _request_draw(self):
-        if self._draw_lock:
-            return
-        try:
-            self.Refresh()
-        except Exception:
-            pass  # avoid errors when window no longer lives
-
-    def _force_draw(self):
-        self.Refresh()
-        self.Update()
-
-    def close(self):
-        self._is_closed = True
-        self.Hide()
-
-    def is_closed(self):
-        return self._is_closed
-
-    @staticmethod
-    def _call_later(delay, callback, *args):
-        delay_ms = int(delay * 1000)
-        if delay_ms <= 0:
-            callback(*args)
-
-        wx.CallLater(max(delay_ms, 1), callback, *args)
-
-    def present_image(self, image_data, **kwargs):
-        size = image_data.shape[1], image_data.shape[0]  # width, height
-
-        dc = wx.PaintDC(self)
-        bitmap = wx.Bitmap.FromBufferRGBA(*size, image_data)
-        dc.DrawBitmap(bitmap, 0, 0, False)
-
-
-class WxRenderCanvas(BaseRenderCanvas, wx.Frame):
+class WxRenderCanvas(WrapperRenderCanvas, wx.Frame):
     """A toplevel wx Frame providing a render canvas."""
 
     # Most of this is proxying stuff to the inner widget.
 
-    def __init__(
-        self,
-        *,
-        parent=None,
-        size=None,
-        title=None,
-        **kwargs,
-    ):
+    def __init__(self, parent=None, **kwargs):
+        # There needs to be an application before any widget is created.
         loop.init_wx()
-        sub_kwargs = pop_kwargs_for_base_canvas(kwargs)
-        super().__init__(parent, **kwargs)
+        # Any kwargs that we want to pass to *this* class, must be explicitly
+        # specified in the signature. The rest goes to the subwidget.
+        super().__init__(parent)
 
-        # Handle inputs
-        if title is None:
-            title = "wx canvas"
-        if not size:
-            size = 640, 480
+        self._subwidget = WxRenderWidget(parent=self, **kwargs)
 
-        self._subwidget = WxRenderWidget(parent=self, **sub_kwargs)
-        self._events = self._subwidget._events
         self.Bind(wx.EVT_CLOSE, lambda e: self.Destroy())
 
         self.Show()
-
-        # Force the canvas to be shown, so that it gets a valid handle.
-        # Otherwise GetHandle() is initially 0, and getting a surface will fail.
-        etime = time.perf_counter() + 1
-        while self._subwidget.GetHandle() == 0 and time.perf_counter() < etime:
-            loop.process_wx_events()
-
-        self.set_logical_size(*size)
-        self.set_title(title)
+        self._final_canvas_init()
 
     # wx methods
 
     def Destroy(self):  # noqa: N802 - this is a wx method
         self._subwidget._is_closed = True
         super().Destroy()
-
-    # Methods that we add from wgpu
-    def _get_loop(self):
-        return None  # wrapper widget does not have scheduling
-
-    def get_present_info(self):
-        return self._subwidget.get_present_info()
-
-    def get_pixel_ratio(self):
-        return self._subwidget.get_pixel_ratio()
-
-    def get_logical_size(self):
-        return self._subwidget.get_logical_size()
-
-    def get_physical_size(self):
-        return self._subwidget.get_physical_size()
-
-    def set_logical_size(self, width, height):
-        if width < 0 or height < 0:
-            raise ValueError("Window width and height must not be negative")
-        self.SetSize(width, height)
-
-    def set_title(self, title):
-        self._subwiget.set_title(title)
-
-    def _request_draw(self):
-        return self._subwidget._request_draw()
-
-    def _force_draw(self):
-        return self._subwidget._force_draw()
-
-    def close(self):
-        self._subwidget._is_closed = True
-        super().Close()
-
-    def is_closed(self):
-        return self._subwidget._is_closed
-
-    # Methods that we need to explicitly delegate to the subwidget
-
-    def get_context(self, *args, **kwargs):
-        return self._subwidget.get_context(*args, **kwargs)
-
-    def request_draw(self, *args, **kwargs):
-        return self._subwidget.request_draw(*args, **kwargs)
-
-    def present_image(self, image, **kwargs):
-        return self._subwidget.present_image(image, **kwargs)
 
 
 # Make available under a name that is the same for all gui backends

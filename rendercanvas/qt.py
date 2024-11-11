@@ -7,7 +7,12 @@ import sys
 import ctypes
 import importlib
 
-from .base import BaseRenderCanvas, BaseLoop, BaseTimer, pop_kwargs_for_base_canvas
+from .base import (
+    WrapperRenderCanvas,
+    BaseRenderCanvas,
+    BaseLoop,
+    BaseTimer,
+)
 from ._gui_utils import (
     logger,
     SYSTEM_IS_WAYLAND,
@@ -172,36 +177,8 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         self.setMouseTracking(True)
         self.setFocusPolicy(FocusPolicy.StrongFocus)
 
-    def paintEngine(self):  # noqa: N802 - this is a Qt method
-        # https://doc.qt.io/qt-5/qt.html#WidgetAttribute-enum  WA_PaintOnScreen
-        if self._present_to_screen:
-            return None
-        else:
-            return super().paintEngine()
-
-    def paintEvent(self, event):  # noqa: N802 - this is a Qt method
-        self._draw_frame_and_present()
-
-    def update(self):
-        # Bypass Qt's mechanics and request a draw so that the scheduling mechanics work as intended.
-        # Eventually this will call _request_draw().
-        self.request_draw()
-
-    # Methods that we add for BaseRenderCanvas (snake_case)
-
-    def _request_draw(self):
-        # Ask Qt to do a paint event
-        QtWidgets.QWidget.update(self)
-
-    def _force_draw(self):
-        # Call the paintEvent right now.
-        # This works on all platforms I tested, except on MacOS when drawing with the 'image' method.
-        # Not sure why this is. It be made to work by calling processEvents() but that has all sorts
-        # of nasty side-effects (e.g. the scheduler timer keeps ticking, invoking other draws, etc.).
-        self.repaint()
-
-    def _get_loop(self):
-        return loop
+        # Set size, title, etc.
+        self._final_canvas_init()
 
     def _get_surface_ids(self):
         if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
@@ -225,7 +202,29 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         else:
             raise RuntimeError(f"Cannot get Qt surface info on {sys.platform}.")
 
-    def get_present_info(self):
+    # %% Qt methods
+
+    def paintEngine(self):  # noqa: N802 - this is a Qt method
+        # https://doc.qt.io/qt-5/qt.html#WidgetAttribute-enum  WA_PaintOnScreen
+        if self._present_to_screen:
+            return None
+        else:
+            return super().paintEngine()
+
+    def paintEvent(self, event):  # noqa: N802 - this is a Qt method
+        self._draw_frame_and_present()
+
+    def update(self):
+        # Bypass Qt's mechanics and request a draw so that the scheduling mechanics work as intended.
+        # Eventually this will call _request_draw().
+        self.request_draw()
+
+    # %% Methods to implement RenderCanvas
+
+    def _rc_get_loop(self):
+        return loop
+
+    def _rc_get_present_info(self):
         global _show_image_method_warning
         if self._surface_ids is None:
             self._surface_ids = self._get_surface_ids()
@@ -242,18 +241,57 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
             }
         return info
 
-    def get_pixel_ratio(self):
-        # Observations:
-        # * On Win10 + PyQt5 the ratio is a whole number (175% becomes 2).
-        # * On Win10 + PyQt6 the ratio is correct (non-integer).
-        return self.devicePixelRatioF()
+    def _rc_request_draw(self):
+        # Ask Qt to do a paint event
+        QtWidgets.QWidget.update(self)
 
-    def get_logical_size(self):
-        # Sizes in Qt are logical
-        lsize = self.width(), self.height()
-        return float(lsize[0]), float(lsize[1])
+    def _rc_force_draw(self):
+        # Call the paintEvent right now.
+        # This works on all platforms I tested, except on MacOS when drawing with the 'image' method.
+        # Not sure why this is. It be made to work by calling processEvents() but that has all sorts
+        # of nasty side-effects (e.g. the scheduler timer keeps ticking, invoking other draws, etc.).
+        self.repaint()
 
-    def get_physical_size(self):
+    def _rc_present_image(self, image_data, **kwargs):
+        size = image_data.shape[1], image_data.shape[0]  # width, height
+        rect1 = QtCore.QRect(0, 0, size[0], size[1])
+        rect2 = self.rect()
+
+        painter = QtGui.QPainter(self)
+        # backingstore = self.backingStore()
+        # backingstore.beginPaint(rect2)
+        # painter = QtGui.QPainter(backingstore.paintDevice())
+
+        # We want to simply blit the image (copy pixels one-to-one on framebuffer).
+        # Maybe Qt does this when the sizes match exactly (like they do here).
+        # Converting to a QPixmap and painting that only makes it slower.
+
+        # Just in case, set render hints that may hurt performance.
+        painter.setRenderHints(
+            painter.RenderHint.Antialiasing | painter.RenderHint.SmoothPixmapTransform,
+            False,
+        )
+
+        image = QtGui.QImage(
+            image_data,
+            size[0],
+            size[1],
+            size[0] * 4,
+            QtGui.QImage.Format.Format_RGBA8888,
+        )
+
+        painter.drawImage(rect2, image, rect1)
+
+        # Uncomment for testing purposes
+        # painter.setPen(QtGui.QColor("#0000ff"))
+        # painter.setFont(QtGui.QFont("Arial", 30))
+        # painter.drawText(100, 100, "This is an image")
+
+        painter.end()
+        # backingstore.endPaint()
+        # backingstore.flush(rect2)
+
+    def _rc_get_physical_size(self):
         # https://doc.qt.io/qt-5/qpaintdevice.html
         # https://doc.qt.io/qt-5/highdpi.html
         lsize = self.width(), self.height()
@@ -268,7 +306,18 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         # integer then.
         return round(lsize[0] * ratio + 0.01), round(lsize[1] * ratio + 0.01)
 
-    def set_logical_size(self, width, height):
+    def _rc_get_logical_size(self):
+        # Sizes in Qt are logical
+        lsize = self.width(), self.height()
+        return float(lsize[0]), float(lsize[1])
+
+    def _rc_get_pixel_ratio(self):
+        # Observations:
+        # * On Win10 + PyQt5 the ratio is a whole number (175% becomes 2).
+        # * On Win10 + PyQt6 the ratio is correct (non-integer).
+        return self.devicePixelRatioF()
+
+    def _rc_set_logical_size(self, width, height):
         if width < 0 or height < 0:
             raise ValueError("Window width and height must not be negative")
         parent = self.parent()
@@ -277,20 +326,24 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         else:
             self.resize(width, height)  # See comment on pixel ratio
 
-    def _set_title(self, title):
+    def _rc_close(self):
+        parent = self.parent()
+        if isinstance(parent, QRenderCanvas):
+            QtWidgets.QWidget.close(parent)
+        else:
+            QtWidgets.QWidget.close(self)
+
+    def _rc_is_closed(self):
+        return self._is_closed
+
+    def _rc_set_title(self, title):
         # A QWidgets title can actually be shown when the widget is shown in a dock.
         # But the application should probably determine that title, not us.
         parent = self.parent()
         if isinstance(parent, QRenderCanvas):
             parent.setWindowTitle(title)
 
-    def close(self):
-        QtWidgets.QWidget.close(self)
-
-    def is_closed(self):
-        return self._is_closed
-
-    # User events to jupyter_rfb events
+    # %% Turn Qt events into rendercanvas events
 
     def _key_event(self, event_type, event):
         modifiers = tuple(
@@ -409,49 +462,8 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         self._is_closed = True
         self.submit_event({"event_type": "close"})
 
-    # Methods related to presentation of resulting image data
 
-    def present_image(self, image_data, **kwargs):
-        size = image_data.shape[1], image_data.shape[0]  # width, height
-        rect1 = QtCore.QRect(0, 0, size[0], size[1])
-        rect2 = self.rect()
-
-        painter = QtGui.QPainter(self)
-        # backingstore = self.backingStore()
-        # backingstore.beginPaint(rect2)
-        # painter = QtGui.QPainter(backingstore.paintDevice())
-
-        # We want to simply blit the image (copy pixels one-to-one on framebuffer).
-        # Maybe Qt does this when the sizes match exactly (like they do here).
-        # Converting to a QPixmap and painting that only makes it slower.
-
-        # Just in case, set render hints that may hurt performance.
-        painter.setRenderHints(
-            painter.RenderHint.Antialiasing | painter.RenderHint.SmoothPixmapTransform,
-            False,
-        )
-
-        image = QtGui.QImage(
-            image_data,
-            size[0],
-            size[1],
-            size[0] * 4,
-            QtGui.QImage.Format.Format_RGBA8888,
-        )
-
-        painter.drawImage(rect2, image, rect1)
-
-        # Uncomment for testing purposes
-        # painter.setPen(QtGui.QColor("#0000ff"))
-        # painter.setFont(QtGui.QFont("Arial", 30))
-        # painter.drawText(100, 100, "This is an image")
-
-        painter.end()
-        # backingstore.endPaint()
-        # backingstore.flush(rect2)
-
-
-class QRenderCanvas(BaseRenderCanvas, QtWidgets.QWidget):
+class QRenderCanvas(WrapperRenderCanvas, QtWidgets.QWidget):
     """A toplevel Qt widget providing a render canvas."""
 
     # Most of this is proxying stuff to the inner widget.
@@ -459,25 +471,17 @@ class QRenderCanvas(BaseRenderCanvas, QtWidgets.QWidget):
     # size can be set to subpixel (logical) values, without being able to
     # detect this. See https://github.com/pygfx/wgpu-py/pull/68
 
-    def __init__(self, *, size=None, title=None, **kwargs):
-        # When using Qt, there needs to be an
-        # application before any widget is created
+    def __init__(self, parent=None, **kwargs):
+        # There needs to be an application before any widget is created.
         loop.init_qt()
+        # Any kwargs that we want to pass to *this* class, must be explicitly
+        # specified in the signature. The rest goes to the subwidget.
+        super().__init__(parent)
 
-        sub_kwargs = pop_kwargs_for_base_canvas(kwargs)
-        super().__init__(**kwargs)
-
-        # Handle inputs
-        if title is None:
-            title = "qt canvas"
-        if not size:
-            size = 640, 480
+        self._subwidget = QRenderWidget(self, **kwargs)
 
         self.setAttribute(WA_DeleteOnClose, True)
         self.setMouseTracking(True)
-
-        self._subwidget = QRenderWidget(self, **sub_kwargs)
-        self._events = self._subwidget._events
 
         # Note: At some point we called `self._subwidget.winId()` here. For some
         # reason this was needed to "activate" the canvas. Otherwise the viz was
@@ -489,9 +493,8 @@ class QRenderCanvas(BaseRenderCanvas, QtWidgets.QWidget):
         self.setLayout(layout)
         layout.addWidget(self._subwidget)
 
-        self.set_logical_size(*size)
-        self.set_title(title)
         self.show()
+        self._final_canvas_init()
 
     # Qt methods
 
@@ -500,56 +503,7 @@ class QRenderCanvas(BaseRenderCanvas, QtWidgets.QWidget):
         super().update()
 
     def closeEvent(self, event):  # noqa: N802
-        self._subwidget._is_closed = True
-        self.submit_event({"event_type": "close"})
-
-    # Methods that we add from BaseRenderCanvas (snake_case)
-
-    def _request_draw(self):
-        self._subwidget._request_draw()
-
-    def _force_draw(self):
-        self._subwidget._force_draw()
-
-    def _get_loop(self):
-        return None  # This means this outer widget won't have a scheduler
-
-    def get_present_info(self):
-        return self._subwidget.get_present_info()
-
-    def get_pixel_ratio(self):
-        return self._subwidget.get_pixel_ratio()
-
-    def get_logical_size(self):
-        return self._subwidget.get_logical_size()
-
-    def get_physical_size(self):
-        return self._subwidget.get_physical_size()
-
-    def set_logical_size(self, width, height):
-        if width < 0 or height < 0:
-            raise ValueError("Window width and height must not be negative")
-        self.resize(width, height)  # See comment on pixel ratio
-
-    def close(self):
-        QtWidgets.QWidget.close(self)
-
-    def is_closed(self):
-        return self._subwidget.is_closed()
-
-    # Methods that we need to explicitly delegate to the subwidget
-
-    def set_title(self, *args):
-        self._subwidget.set_title(*args)
-
-    def get_context(self, *args, **kwargs):
-        return self._subwidget.get_context(*args, **kwargs)
-
-    def request_draw(self, *args, **kwargs):
-        return self._subwidget.request_draw(*args, **kwargs)
-
-    def present_image(self, image, **kwargs):
-        return self._subwidget.present_image(image, **kwargs)
+        self._subwidget.closeEvent(event)
 
 
 # Make available under a name that is the same for all gui backends

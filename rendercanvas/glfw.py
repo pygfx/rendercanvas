@@ -146,22 +146,21 @@ class GlfwRenderCanvas(BaseRenderCanvas):
 
     # See https://www.glfw.org/docs/latest/group__window.html
 
-    def __init__(self, *, size=None, title=None, **kwargs):
+    def __init__(self, *args, present_method=None, **kwargs):
         loop.init_glfw()
-        super().__init__(**kwargs)
+        super().__init__(*args, **kwargs)
 
-        # Handle inputs
-        if title is None:
-            title = "glfw canvas"
-        if not size:
-            size = 640, 480
+        if present_method == "image":
+            logger.warning(
+                "Ignoreing present_method 'image'; glfw can only render to screen"
+            )
 
         # Set window hints
         glfw.window_hint(glfw.CLIENT_API, glfw.NO_API)
         glfw.window_hint(glfw.RESIZABLE, True)
 
         # Create the window (the initial size may not be in logical pixels)
-        self._window = glfw.create_window(int(size[0]), int(size[1]), title, None, None)
+        self._window = glfw.create_window(640, 480, "", None, None)
 
         # Other internal variables
         self._changing_pixel_ratio = False
@@ -197,39 +196,8 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         self._pixel_ratio = -1
         self._screen_size_is_logical = False
 
-        # Apply incoming args via the proper route
-        self.set_logical_size(*size)
-        self.set_title(title)
-
-    # Callbacks to provide a minimal working canvas
-
-    def _on_pixelratio_change(self, *args):
-        if self._changing_pixel_ratio:
-            return
-        self._changing_pixel_ratio = True  # prevent recursion (on Wayland)
-        try:
-            self._set_logical_size(self._logical_size)
-        finally:
-            self._changing_pixel_ratio = False
-        self.request_draw()
-
-    def _on_size_change(self, *args):
-        self._determine_size()
-        self.request_draw()
-
-    def _check_close(self, *args):
-        # Follow the close flow that glfw intended.
-        # This method can be overloaded and the close-flag can be set to False
-        # using set_window_should_close() if now is not a good time to close.
-        if self._window is not None and glfw.window_should_close(self._window):
-            self._on_close()
-
-    def _on_close(self, *args):
-        loop.all_glfw_canvases.discard(self)
-        if self._window is not None:
-            glfw.destroy_window(self._window)  # not just glfw.hide_window
-            self._window = None
-            self.submit_event({"event_type": "close"})
+        # Set size, title, etc.
+        self._final_canvas_init()
 
     def _on_window_dirty(self, *args):
         self.request_draw()
@@ -237,9 +205,7 @@ class GlfwRenderCanvas(BaseRenderCanvas):
     def _on_iconify(self, window, iconified):
         self._is_minimized = bool(iconified)
         if not self._is_minimized:
-            self._request_draw()
-
-    # helpers
+            self._rc_request_draw()
 
     def _determine_size(self):
         if self._window is None:
@@ -261,6 +227,8 @@ class GlfwRenderCanvas(BaseRenderCanvas):
             "pixel_ratio": self._pixel_ratio,
         }
         self.submit_event(ev)
+
+    # %% Methods to implement RenderCanvas
 
     def _set_logical_size(self, new_logical_size):
         if self._window is None:
@@ -298,47 +266,79 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         if pixel_ratio != self._pixel_ratio:
             self._determine_size()
 
-    # API
-
-    def _get_loop(self):
+    def _rc_get_loop(self):
         return loop
 
-    def _request_draw(self):
+    def _rc_get_present_info(self):
+        return get_glfw_present_info(self._window)
+
+    def _rc_request_draw(self):
         if not self._is_minimized:
             loop.call_soon(self._draw_frame_and_present)
 
-    def _force_draw(self):
+    def _rc_force_draw(self):
         self._draw_frame_and_present()
 
-    def get_present_info(self):
-        return get_glfw_present_info(self._window)
+    def _rc_present_image(self, image, **kwargs):
+        raise NotImplementedError()
+        # AFAIK glfw does not have a builtin way to blit an image. It also does
+        # not really need one, since it's the most reliable backend to
+        # render to the screen.
 
-    def get_pixel_ratio(self):
-        return self._pixel_ratio
-
-    def get_logical_size(self):
-        return self._logical_size
-
-    def get_physical_size(self):
+    def _rc_get_physical_size(self):
         return self._physical_size
 
-    def set_logical_size(self, width, height):
+    def _rc_get_logical_size(self):
+        return self._logical_size
+
+    def _rc_get_pixel_ratio(self):
+        return self._pixel_ratio
+
+    def _rc_set_logical_size(self, width, height):
         if width < 0 or height < 0:
             raise ValueError("Window width and height must not be negative")
         self._set_logical_size((float(width), float(height)))
 
-    def _set_title(self, title):
-        glfw.set_window_title(self._window, title)
-
-    def close(self):
+    def _rc_close(self):
         if self._window is not None:
             glfw.set_window_should_close(self._window, True)
             self._check_close()
 
-    def is_closed(self):
+    def _rc_is_closed(self):
         return self._window is None
 
-    # User events
+    def _rc_set_title(self, title):
+        glfw.set_window_title(self._window, title)
+
+    # %% Turn glfw events into rendercanvas events
+
+    def _on_pixelratio_change(self, *args):
+        if self._changing_pixel_ratio:
+            return
+        self._changing_pixel_ratio = True  # prevent recursion (on Wayland)
+        try:
+            self._set_logical_size(self._logical_size)
+        finally:
+            self._changing_pixel_ratio = False
+        self.request_draw()
+
+    def _on_size_change(self, *args):
+        self._determine_size()
+        self.request_draw()
+
+    def _check_close(self, *args):
+        # Follow the close flow that glfw intended.
+        # This method can be overloaded and the close-flag can be set to False
+        # using set_window_should_close() if now is not a good time to close.
+        if self._window is not None and glfw.window_should_close(self._window):
+            self._on_close()
+
+    def _on_close(self, *args):
+        loop.all_glfw_canvases.discard(self)
+        if self._window is not None:
+            glfw.destroy_window(self._window)  # not just glfw.hide_window
+            self._window = None
+            self.submit_event({"event_type": "close"})
 
     def _on_mouse_button(self, window, but, action, mods):
         # Map button being changed, which we use to update self._pointer_buttons.
@@ -514,12 +514,6 @@ class GlfwRenderCanvas(BaseRenderCanvas):
             "modifiers": tuple(self._key_modifiers),
         }
         self.submit_event(ev)
-
-    def present_image(self, image, **kwargs):
-        raise NotImplementedError()
-        # AFAIK glfw does not have a builtin way to blit an image. It also does
-        # not really need one, since it's the most reliable backend to
-        # render to the screen.
 
 
 # Make available under a name that is the same for all backends

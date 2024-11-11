@@ -5,6 +5,17 @@ from ._loop import Scheduler, BaseLoop, BaseTimer  # noqa: F401
 from ._gui_utils import log_exception
 
 
+# Notes on naming and prefixes:
+#
+# Since BaseRenderCanvas can be used as a mixin with classes in a GUI framework,
+# we must avoid using generic names to avoid name clashes.
+#
+# * `.public_method`: Public API: usually at least two words, (except the close() method)
+# * `._private_method`: Private methods for scheduler and subclasses.
+# * `.__private_attr`: Private to exactly this class.
+# * `._rc_method`: Methods that the subclass must implement.
+
+
 class BaseRenderCanvas:
     """The base canvas class.
 
@@ -12,6 +23,8 @@ class BaseRenderCanvas:
     code that is portable accross multiple GUI libraries and canvas targets.
 
     Arguments:
+        size (tuple): the logical size (width, height) of the canvas.
+        title (str): The title of the canvas.
         update_mode (EventType): The mode for scheduling draws and events. Default 'ondemand'.
         min_fps (float): A minimal frames-per-second to use when the ``update_mode`` is 'ondemand'.
             The default is 1: even without draws requested, it still draws every second.
@@ -27,6 +40,8 @@ class BaseRenderCanvas:
     def __init__(
         self,
         *args,
+        size=(640, 480),
+        title="$backend",
         update_mode="ondemand",
         min_fps=1.0,
         max_fps=30.0,
@@ -34,25 +49,59 @@ class BaseRenderCanvas:
         present_method=None,
         **kwargs,
     ):
+        # Initialize superclass. Note that super() can be e.g. a QWidget, RemoteFrameBuffer, or object.
         super().__init__(*args, **kwargs)
-        self._vsync = bool(vsync)
-        present_method  # noqa - We just catch the arg here in case a backend does implement it
 
-        # Canvas
-        self.__raw_title = ""
-        self.__title_kwargs = {
+        # If this is a wrapper, no need to initialize furher
+        if isinstance(self, WrapperRenderCanvas):
+            return
+
+        # The vsync is not-so-elegantly strored on the canvas, and picked up by wgou's canvas contex.
+        self._vsync = bool(vsync)
+
+        # Variables and flags used internally
+        self.__is_drawing = False
+        self.__title_info = {
+            "raw": "",
             "fps": "?",
             "backend": self.__class__.__name__,
         }
 
-        self.__is_drawing = False
+        # Events and scheduler
         self._events = EventEmitter()
-        self._scheduler = None
-        loop = self._get_loop()
-        if loop:
-            self._scheduler = Scheduler(
-                self, loop, min_fps=min_fps, max_fps=max_fps, mode=update_mode
+        self.__scheduler = None
+        loop = self._rc_get_loop()
+        if loop is not None:
+            self.__scheduler = Scheduler(
+                self,
+                self._events,
+                self._rc_get_loop(),
+                min_fps=min_fps,
+                max_fps=max_fps,
+                mode=update_mode,
             )
+
+        # We cannot initialize the size and title now, because the subclass may not have done
+        # the initialization to support this. So we require the subclass to call _final_canvas_init.
+        self.__kwargs_for_later = dict(size=size, title=title)
+
+    def _final_canvas_init(self):
+        """Must be called by the subclasses at the end of their ``__init__``.
+
+        This sets the canvas size and title, which must happen *after* the widget itself
+        is initialized. Doing this automatically can be done with a metaclass, but let's keep it simple.
+        """
+        # Pop kwargs
+        try:
+            kwargs = self.__kwargs_for_later
+        except AttributeError:
+            return
+        else:
+            del self.__kwargs_for_later
+        # Apply
+        if not isinstance(self, WrapperRenderCanvas):
+            self.set_logical_size(*kwargs["size"])
+            self.set_title(kwargs["title"])
 
     def __del__(self):
         # On delete, we call the custom close method.
@@ -67,7 +116,7 @@ class BaseRenderCanvas:
         except Exception:
             pass
 
-    # === Implement WgpuCanvasInterface
+    # %% Implement WgpuCanvasInterface
 
     _canvas_context = None  # set in get_context()
 
@@ -97,11 +146,11 @@ class BaseRenderCanvas:
         formats is ``["rgba8unorm-srgb", "rgba8unorm"]``, and the default
         alpha_modes is ``["opaque"]``.
         """
-        raise NotImplementedError()
+        return self._rc_get_present_info()
 
     def get_physical_size(self):
         """Get the physical size of the canvas in integer pixels."""
-        raise NotImplementedError()
+        return self._rc_get_physical_size()
 
     def get_context(self, kind="webgpu"):
         """Get the ``GPUCanvasContext`` object corresponding to this canvas.
@@ -135,9 +184,9 @@ class BaseRenderCanvas:
         Canvases that don't support offscreen rendering don't need to implement
         this method.
         """
-        raise NotImplementedError()
+        self._rc_present_image(image, **kwargs)
 
-    # === Events
+    # %% Events
 
     def add_event_handler(self, *args, **kwargs):
         return self._events.add_handler(*args, **kwargs)
@@ -155,6 +204,8 @@ class BaseRenderCanvas:
     remove_event_handler.__doc__ = EventEmitter.remove_handler.__doc__
     submit_event.__doc__ = EventEmitter.submit.__doc__
 
+    # %% Scheduling and drawing
+
     def _process_events(self):
         """Process events and animations. Called from the scheduler."""
 
@@ -163,7 +214,7 @@ class BaseRenderCanvas:
         # when there are no draws (in ondemand and manual mode).
 
         # Get events from the GUI into our event mechanism.
-        loop = self._get_loop()
+        loop = self._rc_get_loop()
         if loop:
             loop._rc_gui_poll()
 
@@ -191,8 +242,6 @@ class BaseRenderCanvas:
         #             {"event_type": "animate", "step": step * n, "catch_up": n}
         #         )
 
-    # === Scheduling and drawing
-
     def _draw_frame(self):
         """The method to call to draw a frame.
 
@@ -216,8 +265,8 @@ class BaseRenderCanvas:
         """
         if draw_function is not None:
             self._draw_frame = draw_function
-        if self._scheduler is not None:
-            self._scheduler.request_draw()
+        if self.__scheduler is not None:
+            self.__scheduler.request_draw()
 
         # -> Note that the draw func is likely to hold a ref to the canvas. By
         #   storing it here, the gc can detect this case, and its fine. However,
@@ -232,7 +281,7 @@ class BaseRenderCanvas:
         """
         if self.__is_drawing:
             raise RuntimeError("Cannot force a draw while drawing.")
-        self._force_draw()
+        self._rc_force_draw()
 
     def _draw_frame_and_present(self):
         """Draw the frame and present the result.
@@ -251,7 +300,7 @@ class BaseRenderCanvas:
             # "draw event" that we requested, or as part of a forced draw.
 
             # Cannot draw to a closed canvas.
-            if self.is_closed():
+            if self._rc_is_closed():
                 return
 
             # Process special events
@@ -260,14 +309,14 @@ class BaseRenderCanvas:
             self._events.emit({"event_type": "before_draw"})
 
             # Notify the scheduler
-            if self._scheduler is not None:
-                fps = self._scheduler.on_draw()
+            if self.__scheduler is not None:
+                fps = self.__scheduler.on_draw()
 
                 # Maybe update title
                 if fps is not None:
-                    self.__title_kwargs["fps"] = f"{fps:0.1f}"
-                    if "$fps" in self.__raw_title:
-                        self.set_title(self.__raw_title)
+                    self.__title_info["fps"] = f"{fps:0.1f}"
+                    if "$fps" in self.__title_info["raw"]:
+                        self.set_title(self.__title_info["raw"])
 
             # Perform the user-defined drawing code. When this errors,
             # we should report the error and then continue, otherwise we crash.
@@ -283,21 +332,64 @@ class BaseRenderCanvas:
         finally:
             self.__is_drawing = False
 
-    def _get_loop(self):
-        """For the subclass to implement:
+    # %% Primary canvas management methods
+
+    def get_logical_size(self):
+        """Get the logical size (width, height) in float pixels."""
+        return self._rc_get_logical_size()
+
+    def get_pixel_ratio(self):
+        """Get the float ratio between logical and physical pixels."""
+        return self._rc_get_pixel_ratio()
+
+    def close(self):
+        """Close the canvas."""
+        self._rc_close()
+
+    def is_closed(self):
+        """Get whether the window is closed."""
+        return self._rc_is_closed()
+
+    # %% Secondary canvas management methods
+
+    # These methods provide extra control over the canvas. Subclasses should
+    # implement the methods they can, but these features are likely not critical.
+
+    def set_logical_size(self, width, height):
+        """Set the window size (in logical pixels)."""
+        width, height = float(width), float(height)
+        if width < 0 or height < 0:
+            raise ValueError("Canvas width and height must not be negative")
+        self._rc_set_logical_size(width, height)
+
+    def set_title(self, title):
+        """Set the window title."""
+        self.__title_info["raw"] = title
+        for k, v in self.__title_info.items():
+            title = title.replace("$" + k, v)
+        self._rc_set_title(title)
+
+    # %% Methods for the subclass to implement
+
+    def _rc_get_loop(self):
+        """Get the loop instance for this backend.
 
         Must return the global loop instance (a BaseLoop subclass) for the canvas subclass,
         or None for a canvas without scheduled draws.
         """
         return None
 
-    def _request_draw(self):
-        """For the subclass to implement:
+    def _rc_get_present_info(self):
+        """Get present info. See the corresponding public method."""
+        raise NotImplementedError()
 
-        Request the GUI layer to perform a draw. Like requestAnimationFrame in
-        JS. The draw must be performed by calling _draw_frame_and_present().
-        It's the responsibility for the canvas subclass to make sure that a draw
-        is made as soon as possible.
+    def _rc_request_draw(self):
+        """Request the GUI layer to perform a draw.
+
+        Like requestAnimationFrame in JS. The draw must be performed
+        by calling _draw_frame_and_present(). It's the responsibility
+        for the canvas subclass to make sure that a draw is made as
+        soon as possible.
 
         Canvases that have a limit on how fast they can 'consume' frames, like
         remote frame buffers, do good to call self._process_events() when the
@@ -309,60 +401,119 @@ class BaseRenderCanvas:
         """
         pass
 
-    def _force_draw(self):
-        """For the subclass to implement:
+    def _rc_force_draw(self):
+        """Perform a synchronous draw.
 
-        Perform a synchronous draw. When it returns, the draw must have been done.
+        When it returns, the draw must have been done.
         The default implementation just calls _draw_frame_and_present().
         """
         self._draw_frame_and_present()
 
-    # === Primary canvas management methods
-
-    # todo: we require subclasses to implement public methods, while everywhere else the implementable-methods are private.
-
-    def get_logical_size(self):
-        """Get the logical size in float pixels."""
+    def _rc_present_image(self, image, **kwargs):
+        """Present the given image. Only used with present_method 'image'."""
         raise NotImplementedError()
 
-    def get_pixel_ratio(self):
-        """Get the float ratio between logical and physical pixels."""
+    def _rc_get_physical_size(self):
+        """Get the physical size (with, height) in integer pixels."""
         raise NotImplementedError()
 
-    def close(self):
-        """Close the window."""
+    def _rc_get_logical_size(self):
+        """Get the logical size (with, height) in float pixels."""
+        raise NotImplementedError()
+
+    def _rc_get_pixel_ratio(self):
+        """Get ratio between physical and logical size."""
+        raise NotImplementedError()
+
+    def _rc_set_logical_size(self, width, height):
+        """Set the logical size. May be ignired when it makes no sense.
+
+        The default implementation does nothing.
+        """
         pass
 
-    def is_closed(self):
-        """Get whether the window is closed."""
+    def _rc_close(self):
+        """Close the canvas.
+
+        For widgets that are wrapped by a WrapperRenderCanvas, this should probably
+        close the wrapper instead.
+
+        Note that ``BaseRenderCanvas`` implements the ``close()`` method, which
+        is a rather common name; it may be necessary to re-implement that too.
+        """
+        pass
+
+    def _rc_is_closed(self):
+        """Get whether the canvas is closed."""
         return False
 
-    # === Secondary canvas management methods
+    def _rc_set_title(self, title):
+        """Set the canvas title. May be ignored when it makes no sense.
 
-    # These methods provide extra control over the canvas. Subclasses should
-    # implement the methods they can, but these features are likely not critical.
+        For widgets that are wrapped by a WrapperRenderCanvas, this should probably
+        set the title of the wrapper instead.
+
+        The default implementation does nothing.
+        """
+        pass
+
+
+class WrapperRenderCanvas(BaseRenderCanvas):
+    """A base render canvas for top-level windows that wrap a widget, as used in e.g. Qt and wx.
+
+    This base class implements all the re-direction logic, so that the subclass does not have to.
+    Wrapper classes should not implement any of the ``_rc_`` methods.
+    """
+
+    # Events
+
+    def add_event_handler(self, *args, **kwargs):
+        return self._subwidget._events.add_handler(*args, **kwargs)
+
+    def remove_event_handler(self, *args, **kwargs):
+        return self._subwidget._events.remove_handler(*args, **kwargs)
+
+    def submit_event(self, event):
+        return self._subwidget._events.submit(event)
+
+    # Must implement
+
+    def get_context(self, *args, **kwargs):
+        return self._subwidget.get_context(*args, **kwargs)
+
+    # So these should not be necessary
+
+    def get_present_info(self):
+        raise NotImplementedError()
+
+    def present_image(self, image, **kwargs):
+        raise NotImplementedError()
+
+    # More redirection
+
+    def request_draw(self, *args, **kwargs):
+        return self._subwidget.request_draw(*args, **kwargs)
+
+    def force_draw(self):
+        self._subwidget.force_draw()
+
+    def get_physical_size(self):
+        return self._subwidget.get_physical_size()
+
+    def get_logical_size(self):
+        return self._subwidget.get_logical_size()
+
+    def get_pixel_ratio(self):
+        return self._subwidget.get_pixel_ratio()
 
     def set_logical_size(self, width, height):
-        """Set the window size (in logical pixels)."""
-        pass
+        self._subwidget.set_logical_size(width, height)
 
-    def set_title(self, title):
-        """Set the window title."""
-        self.__raw_title = title
-        for k, v in self.__title_kwargs.items():
-            title = title.replace("$" + k, v)
-        self._set_title(title)
+    def set_title(self, *args):
+        self._subwidget.set_title(*args)
 
-    def _set_title(self, title):
-        pass
+    def close(self):
+        self._subwidget.close()
 
-
-def pop_kwargs_for_base_canvas(kwargs_dict):
-    """Convenience functions for wrapper canvases like in Qt and wx."""
-    code = BaseRenderCanvas.__init__.__code__
-    base_kwarg_names = code.co_varnames[: code.co_argcount + code.co_kwonlyargcount]
-    d = {}
-    for key in base_kwarg_names:
-        if key in kwargs_dict:
-            d[key] = kwargs_dict.pop(key)
-    return d
+    def is_closed(self):
+        return self._subwidget.is_closed()

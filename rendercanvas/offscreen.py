@@ -7,55 +7,61 @@ class ManualOffscreenRenderCanvas(BaseRenderCanvas):
     Call the ``.draw()`` method to perform a draw and get the result.
     """
 
-    def __init__(self, *args, size=None, pixel_ratio=1, title=None, **kwargs):
+    def __init__(self, *args, pixel_ratio=1.0, **kwargs):
         super().__init__(*args, **kwargs)
-        self._logical_size = (float(size[0]), float(size[1])) if size else (640, 480)
         self._pixel_ratio = pixel_ratio
         self._closed = False
         self._last_image = None
+        self._final_canvas_init()
 
-    def get_present_info(self):
+    # %% Methods to implement RenderCanvas
+
+    def _rc_get_loop(self):
+        return None  # No scheduling
+
+    def _rc_get_present_info(self):
         return {
             "method": "image",
             "formats": ["rgba8unorm-srgb", "rgba8unorm"],
         }
 
-    def present_image(self, image, **kwargs):
-        self._last_image = image
-
-    def get_pixel_ratio(self):
-        return self._pixel_ratio
-
-    def get_logical_size(self):
-        return self._logical_size
-
-    def get_physical_size(self):
-        return int(self._logical_size[0] * self._pixel_ratio), int(
-            self._logical_size[1] * self._pixel_ratio
-        )
-
-    def set_logical_size(self, width, height):
-        self._logical_size = width, height
-
-    def _set_title(self, title):
-        pass
-
-    def close(self):
-        self._closed = True
-
-    def is_closed(self):
-        return self._closed
-
-    def _get_loop(self):
-        return None  # No scheduling
-
-    def _request_draw(self):
+    def _rc_request_draw(self):
         # Ok, cool, the scheduler want a draw. But we only draw when the user
         # calls draw(), so that's how this canvas ticks.
         pass
 
-    def _force_draw(self):
+    def _rc_force_draw(self):
         self._draw_frame_and_present()
+
+    def _rc_present_image(self, image, **kwargs):
+        self._last_image = image
+
+    def _rc_get_physical_size(self):
+        return int(self._logical_size[0] * self._pixel_ratio), int(
+            self._logical_size[1] * self._pixel_ratio
+        )
+
+    def _rc_get_logical_size(self):
+        return self._logical_size
+
+    def rc_get_pixel_ratio(self):
+        return self._pixel_ratio
+
+    def _rc_set_logical_size(self, width, height):
+        self._logical_size = width, height
+
+    def _rc_close(self):
+        self._closed = True
+
+    def _rc_is_closed(self):
+        return self._closed
+
+    def _rc_set_title(self, title):
+        pass
+
+    # %% events - there are no GUI events
+
+    # %% Extra API
 
     def draw(self):
         """Perform a draw and get the resulting image.
