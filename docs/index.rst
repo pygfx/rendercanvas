@@ -8,10 +8,9 @@ Welcome to the rendercanvas docs!
     :caption: Contents:
 
     start
-    guide
-    gui
     api
-
+    backends
+    backendapi
 
 
 Indices and tables

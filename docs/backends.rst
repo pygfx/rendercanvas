@@ -1,58 +1,23 @@
-gui API
-=======
+Backends
+========
 
-.. currentmodule:: rendercanvas
-
-You can use vanilla wgpu for compute tasks and to render offscreen. To
-render to a window on screen we need a *canvas*. Since the Python
-ecosystem provides many different GUI toolkits, rendercanvas implements a base
-canvas class, and has builtin support for a few GUI toolkits. At the
-moment these include GLFW, Jupyter, Qt, and wx.
-
-
-The Canvas base classes
------------------------
-
-For each supported GUI toolkit there is a module that implements a ``RenderCanvas`` class,
-which inherits from :class:`BaseRenderCanvas`, providing a common API.
-The GLFW, Qt, and Jupyter backends also inherit from  :class:`WgpuAutoGui` to include
-support for events (interactivity). In the next sections we demonstrates the different
-canvas classes that you can use.
-
-
-Events
-------
-
-To implement interaction with a ``RenderCanvas``, use the :func:`BaseRenderCanvas.add_event_handler()` method.
-Events come in the following flavours:
-
-.. autoclass:: EventType
-    :members:
-
-
-The auto GUI backend
---------------------
+The auto backend
+-----------------
 
 Generally the best approach for examples and small applications is to use the
-automatically selected GUI backend. This ensures that the code is portable
+automatically selected backend. This ensures that the code is portable
 across different machines and environments. Using ``rendercanvas.auto`` selects a
 suitable backend depending on the environment and more. See
 :ref:`interactive_use` for details.
 
-To implement interaction, the ``canvas`` has a :func:`WgpuAutoGui.handle_event()` method
-that can be overloaded. Alternatively you can use it's :func:`WgpuAutoGui.add_event_handler()`
-method. See the `event spec <https://jupyter-rfb.readthedocs.io/en/stable/events.html>`_
-for details about the event objects.
-
-
 .. code-block:: py
 
-    from wgpu.gui.auto import RenderCanvas, run, call_later
+    from rendercanvas.auto import RenderCanvas, loop
 
     canvas = RenderCanvas(title="Example")
     canvas.request_draw(your_draw_function)
 
-    run()
+    loop.run()
 
 
 Support for GLFW
@@ -64,31 +29,29 @@ but you can replace ``from rendercanvas.auto`` with ``from rendercanvas.glfw`` t
 
 .. code-block:: py
 
-    from wgpu.gui.glfw import RenderCanvas, run, call_later
+    from rendercanvas.glfw import RenderCanvas, loop
 
     canvas = RenderCanvas(title="Example")
     canvas.request_draw(your_draw_function)
 
-    run()
+    loop.run()
 
 
 Support for Qt
 --------------
 
-There is support for PyQt5, PyQt6, PySide2 and PySide6. The rendercanvas library detects what
-library you are using by looking what module has been imported.
+RenderCanvas has support for PyQt5, PyQt6, PySide2 and PySide6. It detects what
+qt library you are using by looking what module has been imported.
 For a toplevel widget, the ``rendercanvas.qt.RenderCanvas`` class can be imported. If you want to
 embed the canvas as a subwidget, use ``rendercanvas.qt.QRenderWidget`` instead.
-
-Also see the `Qt triangle example <https://github.com/pygfx/wgpu-py/blob/main/examples/triangle_qt.py>`_
-and `Qt triangle embed example <https://github.com/pygfx/wgpu-py/blob/main/examples/triangle_qt_embed.py>`_.
 
 .. code-block:: py
 
     # Import any of the Qt libraries before importing the RenderCanvas.
-    # This way wgpu knows which Qt library to use.
+    # This way rendercanvas knows which Qt library to use.
     from PySide6 import QtWidgets
-    from wgpu.gui.qt import RenderCanvas
+    from rendercanvas.qt import RenderCanvas  # use this for top-level windows
+    from rendercanvas.qt import QRenderWidget  # use this for widgets in you application
 
     app = QtWidgets.QApplication([])
 
@@ -104,17 +67,15 @@ and `Qt triangle embed example <https://github.com/pygfx/wgpu-py/blob/main/examp
 Support for wx
 --------------
 
-There is support for embedding a wgpu visualization in wxPython.
-For a toplevel widget, the ``gui.wx.RenderCanvas`` class can be imported. If you want to
-embed the canvas as a subwidget, use ``gui.wx.RenderWidget`` instead.
+RenderCanvas has support for wxPython.
+For a toplevel widget, the ``rendercanvas.wx.RenderCanvas`` class can be imported. If you want to
+embed the canvas as a subwidget, use ``rendercanvas.wx.RenderWidget`` instead.
 
-Also see the `wx triangle example <https://github.com/pygfx/wgpu-py/blob/main/examples/triangle_wx.py>`_
-and `wx triangle embed example <https://github.com/pygfx/wgpu-py/blob/main/examples/triangle_wx_embed.py>`_.
 
 .. code-block:: py
 
     import wx
-    from wgpu.gui.wx import RenderCanvas
+    from rendercanvas.wx import RenderCanvas
 
     app = wx.App()
 
@@ -137,7 +98,7 @@ object, but in some cases it's convenient to do so with a canvas-like API.
 
 .. code-block:: py
 
-    from wgpu.gui.offscreen import RenderCanvas
+    from rendercanvas.offscreen import RenderCanvas
 
     # Instantiate the canvas
     canvas = RenderCanvas(size=(500, 400), pixel_ratio=1)
@@ -154,30 +115,30 @@ object, but in some cases it's convenient to do so with a canvas-like API.
 Support for Jupyter lab and notebook
 ------------------------------------
 
-WGPU can be used in Jupyter lab and the Jupyter notebook. This canvas
+RenderCanvas can be used in Jupyter lab and the Jupyter notebook. This canvas
 is based on `jupyter_rfb <https://github.com/vispy/jupyter_rfb>`_, an ipywidget
 subclass implementing a remote frame-buffer. There are also some `wgpu examples <https://jupyter-rfb.readthedocs.io/en/stable/examples/>`_.
 
 .. code-block:: py
 
-    # from wgpu.gui.jupyter import RenderCanvas  # Direct approach
-    from wgpu.gui.auto import RenderCanvas  # Approach compatible with desktop usage
+    # from rendercanvas.jupyter import RenderCanvas  # Direct approach
+    from rendercanvas.auto import RenderCanvas  # also works, because rendercanvas detects Jupyter
 
     canvas = RenderCanvas()
 
-    # ... wgpu code
+    # ... rendering code
 
     canvas  # Use as cell output
 
 
 .. _interactive_use:
 
-Using a canvas interactively
-----------------------------
+Interactive use
+---------------
 
-The rendercanvas gui's are designed to support interactive use. Firstly, this is
-realized by automatically selecting the appropriate GUI backend. Secondly, the
-``run()`` function (which normally enters the event-loop) does nothing in an
+The rendercanvas backends are designed to support interactive use. Firstly, this is
+realized by automatically selecting the appropriate backend. Secondly, the
+``loop.run()`` method (which normally enters the event-loop) does nothing in an
 interactive session.
 
 Many interactive environments have some sort of GUI support, allowing the repl
@@ -191,7 +152,7 @@ honor that and use Qt instead.
 On ``jupyter console`` and ``qtconsole``, the kernel is the same as in ``jupyter notebook``,
 making it (about) impossible to tell that we cannot actually use
 ipywidgets. So it will try to use ``jupyter_rfb``, but cannot render anything.
-It's theefore advised to either use ``%gui qt`` or set the ``WGPU_GUI_BACKEND`` env var
+It's therefore advised to either use ``%gui qt`` or set the ``WGPU_GUI_BACKEND`` env var
 to "glfw". The latter option works well, because these kernels *do* have a
 running asyncio event loop!
 
@@ -204,7 +165,7 @@ On IPython (the old-school terminal app) it's advised to use ``%gui qt`` (or
 On IDE's like Spyder or Pyzo, rendercanvas detects the integrated GUI, running on
 glfw if asyncio is enabled or Qt if a qt app is running.
 
-On an interactive session without GUI support, one must call ``run()`` to make
+On an interactive session without GUI support, one must call ``loop.run()`` to make
 the canvases interactive. This enters the main loop, which prevents entering new
 code. Once all canvases are closed, the loop returns. If you make new canvases
 afterwards, you can call ``run()`` again. This is similar to ``plt.show()`` in Matplotlib.
