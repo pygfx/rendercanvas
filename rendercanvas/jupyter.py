@@ -3,6 +3,8 @@ Support for rendering in a Jupyter widget. Provides a widget subclass that
 can be used as cell output, or embedded in an ipywidgets gui.
 """
 
+__all__ = ["RenderCanvas", "loop"]
+
 import time
 import weakref
 
@@ -142,3 +144,4 @@ class JupyterAsyncioLoop(AsyncioLoop):
 
 
 loop = JupyterAsyncioLoop()
+run = loop.run

@@ -3,6 +3,8 @@ Support for rendering in a Qt widget. Provides a widget subclass that
 can be used as a standalone window or in a larger GUI.
 """
 
+__all__ = ["RenderCanvas", "RenderWidget", "QRenderWidget", "loop"]
+
 import sys
 import ctypes
 import importlib
@@ -514,16 +516,16 @@ RenderCanvas = QRenderCanvas
 class QtTimer(BaseTimer):
     """Timer basef on Qt."""
 
-    def _init(self):
+    def _rc_init(self):
         self._qt_timer = QtCore.QTimer()
         self._qt_timer.timeout.connect(self._tick)
         self._qt_timer.setSingleShot(True)
         self._qt_timer.setTimerType(PreciseTimer)
 
-    def _start(self):
+    def _rc_start(self):
         self._qt_timer.start(int(self._interval * 1000))
 
-    def _stop(self):
+    def _rc_stop(self):
         self._qt_timer.stop()
 
 
@@ -539,13 +541,13 @@ class QtLoop(BaseLoop):
         """Return global instance of Qt app instance or create one if not created yet."""
         return QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
-    def _call_soon(self, callback, *args):
+    def _rc_call_soon(self, callback, *args):
         func = callback
         if args:
             func = lambda: callback(*args)
         QtCore.QTimer.singleshot(0, func)
 
-    def _run(self):
+    def _rc_run(self):
         # Note: we could detect if asyncio is running (interactive session) and wheter
         # we can use QtAsyncio. However, there's no point because that's up for the
         # end-user to decide.
@@ -562,7 +564,7 @@ class QtLoop(BaseLoop):
         app.setQuitOnLastWindowClosed(False)
         app.exec() if hasattr(app, "exec") else app.exec_()
 
-    def _stop(self):
+    def _rc_stop(self):
         if not already_had_app_on_import:
             self._app.quit()
 

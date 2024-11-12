@@ -7,6 +7,8 @@ On Linux, install the glfw lib using ``sudo apt install libglfw3``,
 or ``sudo apt install libglfw3-wayland`` when using Wayland.
 """
 
+__all__ = ["RenderCanvas", "loop"]
+
 import sys
 import time
 import atexit
@@ -539,8 +541,8 @@ class GlfwAsyncioLoop(AsyncioLoop):
         if self.stop_if_no_more_canvases and not tuple(self.all_glfw_canvases):
             self.stop()
 
-    def _run(self):
-        super()._run()
+    def _rc_run(self):
+        super()._rc_run()
         if not self._is_interactive:
             poll_glfw_briefly()
 

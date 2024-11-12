@@ -1,7 +1,13 @@
+"""
+The base classes.
+"""
+
+__all__ = ["WrapperRenderCanvas", "BaseRenderCanvas", "BaseLoop", "BaseTimer"]
+
 import sys
 
 from ._events import EventEmitter, EventType  # noqa: F401
-from ._loop import Scheduler, BaseLoop, BaseTimer  # noqa: F401
+from ._loop import Scheduler, BaseLoop, BaseTimer
 from ._coreutils import log_exception
 
 
@@ -213,7 +219,11 @@ class BaseRenderCanvas:
     # %% Scheduling and drawing
 
     def _process_events(self):
-        """Process events and animations. Called from the scheduler."""
+        """Process events and animations.
+
+        Called from the scheduler.
+        Subclasses *may* call this if the time between ``_rc_request_draw`` and the actual draw is relatively long.
+        """
 
         # We don't want this to be called too often, because we want the
         # accumulative events to accumulate. Once per draw, and at max_fps
@@ -393,7 +403,7 @@ class BaseRenderCanvas:
         """Request the GUI layer to perform a draw.
 
         Like requestAnimationFrame in JS. The draw must be performed
-        by calling _draw_frame_and_present(). It's the responsibility
+        by calling ``_draw_frame_and_present()``. It's the responsibility
         for the canvas subclass to make sure that a draw is made as
         soon as possible.
 
@@ -411,7 +421,7 @@ class BaseRenderCanvas:
         """Perform a synchronous draw.
 
         When it returns, the draw must have been done.
-        The default implementation just calls _draw_frame_and_present().
+        The default implementation just calls ``_draw_frame_and_present()``.
         """
         self._draw_frame_and_present()
 
@@ -441,7 +451,7 @@ class BaseRenderCanvas:
     def _rc_close(self):
         """Close the canvas.
 
-        For widgets that are wrapped by a WrapperRenderCanvas, this should probably
+        For widgets that are wrapped by a ``WrapperRenderCanvas``, this should probably
         close the wrapper instead.
 
         Note that ``BaseRenderCanvas`` implements the ``close()`` method, which
@@ -456,7 +466,7 @@ class BaseRenderCanvas:
     def _rc_set_title(self, title):
         """Set the canvas title. May be ignored when it makes no sense.
 
-        For widgets that are wrapped by a WrapperRenderCanvas, this should probably
+        For widgets that are wrapped by a ``WrapperRenderCanvas``, this should probably
         set the title of the wrapper instead.
 
         The default implementation does nothing.
@@ -468,7 +478,8 @@ class WrapperRenderCanvas(BaseRenderCanvas):
     """A base render canvas for top-level windows that wrap a widget, as used in e.g. Qt and wx.
 
     This base class implements all the re-direction logic, so that the subclass does not have to.
-    Wrapper classes should not implement any of the ``_rc_`` methods.
+    Subclasses should not implement any of the ``_rc_`` methods. Subclasses must instantiate the
+    wrapped canvas and set it as ``_subwidget``.
     """
 
     # Events

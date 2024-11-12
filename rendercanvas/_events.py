@@ -1,3 +1,7 @@
+"""
+The event system.
+"""
+
 import time
 from collections import defaultdict, deque
 

@@ -3,6 +3,8 @@ Support for rendering in a wxPython window. Provides a widget that
 can be used as a standalone window or in a larger GUI.
 """
 
+__all__ = ["RenderCanvas", "RenderWidget", "WxRenderWidget", "loop"]
+
 import sys
 import time
 import ctypes
@@ -467,13 +469,13 @@ class TimerWithCallback(wx.Timer):
 
 
 class WxTimer(BaseTimer):
-    def _init(self):
+    def _rc_init(self):
         self._wx_timer = TimerWithCallback(self._tick)
 
-    def _start(self):
+    def _rc_start(self):
         self._wx_timer.StartOnce(int(self._interval * 1000))
 
-    def _stop(self):
+    def _rc_stop(self):
         self._wx_timer.Stop()
 
 
@@ -493,14 +495,14 @@ class WxLoop(BaseLoop):
             wx.App.SetInstance(app)
         return app
 
-    def _call_soon(self, delay, callback, *args):
+    def _rc_call_soon(self, delay, callback, *args):
         wx.CallSoon(callback, args)
 
-    def _run(self):
+    def _rc_run(self):
         self._frame_to_keep_loop_alive = wx.Frame(None)
         self._app.MainLoop()
 
-    def _stop(self):
+    def _rc_stop(self):
         self._frame_to_keep_loop_alive.Destroy()
         _frame_to_keep_loop_alive = None
 

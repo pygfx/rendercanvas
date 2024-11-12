@@ -1,5 +1,5 @@
 """
-Implemens loop mechanics: The base timer, base loop, and scheduler.
+The loop mechanics: the base timer, base loop, and scheduler.
 """
 
 import time
@@ -43,13 +43,13 @@ class BaseTimer:
         restarted.
         """
         if self._interval is None:
-            self._init()
+            self._rc_init()
         if self.is_running:
-            self._stop()
+            self._rc_stop()
         BaseTimer._running_timers.add(self)
         self._interval = max(0.0, float(interval))
         self._expect_tick_at = time.perf_counter() + self._interval
-        self._start()
+        self._rc_start()
 
     def stop(self):
         """Stop the timer.
@@ -60,7 +60,7 @@ class BaseTimer:
         """
         BaseTimer._running_timers.discard(self)
         self._expect_tick_at = None
-        self._stop()
+        self._rc_stop()
 
     def _tick(self):
         """The implementations must call this method."""
@@ -70,7 +70,7 @@ class BaseTimer:
             self._expect_tick_at = None
         else:
             self._expect_tick_at = time.perf_counter() + self._interval
-            self._start()
+            self._rc_start()
         # Callback
         with log_exception("Timer callback error"):
             self._callback(*self._args)
@@ -107,25 +107,25 @@ class BaseTimer:
         """
         return self._one_shot
 
-    def _init(self):
-        """For the subclass to implement:
+    def _rc_init(self):
+        """Initialize the (native) timer object.
 
         Opportunity to initialize the timer object. This is called right
         before the timer is first started.
         """
         pass
 
-    def _start(self):
-        """For the subclass to implement:
+    def _rc_start(self):
+        """Start the timer.
 
         * Must schedule for ``self._tick`` to be called in ``self._interval`` seconds.
         * Must call it exactly once (the base class takes care of repeating the timer).
-        * When ``self._stop()`` is called before the timer finished, the call to ``self._tick()`` must be cancelled.
+        * When ``self._rc_stop()`` is called before the timer finished, the call to ``self._tick()`` must be cancelled.
         """
         raise NotImplementedError()
 
-    def _stop(self):
-        """For the subclass to implement:
+    def _rc_stop(self):
+        """Stop the timer.
 
         * If the timer is running, cancel the pending call to ``self._tick()``.
         * Otherwise, this should do nothing.
@@ -183,7 +183,7 @@ class BaseLoop:
         The callback will be called in the next iteration of the event-loop,
         but other pending events/callbacks may be handled first. Returns None.
         """
-        self._call_soon(callback, *args)
+        self._rc_call_soon(callback, *args)
 
     def call_later(self, delay, callback, *args):
         """Arrange for a callback to be called after the given delay (in seconds).
@@ -220,14 +220,14 @@ class BaseLoop:
         its fine to start the loop in the normal way.
         """
         self._stop_when_no_canvases = bool(stop_when_no_canvases)
-        self._run()
+        self._rc_run()
 
     def stop(self):
         """Stop the currently running event loop."""
-        self._stop()
+        self._rc_stop()
 
-    def _run(self):
-        """For the subclass to implement:
+    def _rc_run(self):
+        """Start running the event-loop.
 
         * Start the event loop.
         * The rest of the loop object must work just fine, also when the loop is
@@ -235,16 +235,16 @@ class BaseLoop:
         """
         raise NotImplementedError()
 
-    def _stop(self):
-        """For the subclass to implement:
+    def _rc_stop(self):
+        """Stop the event loop.
 
         * Stop the running event loop.
         * When running in an interactive session, this call should probably be ignored.
         """
         raise NotImplementedError()
 
-    def _call_soon(self, callback, *args):
-        """For the subclass to implement:
+    def _rc_call_soon(self, callback, *args):
+        """Method to call a callback in the next iteraction of the event-loop.
 
         * A quick path to have callback called in a next invocation of the event loop.
         * This method is optional: the default implementation just calls ``call_later()`` with a zero delay.
@@ -252,7 +252,7 @@ class BaseLoop:
         self.call_later(0, callback, *args)
 
     def _rc_gui_poll(self):
-        """For the subclass to implement:
+        """Process GUI events.
 
         Some event loops (e.g. asyncio) are just that and dont have a GUI to update.
         Other loops (like Qt) already process events. So this is only intended for
