@@ -156,6 +156,18 @@ class BaseEnum(metaclass=EnumType):
 QT_MODULE_NAMES = ["PySide6", "PyQt6", "PySide2", "PyQt5"]
 
 
+def select_qt_lib():
+    """Select the qt lib to use, used by qt.py"""
+    # Check the override. This env var is meant for internal use only.
+    # Otherwise check imported libs.
+
+    libname = os.getenv("_RENDERCANVAS_QT_LIB")
+    if libname:
+        return libname, qt_lib_has_app(libname)
+    else:
+        return get_imported_qt_lib()
+
+
 def get_imported_qt_lib():
     """Get the name of the currently imported qt lib.
 
@@ -170,13 +182,9 @@ def get_imported_qt_lib():
             imported_libs.append(libname)
 
     # Get which of these have an application object
-    imported_libs_with_app = []
-    for libname in imported_libs:
-        QtWidgets = sys.modules.get(libname + ".QtWidgets", None)  # noqa: N806
-        if QtWidgets:
-            app = QtWidgets.QApplication.instance()
-            if app is not None:
-                imported_libs_with_app.append(libname)
+    imported_libs_with_app = [
+        libname for libname in imported_libs if qt_lib_has_app(libname)
+    ]
 
     # Return findings
     if imported_libs_with_app:
@@ -185,6 +193,13 @@ def get_imported_qt_lib():
         return imported_libs[0], False
     else:
         return None, False
+
+
+def qt_lib_has_app(libname):
+    QtWidgets = sys.modules.get(libname + ".QtWidgets", None)  # noqa: N806
+    if QtWidgets:
+        app = QtWidgets.QApplication.instance()
+        return app is not None
 
 
 def asyncio_is_running():

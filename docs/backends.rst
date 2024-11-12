@@ -40,16 +40,17 @@ but you can replace ``from rendercanvas.auto`` with ``from rendercanvas.glfw`` t
 Support for Qt
 --------------
 
-RenderCanvas has support for PyQt5, PyQt6, PySide2 and PySide6. It detects what
-qt library you are using by looking what module has been imported.
+RenderCanvas has support for PyQt5, PyQt6, PySide2 and PySide6.
 For a toplevel widget, the ``rendercanvas.qt.RenderCanvas`` class can be imported. If you want to
 embed the canvas as a subwidget, use ``rendercanvas.qt.QRenderWidget`` instead.
 
+Importing ``rendercanvas.qt`` detects what qt library is currently imported:
+
 .. code-block:: py
 
-    # Import any of the Qt libraries before importing the RenderCanvas.
-    # This way rendercanvas knows which Qt library to use.
+    # Import Qt first, otherwise rendercanvas does not know what qt-lib to use
     from PySide6 import QtWidgets
+
     from rendercanvas.qt import RenderCanvas  # use this for top-level windows
     from rendercanvas.qt import QRenderWidget  # use this for widgets in you application
 
@@ -62,6 +63,21 @@ embed the canvas as a subwidget, use ``rendercanvas.qt.QRenderWidget`` instead.
     canvas.request_draw(your_draw_function)
 
     app.exec_()
+
+
+Alternatively, you can select the specific qt library to use, making it easy to e.g. test an example on a specific Qt library.
+
+.. code-block:: py
+
+    from rendercanvas.pyside6 import RenderCanvas, loop
+
+    # Instantiate the canvas
+    canvas = RenderCanvas(title="Example")
+
+    # Tell the canvas what drawing function to call
+    canvas.request_draw(your_draw_function)
+
+    loop.run()  # calls app.exec_()
 
 
 Support for wx
