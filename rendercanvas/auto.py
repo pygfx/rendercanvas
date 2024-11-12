@@ -85,19 +85,35 @@ def backends_generator():
 
 def backends_by_env_vars():
     """Generate backend names set via one the supported environment variables."""
+
+    # We also support the legacy WGPU_X env vars, but only when the
+    # corresponding RENDERCANVAS_X is not set or set to the empty string.
+
+    def get_env_var(*varnames):
+        for varname in varnames:
+            value = os.getenv(varname, "").lower()
+            if value:
+                return value, varname
+        else:
+            return "", varnames[0]
+
     # Env var intended for testing, overrules everything else
-    if os.environ.get("WGPU_FORCE_OFFSCREEN", "").lower() in ("1", "true", "yes"):
-        yield "offscreen", "WGPU_FORCE_OFFSCREEN is set"
+    force_offscreen, varname = get_env_var(
+        "RENDERCANVAS_FORCE_OFFSCREEN", "WGPU_FORCE_OFFSCREEN"
+    )
+    if force_offscreen and force_offscreen in ("1", "true", "yes"):
+        yield "offscreen", f"{varname} is set"
+
     # Env var to force a backend for general use
-    backend_name = os.getenv("WGPU_GUI_BACKEND", "").lower().strip() or None
+    backend_name, varname = get_env_var("RENDERCANVAS_BACKEND", "WGPU_GUI_BACKEND")
     if backend_name:
         if backend_name not in BACKEND_NAMES:
             logger.warning(
-                f"Ignoring invalid WGPU_GUI_BACKEND '{backend_name}', must be one of {BACKEND_NAMES}"
+                f"Ignoring invalid {varname} '{backend_name}', must be one of {BACKEND_NAMES}"
             )
             backend_name = None
     if backend_name:
-        yield backend_name, "WGPU_GUI_BACKEND is set"
+        yield backend_name, f"{varname} is set"
 
 
 def backends_by_jupyter():
@@ -116,7 +132,7 @@ def backends_by_jupyter():
     # whether we're in a console or notebook. Technically this kernel could be
     # connected to a client of each. So we assume that ipywidgets can be used.
     # User on jupyter console (or similar) should ``%gui qt`` or set
-    # WGPU_GUI_BACKEND to 'glfw'.
+    # RENDERCANVAS_BACKEND to 'glfw'.
 
     # If GUI integration is enabled, we select the corresponding backend instead of jupyter
     app = getattr(ip.kernel, "app", None)

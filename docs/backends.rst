@@ -131,6 +131,27 @@ subclass implementing a remote frame-buffer. There are also some `wgpu examples 
     canvas  # Use as cell output
 
 
+
+.. _env_vars:
+
+Selecting a backend with env vars
+---------------------------------
+
+The automatic backend selection can be influenced with the use of environment
+variables. This makes it possible to e.g. create examples using the
+auto-backend, and allow these examples to run on CI with the offscreen backend.
+Note that once ``rendercanvas.auto`` is imported, the selection has been made,
+and importing it again always yields the same backend.
+
+* ``RENDERCANVAS_BACKEND``: Set the name of the backend that the auto-backend should select. Case insensituve.
+* ``RENDERCANVAS_FORCE_OFFSCREEN``: force the auto-backend to select the offscreen canvas, ignoring the above env var. Truethy values are '1', 'true', and 'yes'.
+
+Rendercanvas also supports the following env vars for backwards compatibility, but only when the corresponding ``RENDERCANVAS_`` env var is unset or an empty string:
+
+* ``WGPU_GUI_BACKEND``:  legacy alias.
+* ``WGPU_FORCE_OFFSCREEN``: legacy alias.
+
+
 .. _interactive_use:
 
 Interactive use
@@ -152,7 +173,7 @@ honor that and use Qt instead.
 On ``jupyter console`` and ``qtconsole``, the kernel is the same as in ``jupyter notebook``,
 making it (about) impossible to tell that we cannot actually use
 ipywidgets. So it will try to use ``jupyter_rfb``, but cannot render anything.
-It's therefore advised to either use ``%gui qt`` or set the ``WGPU_GUI_BACKEND`` env var
+It's therefore advised to either use ``%gui qt`` or set the ``RENDERCANVAS_BACKEND`` env var
 to "glfw". The latter option works well, because these kernels *do* have a
 running asyncio event loop!
 

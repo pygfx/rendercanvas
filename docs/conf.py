@@ -17,7 +17,7 @@ import sys
 ROOT_DIR = os.path.abspath(os.path.join(__file__, "..", ".."))
 sys.path.insert(0, ROOT_DIR)
 
-os.environ["WGPU_FORCE_OFFSCREEN"] = "true"
+os.environ["RENDERCANVAS_FORCE_OFFSCREEN"] = "true"
 
 
 # Load wglibu so autodoc can query docstrings
