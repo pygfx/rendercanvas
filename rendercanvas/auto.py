@@ -1,11 +1,8 @@
 """
 Automatic backend selection.
-
-Right now we only chose between GLFW, Qt and Jupyter. We might add support
-for e.g. wx later. Or we might decide to stick with these three.
 """
 
-__all__ = ["RenderCanvas", "loop", "run"]
+__all__ = ["RenderCanvas", "loop"]
 
 import os
 import sys

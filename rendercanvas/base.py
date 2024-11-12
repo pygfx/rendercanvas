@@ -1,7 +1,13 @@
+"""
+The base classes.
+"""
+
+__all__ = ["WrapperRenderCanvas", "BaseRenderCanvas", "BaseLoop", "BaseTimer"]
+
 import sys
 
 from ._events import EventEmitter, EventType  # noqa: F401
-from ._loop import Scheduler, BaseLoop, BaseTimer  # noqa: F401
+from ._loop import Scheduler, BaseLoop, BaseTimer
 from ._coreutils import log_exception
 
 

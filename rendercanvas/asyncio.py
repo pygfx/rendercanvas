@@ -1,8 +1,12 @@
-"""Implements an asyncio event loop."""
+"""
+Implements an asyncio event loop, used in some backends.
+"""
 
 # This is used for backends that don't have an event loop by themselves, like glfw.
 # Would be nice to also allow a loop based on e.g. Trio. But we can likely fit that in
 # when the time comes.
+
+__all__ = ["AsyncioLoop", "AsyncioTimer"]
 
 import asyncio
 

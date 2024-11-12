@@ -1,5 +1,5 @@
 """
-Implemens loop mechanics: The base timer, base loop, and scheduler.
+The loop mechanics: the base timer, base loop, and scheduler.
 """
 
 import time

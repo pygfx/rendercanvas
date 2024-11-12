@@ -1,3 +1,9 @@
+"""
+Offscreen canvas. No scheduling.
+"""
+
+__all__ = ["RenderCanvas", "loop"]
+
 from .base import BaseRenderCanvas, BaseLoop, BaseTimer
 
 

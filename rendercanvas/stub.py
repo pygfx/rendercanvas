@@ -1,4 +1,8 @@
-"""A stub backend for documentation purposes."""
+"""
+A stub backend for documentation purposes.
+"""
+
+__all__ = ["RenderCanvas", "loop"]
 
 from .base import WrapperRenderCanvas, BaseRenderCanvas, BaseLoop, BaseTimer
 

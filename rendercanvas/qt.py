@@ -3,6 +3,8 @@ Support for rendering in a Qt widget. Provides a widget subclass that
 can be used as a standalone window or in a larger GUI.
 """
 
+__all__ = ["RenderCanvas", "RenderWidget", "QRenderWidget", "loop"]
+
 import sys
 import ctypes
 import importlib
