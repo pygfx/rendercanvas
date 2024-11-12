@@ -108,3 +108,9 @@ class StubLoop(BaseLoop):
 
     def _rc_gui_poll(self):
         pass
+
+
+# Make available under a common name
+RenderCanvas = StubRenderCanvas
+loop = StubLoop()
+run = loop.run

@@ -14,6 +14,9 @@ class AsyncioTimer(BaseTimer):
 
     _handle = None
 
+    def _rc_init(self):
+        pass
+
     def _rc_start(self):
         def tick():
             self._handle = None
@@ -69,3 +72,6 @@ class AsyncioLoop(BaseLoop):
 
     def _rc_call_soon(self, callback, *args):
         self._loop.call_soon(callback, *args)
+
+    def _rc_gui_poll(self):
+        pass

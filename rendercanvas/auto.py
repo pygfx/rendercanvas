@@ -188,5 +188,6 @@ def backends_by_trying_in_order():
 
 # Load!
 module = select_backend()
-RenderCanvas, loop = module.RenderCanvas, module.loop
+RenderCanvas = module.RenderCanvas
+loop = module.loop
 run = loop.run  # backwards compat

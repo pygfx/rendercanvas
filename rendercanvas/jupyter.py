@@ -142,3 +142,4 @@ class JupyterAsyncioLoop(AsyncioLoop):
 
 
 loop = JupyterAsyncioLoop()
+run = loop.run

@@ -44,7 +44,7 @@ class ManualOffscreenRenderCanvas(BaseRenderCanvas):
     def _rc_get_logical_size(self):
         return self._logical_size
 
-    def rc_get_pixel_ratio(self):
+    def _rc_get_pixel_ratio(self):
         return self._pixel_ratio
 
     def _rc_set_logical_size(self, width, height):
@@ -79,6 +79,9 @@ RenderCanvas = ManualOffscreenRenderCanvas
 
 
 class StubTimer(BaseTimer):
+    def _rc_init(self):
+        pass
+
     def _rc_start(self):
         pass
 
@@ -114,5 +117,12 @@ class StubLoop(BaseLoop):
     def _rc_stop(self):
         pass
 
+    def _rc_call_soon(self, callback):
+        super()._rc_call_soon(callback)
+
+    def _rc_gui_poll(self):
+        pass
+
 
 loop = StubLoop()
+run = loop.run
