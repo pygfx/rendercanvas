@@ -108,7 +108,7 @@ class BaseTimer:
         return self._one_shot
 
     def _rc_init(self):
-        """For the subclass to implement:
+        """Initialize the (native) timer object.
 
         Opportunity to initialize the timer object. This is called right
         before the timer is first started.
@@ -116,7 +116,7 @@ class BaseTimer:
         pass
 
     def _rc_start(self):
-        """For the subclass to implement:
+        """Start the timer.
 
         * Must schedule for ``self._tick`` to be called in ``self._interval`` seconds.
         * Must call it exactly once (the base class takes care of repeating the timer).
@@ -125,7 +125,7 @@ class BaseTimer:
         raise NotImplementedError()
 
     def _rc_stop(self):
-        """For the subclass to implement:
+        """Stop the timer.
 
         * If the timer is running, cancel the pending call to ``self._tick()``.
         * Otherwise, this should do nothing.
@@ -227,7 +227,7 @@ class BaseLoop:
         self._rc_stop()
 
     def _rc_run(self):
-        """For the subclass to implement:
+        """Start running the event-loop.
 
         * Start the event loop.
         * The rest of the loop object must work just fine, also when the loop is
@@ -236,7 +236,7 @@ class BaseLoop:
         raise NotImplementedError()
 
     def _rc_stop(self):
-        """For the subclass to implement:
+        """Stop the event loop.
 
         * Stop the running event loop.
         * When running in an interactive session, this call should probably be ignored.
@@ -244,7 +244,7 @@ class BaseLoop:
         raise NotImplementedError()
 
     def _rc_call_soon(self, callback, *args):
-        """For the subclass to implement:
+        """Method to call a callback in the next iteraction of the event-loop.
 
         * A quick path to have callback called in a next invocation of the event loop.
         * This method is optional: the default implementation just calls ``call_later()`` with a zero delay.
@@ -252,7 +252,7 @@ class BaseLoop:
         self.call_later(0, callback, *args)
 
     def _rc_gui_poll(self):
-        """For the subclass to implement:
+        """Process GUI events.
 
         Some event loops (e.g. asyncio) are just that and dont have a GUI to update.
         Other loops (like Qt) already process events. So this is only intended for
