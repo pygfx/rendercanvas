@@ -74,5 +74,5 @@ adapter_summary = get_default_adapter_summary()
 can_use_wgpu_lib = bool(adapter_summary)
 
 can_use_glfw = _determine_can_use_glfw()
-is_ci = bool(os.getenv("CI", None))
+is_ci = bool(os.getenv("CI"))
 is_pypy = sys.implementation.name == "pypy"
