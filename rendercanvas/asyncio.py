@@ -53,12 +53,6 @@ class AsyncioLoop(BaseLoop):
             return asyncio.get_running_loop()
         except Exception:
             pass
-        # todo: get_event_loop is on a deprecation path.
-        # but there still is `set_event_loop()`  so I'm a bit confused
-        try:
-            return asyncio.get_event_loop()
-        except RuntimeError:
-            pass
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         return loop
