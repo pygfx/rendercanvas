@@ -20,12 +20,12 @@ from ._coreutils import (
     SYSTEM_IS_WAYLAND,
     get_alt_x11_display,
     get_alt_wayland_display,
-    get_imported_qt_lib,
+    select_qt_lib,
 )
 
 
 # Select GUI toolkit
-libname, already_had_app_on_import = get_imported_qt_lib()
+libname, already_had_app_on_import = select_qt_lib()
 if libname:
     QtCore = importlib.import_module(".QtCore", libname)
     QtGui = importlib.import_module(".QtGui", libname)
@@ -50,6 +50,14 @@ else:
     raise ImportError(
         "Before importing rendercanvas.qt, import one of PySide6/PySide2/PyQt6/PyQt5 to select a Qt toolkit."
     )
+
+
+def check_qt_libname(expected_libname):
+    """Little helper for the qt backends that represent a specific qt lib."""
+    if expected_libname != libname:
+        raise RuntimeError(
+            f"Failed to load rendercanvas.qt with {expected_libname}, because rendercanvas.qt is already loaded with {libname}."
+        )
 
 
 # Get version
@@ -320,8 +328,7 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         return self.devicePixelRatioF()
 
     def _rc_set_logical_size(self, width, height):
-        if width < 0 or height < 0:
-            raise ValueError("Window width and height must not be negative")
+        width, height = int(width), int(height)
         parent = self.parent()
         if isinstance(parent, QRenderCanvas):
             parent.resize(width, height)
@@ -539,7 +546,11 @@ class QtLoop(BaseLoop):
     @property
     def _app(self):
         """Return global instance of Qt app instance or create one if not created yet."""
-        return QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+        # Note: PyQt6 needs the app to be stored, or it will be gc'd.
+        app = QtWidgets.QApplication.instance()
+        if app is None:
+            self._the_app = app = QtWidgets.QApplication([])
+        return app
 
     def _rc_call_soon(self, callback, *args):
         func = callback

@@ -30,15 +30,17 @@ class Module:
 
     def __init__(self, name):
         self.name = name
+
+        self.filename = os.path.abspath(
+            os.path.join(rendercanvas.__file__, "..", self.name + ".py")
+        )
+        with open(self.filename, "rb") as f:
+            self.source = f.read().decode()
+
         self.names = self.get_namespace()
 
     def get_namespace(self):
-        fname = self.name + ".py"
-        filename = os.path.abspath(os.path.join(rendercanvas.__file__, "..", fname))
-        with open(filename, "rb") as f:
-            code = f.read().decode()
-
-        module = ast.parse(code)
+        module = ast.parse(self.source)
 
         names = {}
         for statement in module.body:
@@ -269,6 +271,26 @@ def test_qt_module():
     timer_class = m.get_timer_class(loop_class)
     m.check_timer(timer_class)
     assert timer_class.name == "QtTimer"
+
+
+def test_pyside6_module():
+    m = Module("pyside6")
+    assert "from .qt import *" in m.source
+
+
+def test_pyside2_module():
+    m = Module("pyside2")
+    assert "from .qt import *" in m.source
+
+
+def test_pyqt6_module():
+    m = Module("pyqt6")
+    assert "from .qt import *" in m.source
+
+
+def test_pyqt5_module():
+    m = Module("pyqt5")
+    assert "from .qt import *" in m.source
 
 
 def test_wx_module():
