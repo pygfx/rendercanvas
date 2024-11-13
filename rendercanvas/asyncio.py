@@ -40,7 +40,7 @@ class AsyncioTimer(BaseTimer):
 class AsyncioLoop(BaseLoop):
     _TimerClass = AsyncioTimer
     _the_loop = None
-    _is_interactive = False
+    _is_interactive = True  # When run() is not called, assume interactive
 
     @property
     def _loop(self):
@@ -67,6 +67,7 @@ class AsyncioLoop(BaseLoop):
     def _rc_stop(self):
         if not self._is_interactive:
             self._loop.stop()
+            self._is_interactive = True
 
     def _rc_call_soon(self, callback, *args):
         self._loop.call_soon(callback, *args)
