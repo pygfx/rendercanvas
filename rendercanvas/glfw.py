@@ -106,33 +106,37 @@ KEY_MAP_MOD = {
 }
 
 
-def get_glfw_present_info(window):
+def get_glfw_present_methods(window):
     if sys.platform.startswith("win"):
         return {
-            "method": "screen",
-            "platform": "windows",
-            "window": int(glfw.get_win32_window(window)),
+            "screen": {
+                "platform": "windows",
+                "window": int(glfw.get_win32_window(window)),
+            }
         }
     elif sys.platform.startswith("darwin"):
         return {
-            "method": "screen",
-            "platform": "cocoa",
-            "window": int(glfw.get_cocoa_window(window)),
+            "screen": {
+                "platform": "cocoa",
+                "window": int(glfw.get_cocoa_window(window)),
+            }
         }
     elif sys.platform.startswith("linux"):
         if is_wayland:
             return {
-                "method": "screen",
-                "platform": "wayland",
-                "window": int(glfw.get_wayland_window(window)),
-                "display": int(glfw.get_wayland_display()),
+                "screen": {
+                    "platform": "wayland",
+                    "window": int(glfw.get_wayland_window(window)),
+                    "display": int(glfw.get_wayland_display()),
+                }
             }
         else:
             return {
-                "method": "screen",
-                "platform": "x11",
-                "window": int(glfw.get_x11_window(window)),
-                "display": int(glfw.get_x11_display()),
+                "screen": {
+                    "platform": "x11",
+                    "window": int(glfw.get_x11_window(window)),
+                    "display": int(glfw.get_x11_display()),
+                }
             }
     else:
         raise RuntimeError(f"Cannot get GLFW surface info on {sys.platform}.")
@@ -152,9 +156,9 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         loop.init_glfw()
         super().__init__(*args, **kwargs)
 
-        if present_method == "image":
+        if present_method == "bitmap":
             logger.warning(
-                "Ignoreing present_method 'image'; glfw can only render to screen"
+                "Ignoreing present_method 'bitmap'; glfw can only render to screen"
             )
 
         # Set window hints
@@ -271,8 +275,8 @@ class GlfwRenderCanvas(BaseRenderCanvas):
     def _rc_get_loop(self):
         return loop
 
-    def _rc_get_present_info(self):
-        return get_glfw_present_info(self._window)
+    def _rc_get_present_methods(self):
+        return get_glfw_present_methods(self._window)
 
     def _rc_request_draw(self):
         if not self._is_minimized:
@@ -281,7 +285,7 @@ class GlfwRenderCanvas(BaseRenderCanvas):
     def _rc_force_draw(self):
         self._draw_frame_and_present()
 
-    def _rc_present_image(self, image, **kwargs):
+    def _rc_present_bitmap(self, **kwargs):
         raise NotImplementedError()
         # AFAIK glfw does not have a builtin way to blit an image. It also does
         # not really need one, since it's the most reliable backend to

@@ -10,7 +10,7 @@ Welcome to the rendercanvas docs!
     start
     api
     backends
-    backendapi
+    advanced
 
 
 Indices and tables

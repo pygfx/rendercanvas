@@ -15,22 +15,6 @@ def test_base_canvas_context():
     assert hasattr(rendercanvas.BaseRenderCanvas, "get_context")
 
 
-def test_canvas_get_context_needs_backend_to_be_selected():
-    code = "from rendercanvas import BaseRenderCanvas; canvas = BaseRenderCanvas(); canvas.get_context()"
-
-    result = subprocess.run(
-        [sys.executable, "-c", code],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        universal_newlines=True,
-    )
-    out = result.stdout.rstrip()
-
-    assert "RuntimeError" in out
-    assert "backend must be selected" in out.lower()
-    assert "canvas.get_context" in out.lower()
-
-
 class CanvasThatRaisesErrorsDuringDrawing(rendercanvas.BaseRenderCanvas):
     def __init__(self):
         super().__init__()
@@ -97,15 +81,16 @@ class MyOffscreenCanvas(rendercanvas.BaseRenderCanvas):
         self.frame_count = 0
         self.physical_size = 100, 100
 
-    def get_present_info(self):
+    def _rc_get_present_methods(self):
         return {
-            "method": "image",
-            "formats": ["rgba8unorm-srgb"],
+            "bitmap": {
+                "formats": ["rgba-u8"],
+            }
         }
 
-    def present_image(self, image, **kwargs):
+    def _rc_present_bitmap(self, *, data, format, **kwargs):
         self.frame_count += 1
-        self.array = np.frombuffer(image, np.uint8).reshape(image.shape)
+        self.array = np.frombuffer(data, np.uint8).reshape(data.shape)
 
     def get_pixel_ratio(self):
         return 1
@@ -139,7 +124,7 @@ def test_simple_offscreen_canvas():
 
     canvas = MyOffscreenCanvas()
     device = wgpu.gpu.request_adapter_sync().request_device_sync()
-    present_context = canvas.get_context()
+    present_context = canvas.get_context("wgpu")
     present_context.configure(device=device, format=None)
 
     def draw_frame():

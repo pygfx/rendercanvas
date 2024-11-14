@@ -12,6 +12,8 @@ One canvas API, multiple backends 🚀
   <img width=354 src='https://github.com/user-attachments/assets/af8eefe0-4485-4daf-9fbd-36710e44f07c' />
 </div>
 
+*This project is part of [pygfx.org](https://pygfx.org)*
+
 
 ## Introduction
 
@@ -33,7 +35,7 @@ same to the code that renders to them. Yet, the GUI systems are very different
 
 The main use-case is rendering with [wgpu](https://github.com/pygfx/wgpu-py),
 but ``rendercanvas``can be used by anything that can render based on a window-id or
-by producing rgba images.
+by producing bitmap images.
 
 
 ## Installation
@@ -51,18 +53,56 @@ pip install rendercanvas glfw
 
 Also see the [online documentation](https://rendercanvas.readthedocs.io) and the [examples](https://github.com/pygfx/rendercanvas/tree/main/examples).
 
+A minimal example that renders noise:
 ```py
-# Select either the glfw, qt or jupyter backend
+import numpy as np
 from rendercanvas.auto import RenderCanvas, loop
 
-# Visualizations can be embedded as a widget in a Qt application.
-# Supported qt libs are PySide6, PyQt6, PySide2 or PyQt5.
-from rendercanvas.pyside6 import QRenderWidget
+canvas = RenderCanvas(update_mode="continuous")
+context = canvas.get_context("bitmap")
+
+@canvas.request_draw
+def animate():
+    w, h = canvas.get_logical_size()
+    bitmap = np.random.uniform(0, 255, (h, w)).astype(np.uint8)
+    context.set_bitmap(bitmap)
+
+loop.run()
+```
+
+Run wgpu visualizations:
+```py
+from rendercanvas.auto import RenderCanvas, loop
+from rendercanvas.utils.cube import setup_drawing_sync
 
 
-# Now specify what the canvas should do on a draw
-TODO
+canvas = RenderCanvas(
+    title="The wgpu cube example on $backend", update_mode="continuous"
+)
+draw_frame = setup_drawing_sync(canvas)
+canvas.request_draw(draw_frame)
 
+loop.run()
+````
+
+Embed in a Qt application:
+```py
+from PySide6 import QtWidgets
+from rendercanvas.qt import QRenderWidget
+
+class Main(QtWidgets.QWidget):
+
+    def __init__(self):
+        super().__init__()
+
+        splitter = QtWidgets.QSplitter()
+        self.canvas = QRenderWidget(splitter)
+        ...
+
+
+app = QtWidgets.QApplication([])
+main = Main()
+app.exec()
 ```
 
 

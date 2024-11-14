@@ -125,6 +125,13 @@ KEY_MAP = {
     int(Keys.Key_Tab): "Tab",
 }
 
+BITMAP_FORMAT_MAP = {
+    "rgba-u8": QtGui.QImage.Format.Format_RGBA8888,
+    "rgb-u8": QtGui.QImage.Format.Format_RGB888,
+    "i-u8": QtGui.QImage.Format.Format_Grayscale8,
+    "i-u16": QtGui.QImage.Format.Format_Grayscale16,
+}
+
 
 def enable_hidpi():
     """Enable high-res displays."""
@@ -173,7 +180,7 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
                 self._present_to_screen = False
         elif present_method == "screen":
             self._present_to_screen = True
-        elif present_method == "image":
+        elif present_method == "bitmap":
             self._present_to_screen = False
         else:
             raise ValueError(f"Invalid present_method {present_method}")
@@ -234,22 +241,20 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
     def _rc_get_loop(self):
         return loop
 
-    def _rc_get_present_info(self):
+    def _rc_get_present_methods(self):
         global _show_image_method_warning
         if self._surface_ids is None:
             self._surface_ids = self._get_surface_ids()
+
+        methods = {}
         if self._present_to_screen:
-            info = {"method": "screen"}
-            info.update(self._surface_ids)
+            methods["screen"] = self._surface_ids
         else:
             if _show_image_method_warning:
-                logger.warn(_show_image_method_warning)
+                logger.warning(_show_image_method_warning)
                 _show_image_method_warning = None
-            info = {
-                "method": "image",
-                "formats": ["rgba8unorm-srgb", "rgba8unorm"],
-            }
-        return info
+            methods["bitmap"] = {"formats": list(BITMAP_FORMAT_MAP.keys())}
+        return methods
 
     def _rc_request_draw(self):
         # Ask Qt to do a paint event
@@ -262,9 +267,9 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         # of nasty side-effects (e.g. the scheduler timer keeps ticking, invoking other draws, etc.).
         self.repaint()
 
-    def _rc_present_image(self, image_data, **kwargs):
-        size = image_data.shape[1], image_data.shape[0]  # width, height
-        rect1 = QtCore.QRect(0, 0, size[0], size[1])
+    def _rc_present_bitmap(self, *, data, format, **kwargs):
+        width, height = data.shape[1], data.shape[0]  # width, height
+        rect1 = QtCore.QRect(0, 0, width, height)
         rect2 = self.rect()
 
         painter = QtGui.QPainter(self)
@@ -282,13 +287,9 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
             False,
         )
 
-        image = QtGui.QImage(
-            image_data,
-            size[0],
-            size[1],
-            size[0] * 4,
-            QtGui.QImage.Format.Format_RGBA8888,
-        )
+        qtformat = BITMAP_FORMAT_MAP[format]
+        bytes_per_line = data.strides[0]
+        image = QtGui.QImage(data, width, height, bytes_per_line, qtformat)
 
         painter.drawImage(rect2, image, rect1)
 

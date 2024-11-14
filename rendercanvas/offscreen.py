@@ -25,10 +25,11 @@ class ManualOffscreenRenderCanvas(BaseRenderCanvas):
     def _rc_get_loop(self):
         return None  # No scheduling
 
-    def _rc_get_present_info(self):
+    def _rc_get_present_methods(self):
         return {
-            "method": "image",
-            "formats": ["rgba8unorm-srgb", "rgba8unorm"],
+            "bitmap": {
+                "formats": ["rgba-u8"],
+            }
         }
 
     def _rc_request_draw(self):
@@ -39,8 +40,8 @@ class ManualOffscreenRenderCanvas(BaseRenderCanvas):
     def _rc_force_draw(self):
         self._draw_frame_and_present()
 
-    def _rc_present_image(self, image, **kwargs):
-        self._last_image = image
+    def _rc_present_bitmap(self, *, data, format, **kwargs):
+        self._last_image = data
 
     def _rc_get_physical_size(self):
         return int(self._logical_size[0] * self._pixel_ratio), int(
