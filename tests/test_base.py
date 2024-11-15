@@ -2,9 +2,6 @@
 Test the base canvas class.
 """
 
-import sys
-import subprocess
-
 import numpy as np
 import rendercanvas
 from testutils import run_tests, can_use_wgpu_lib

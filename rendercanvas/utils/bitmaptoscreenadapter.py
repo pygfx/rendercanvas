@@ -7,7 +7,11 @@ import wgpu
 
 
 class BitmapToScreenAdapter:
-    """An adapter to present a bitmap to screen (using wgpu)."""
+    """An adapter to present a bitmap to screen (using wgpu).
+
+    This adapter can be used by context objects that want to present a bitmap, when the
+    canvas only supoorts presenting to screen.
+    """
 
     def __init__(self, canvas, present_methods):
         # We're going to pretend that the canvas can *only* present to screen, so we force wgpu to present to screen.
@@ -30,7 +34,10 @@ class BitmapToScreenAdapter:
         self._context_is_configured = False
 
     def present_bitmap(self, bitmap):
-        """Present the given bitmap to screen."""
+        """Present the given bitmap to screen.
+
+        Supported formats are "rgba-u8" and "i-u8" (grayscale).
+        """
 
         self._texture_helper.set_texture_data(bitmap)
 
