@@ -26,7 +26,7 @@ glfw = ["glfw>=1.9"]
 # For devs / ci
 lint = ["ruff", "pre-commit"]
 examples = ["numpy", "wgpu", "glfw", "pyside6"]
-docs = ["sphinx>7.2", "sphinx_rtd_theme", "sphinx-gallery"]
+docs = ["sphinx>7.2", "sphinx_rtd_theme", "sphinx-gallery", "wgpu"]
 tests = ["pytest", "numpy", "wgpu", "glfw"]
 dev = ["rendercanvas[lint,tests,examples,docs]"]
 
