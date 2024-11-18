@@ -19,9 +19,6 @@ Since most users will want to render something to screen, we recommend installin
     pip install rendercanvas glfw
 
 
-Backends
---------
-
 Multiple backends are supported, including multiple GUI libraries, but none of these are installed by default. See :doc:`backends` for details.
 
 
@@ -36,6 +33,8 @@ In general, it's easiest to let ``rendercanvas`` select a backend automatically:
 
     canvas = RenderCanvas()
 
+    # ... code to setup the rendering
+
     loop.run()  # Enter main-loop
 
 
@@ -44,11 +43,32 @@ Rendering to the canvas
 
 The above just shows a grey window. We want to render to it by using wgpu or by generating images.
 
-This API is still in flux at the moment. TODO
+Depending on the tool you'll use to render to the canvas, you need a different context.
+The purpose of the context to present the rendered result to the canvas.
+There are currently two types of contexts.
+
+Rendering using bitmaps:
 
 .. code-block:: py
 
-    present_context = canvas.get_context("wgpu")
+    context = canvas.get_context("bitmap")
+
+    @canvas.request_draw
+    def animate():
+        # ... produce an image, represented with e.g. a numpy array
+        context.set_bitmap(image)
+
+Rendering with wgpu:
+
+.. code-block:: py
+
+    context = canvas.get_context("wgpu")
+    context.configure(device)
+
+    @canvas.request_draw
+    def animate():
+        texture = context.get_current_texture()
+        # ... wgpu code
 
 
 Freezing apps

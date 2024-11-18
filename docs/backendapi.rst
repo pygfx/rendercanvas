@@ -1,5 +1,5 @@
-Internal backend API
-====================
+How backends work
+=================
 
 This page documents what's needed to implement a backend for ``rendercanvas``. The purpose of this documentation is
 to help maintain current and new backends. Making this internal API clear helps understanding how the backend-system works.

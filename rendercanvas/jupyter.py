@@ -56,14 +56,16 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
     def _rc_get_loop(self):
         return loop
 
-    def _rc_get_present_info(self):
-        # Use a format that maps well to PNG: rgba8norm. Use srgb for
-        # perceptive color mapping. This is the common colorspace for
-        # e.g. png and jpg images. Most tools (browsers included) will
-        # blit the png to screen as-is, and a screen wants colors in srgb.
+    def _rc_get_present_methods(self):
+        # We stick to the two common formats, because these can be easily converted to png
+        # We assyme that srgb is used for  perceptive color mapping. This is the
+        # common colorspace for e.g. png and jpg images. Most tools (browsers
+        # included) will blit the png to screen as-is, and a screen wants colors
+        # in srgb.
         return {
-            "method": "image",
-            "formats": ["rgba8unorm-srgb", "rgba8unorm"],
+            "bitmap": {
+                "formats": ["rgba-u8"],
+            }
         }
 
     def _rc_request_draw(self):
@@ -80,9 +82,10 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
         if array is not None:
             self._rfb_send_frame(array)
 
-    def _rc_present_image(self, image, **kwargs):
+    def _rc_present_bitmap(self, *, data, format, **kwargs):
         # Convert memoryview to ndarray (no copy)
-        self._last_image = np.frombuffer(image, np.uint8).reshape(image.shape)
+        assert format == "rgba-u8"
+        self._last_image = np.frombuffer(data, np.uint8).reshape(data.shape)
 
     def _rc_get_physical_size(self):
         return int(self._logical_size[0] * self._pixel_ratio), int(

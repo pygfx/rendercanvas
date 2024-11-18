@@ -157,7 +157,7 @@ def _get_draw_function(device, canvas):
 
     shader = device.create_shader_module(code=shader_source)
 
-    present_context = canvas.get_context()
+    present_context = canvas.get_context("wgpu")
     render_texture_format = present_context.get_preferred_format(device.adapter)
     present_context.configure(device=device, format=render_texture_format)
 

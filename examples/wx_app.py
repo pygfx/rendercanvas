@@ -17,7 +17,7 @@ class Example(wx.Frame):
 
         # Using present_method 'image' because it reports "The surface texture is suboptimal"
         self.canvas = RenderWidget(
-            self, update_mode="continuous", present_method="image"
+            self, update_mode="continuous", present_method="bitmap"
         )
         self.button = wx.Button(self, -1, "Hello world")
         self.output = wx.StaticText(self)

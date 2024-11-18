@@ -142,7 +142,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
                 self._present_to_screen = False
         elif present_method == "screen":
             self._present_to_screen = True
-        elif present_method == "image":
+        elif present_method == "bitmap":
             self._present_to_screen = False
         else:
             raise ValueError(f"Invalid present_method {present_method}")
@@ -205,7 +205,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
     def _rc_get_loop(self):
         return loop
 
-    def _rc_get_present_info(self):
+    def _rc_get_present_methods(self):
         if self._surface_ids is None:
             # On wx it can take a little while for the handle to be available,
             # causing GetHandle() to be initially 0, so getting a surface will fail.
@@ -214,18 +214,16 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
                 loop.process_wx_events()
             self._surface_ids = self._get_surface_ids()
         global _show_image_method_warning
+
+        methods = {}
         if self._present_to_screen and self._surface_ids:
-            info = {"method": "screen"}
-            info.update(self._surface_ids)
+            methods["screen"] = self._surface_ids
         else:
             if _show_image_method_warning:
-                logger.warn(_show_image_method_warning)
+                logger.warning(_show_image_method_warning)
                 _show_image_method_warning = None
-            info = {
-                "method": "image",
-                "formats": ["rgba8unorm-srgb", "rgba8unorm"],
-            }
-        return info
+            methods["bitmap"] = {"formats": ["rgba-u8"]}
+        return methods
 
     def _rc_request_draw(self):
         if self._draw_lock:
@@ -239,11 +237,13 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         self.Refresh()
         self.Update()
 
-    def _rc_present_image(self, image_data, **kwargs):
-        size = image_data.shape[1], image_data.shape[0]  # width, height
+    def _rc_present_bitmap(self, *, data, format, **kwargs):
+        # todo: we can easily support more formats here
+        assert format == "rgba-u8"
+        width, height = data.shape[1], data.shape[0]
 
         dc = wx.PaintDC(self)
-        bitmap = wx.Bitmap.FromBufferRGBA(*size, image_data)
+        bitmap = wx.Bitmap.FromBufferRGBA(width, height, data)
         dc.DrawBitmap(bitmap, 0, 0, False)
 
     def _rc_get_physical_size(self):

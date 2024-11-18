@@ -31,7 +31,7 @@ class StubRenderCanvas(BaseRenderCanvas):
     def _rc_get_loop(self):
         return None
 
-    def _rc_get_present_info(self):
+    def _rc_get_present_methods(self):
         raise NotImplementedError()
 
     def _rc_request_draw(self):
@@ -40,7 +40,7 @@ class StubRenderCanvas(BaseRenderCanvas):
     def _rc_force_draw(self):
         self._draw_frame_and_present()
 
-    def _rc_present_image(self, image, **kwargs):
+    def _rc_present_bitmap(self, *, data, format, **kwargs):
         raise NotImplementedError()
 
     def _rc_get_physical_size(self):

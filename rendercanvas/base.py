@@ -4,7 +4,7 @@ The base classes.
 
 __all__ = ["WrapperRenderCanvas", "BaseRenderCanvas", "BaseLoop", "BaseTimer"]
 
-import sys
+import importlib
 
 from ._events import EventEmitter, EventType  # noqa: F401
 from ._loop import Scheduler, BaseLoop, BaseTimer
@@ -44,8 +44,8 @@ class BaseRenderCanvas:
             or 'continuous'. The default is 30, which is usually enough.
         vsync (bool): Whether to sync the draw with the monitor update. Helps
             against screen tearing, but can reduce fps. Default True.
-        present_method (str | None): The method to present the rendered image.
-            Can be set to 'screen' or 'image'. Default None (auto-select).
+        present_method (str | None): Override the method to present the rendered result.
+            Can be set to e.g. 'screen' or 'bitmap'. Default None (auto-select).
 
     """
 
@@ -132,71 +132,82 @@ class BaseRenderCanvas:
 
     _canvas_context = None  # set in get_context()
 
-    def get_present_info(self):
-        """Get information about the surface to render to.
-
-        It must return a small dict, used by the canvas-context to determine
-        how the rendered result should be presented to the canvas. There are
-        two possible methods.
-
-        If the ``method`` field is "screen", the context will render directly
-        to a surface representing the region on the screen. The dict should
-        have a ``window`` field containing the window id. On Linux there should
-        also be ``platform`` field to distinguish between "wayland" and "x11",
-        and a ``display`` field for the display id. This information is used
-        by wgpu to obtain the required surface id.
-
-        When the ``method`` field is "image", the context will render to a
-        texture, download the result to RAM, and call ``canvas.present_image()``
-        with the image data. Additional info (like format) is passed as kwargs.
-        This method enables various types of canvases (including remote ones),
-        but note that it has a performance penalty compared to rendering
-        directly to the screen.
-
-        The dict can further contain fields ``formats`` and ``alpha_modes`` to
-        define the canvas capabilities. For the "image" method, the default
-        formats is ``["rgba8unorm-srgb", "rgba8unorm"]``, and the default
-        alpha_modes is ``["opaque"]``.
-        """
-        return self._rc_get_present_info()
-
     def get_physical_size(self):
         """Get the physical size of the canvas in integer pixels."""
         return self._rc_get_physical_size()
 
-    def get_context(self, kind="webgpu"):
-        """Get the ``GPUCanvasContext`` object corresponding to this canvas.
+    def get_context(self, context_type):
+        """Get a context object that can be used to render to this canvas.
 
-        The context is used to obtain a texture to render to, and to
-        present that texture to the canvas. This class provides a
-        default implementation to get the appropriate context.
+        The context takes care of presenting the rendered result to the canvas.
+        Different types of contexts are available:
 
-        The ``kind`` argument is a remnant from the WebGPU spec and
-        must always be "webgpu".
+        * "wgpu": get a ``WgpuCanvasContext`` provided by the ``wgpu`` library.
+        * "bitmap": get a ``BitmapRenderingContext`` provided by the ``rendercanvas`` library.
+        * "another.module": other libraries may provide contexts too. We've only listed the ones we know of.
+        * "your.module:ContextClass": Explicit name.
+
+        Later calls to this method, with the same context_type argument, will return
+        the same context instance as was returned the first time the method was
+        invoked. It is not possible to get a different context object once the first
+        one has been created.
         """
-        # Note that this function is analog to HtmlCanvas.getContext(), except
-        # here the only valid arg is 'webgpu', which is also made the default.
-        assert kind == "webgpu"
-        if self._canvas_context is None:
-            backend_module = ""
-            if "wgpu" in sys.modules:
-                backend_module = sys.modules["wgpu"].gpu.__module__
-            if backend_module in ("", "wgpu._classes"):
+
+        # Note that this method is analog to HtmlCanvas.getContext(), except
+        # the context_type is different, since contexts are provided by other projects.
+
+        if not isinstance(context_type, str):
+            raise TypeError("context_type must be str.")
+
+        # Resolve the context type name
+        known_types = {
+            "wgpu": "wgpu",
+            "bitmap": "rendercanvas.utils.bitmaprenderingcontext",
+        }
+        resolved_context_type = known_types.get(context_type, context_type)
+
+        # Is the context already set?
+        if self._canvas_context is not None:
+            if resolved_context_type == self._canvas_context._context_type:
+                return self._canvas_context
+            else:
                 raise RuntimeError(
-                    "A backend must be selected (e.g. with wgpu.gpu.request_adapter()) before canvas.get_context() can be called."
+                    f"Cannot get context for '{context_type}': a context of type '{self._canvas_context._context_type}' is already set."
                 )
-            CanvasContext = sys.modules[backend_module].GPUCanvasContext  # noqa: N806
-            self._canvas_context = CanvasContext(self)
+
+        # Load module
+        module_name, _, class_name = resolved_context_type.partition(":")
+        try:
+            module = importlib.import_module(module_name)
+        except ImportError as err:
+            raise ValueError(
+                f"Cannot get context for '{context_type}': {err}. Known valid values are {set(known_types)}"
+            ) from None
+
+        # Obtain factory to produce context
+        factory_name = class_name or "rendercanvas_context_hook"
+        try:
+            factory_func = getattr(module, factory_name)
+        except AttributeError:
+            raise ValueError(
+                f"Cannot get context for '{context_type}': could not find `{factory_name}` in '{module.__name__}'"
+            ) from None
+
+        # Create the context
+        context = factory_func(self, self._rc_get_present_methods())
+
+        # Quick checks to make sure the context has the correct API
+        if not (hasattr(context, "canvas") and context.canvas is self):
+            raise RuntimeError(
+                "The context does not have a canvas attribute that refers to this canvas."
+            )
+        if not (hasattr(context, "present") and callable(context.present)):
+            raise RuntimeError("The context does not have a present method.")
+
+        # Done
+        self._canvas_context = context
+        self._canvas_context._context_type = resolved_context_type
         return self._canvas_context
-
-    def present_image(self, image, **kwargs):
-        """Consume the final rendered image.
-
-        This is called when using the "image" method, see ``get_present_info()``.
-        Canvases that don't support offscreen rendering don't need to implement
-        this method.
-        """
-        self._rc_present_image(image, **kwargs)
 
     # %% Events
 
@@ -343,7 +354,16 @@ class BaseRenderCanvas:
                 # Note: if vsync is used, this call may wait a little (happens down at the level of the driver or OS)
                 context = self._canvas_context
                 if context:
-                    context.present()
+                    result = context.present()
+                    method = result.pop("method")
+                    if method in ("skip", "screen"):
+                        pass  # nothing we need to do
+                    elif method == "fail":
+                        raise RuntimeError(method.get("message", "") or "present error")
+                    else:
+                        # Pass the result to the literal present method
+                        func = getattr(self, f"_rc_present_{method}")
+                        func(**result)
 
         finally:
             self.__is_drawing = False
@@ -395,8 +415,31 @@ class BaseRenderCanvas:
         """
         return None
 
-    def _rc_get_present_info(self):
-        """Get present info. See the corresponding public method."""
+    def _rc_get_present_methods(self):
+        """Get info on the present methods supported by this canvas.
+
+        Must return a small dict, used by the canvas-context to determine
+        how the rendered result will be presented to the canvas.
+        This method is only called once, when the context is created.
+
+        Each supported method is represented by a field in the dict. The value
+        is another dict with information specific to that present method.
+        A canvas backend must implement at least either "screen" or "bitmap".
+
+        With method "screen", the context will render directly to a surface
+        representing the region on the screen. The sub-dict should have a ``window``
+        field containing the window id. On Linux there should also be ``platform``
+        field to distinguish between "wayland" and "x11", and a ``display`` field
+        for the display id. This information is used by wgpu to obtain the required
+        surface id.
+
+        With method "bitmap", the context will present the result as an image
+        bitmap. On GPU-based contexts, the result will first be rendered to an
+        offscreen texture, and then downloaded to RAM. The sub-dict must have a
+        field 'formats': a list of supported image formats. Examples are "rgba-u8"
+        and "i-u8". A canvas must support at least "rgba-u8". Note that srgb mapping
+        is assumed to be handled by the canvas.
+        """
         raise NotImplementedError()
 
     def _rc_request_draw(self):
@@ -425,8 +468,11 @@ class BaseRenderCanvas:
         """
         self._draw_frame_and_present()
 
-    def _rc_present_image(self, image, **kwargs):
-        """Present the given image. Only used with present_method 'image'."""
+    def _rc_present_bitmap(self, *, data, format, **kwargs):
+        """Present the given image bitmap. Only used with present_method 'bitmap'.
+
+        If a canvas supports special present methods, it will need to implement corresponding ``_rc_present_xx()`` methods.
+        """
         raise NotImplementedError()
 
     def _rc_get_physical_size(self):
@@ -482,8 +528,6 @@ class WrapperRenderCanvas(BaseRenderCanvas):
     wrapped canvas and set it as ``_subwidget``.
     """
 
-    # Events
-
     def add_event_handler(self, *args, **kwargs):
         return self._subwidget._events.add_handler(*args, **kwargs)
 
@@ -493,20 +537,8 @@ class WrapperRenderCanvas(BaseRenderCanvas):
     def submit_event(self, event):
         return self._subwidget._events.submit(event)
 
-    # Must implement
-
     def get_context(self, *args, **kwargs):
         return self._subwidget.get_context(*args, **kwargs)
-
-    # So these should not be necessary
-
-    def get_present_info(self):
-        raise NotImplementedError()
-
-    def present_image(self, image, **kwargs):
-        raise NotImplementedError()
-
-    # More redirection
 
     def request_draw(self, *args, **kwargs):
         return self._subwidget.request_draw(*args, **kwargs)
