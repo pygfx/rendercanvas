@@ -145,6 +145,7 @@ class BaseRenderCanvas:
         * "wgpu": get a ``WgpuCanvasContext`` provided by the ``wgpu`` library.
         * "bitmap": get a ``BitmapRenderingContext`` provided by the ``rendercanvas`` library.
         * "another.module": other libraries may provide contexts too. We've only listed the ones we know of.
+        * "your.module:ContextClass": Explicit name.
 
         Later calls to this method, with the same context_type argument, will return
         the same context instance as was returned the first time the method was
@@ -154,6 +155,9 @@ class BaseRenderCanvas:
 
         # Note that this method is analog to HtmlCanvas.getContext(), except
         # the context_type is different, since contexts are provided by other projects.
+
+        if not isinstance(context_type, str):
+            raise TypeError("context_type must be str.")
 
         # Resolve the context type name
         known_types = {
@@ -172,23 +176,25 @@ class BaseRenderCanvas:
                 )
 
         # Load module
+        module_name, _, class_name = resolved_context_type.partition(":")
         try:
-            module = importlib.import_module(resolved_context_type)
+            module = importlib.import_module(module_name)
         except ImportError as err:
             raise ValueError(
-                f"Cannot get context for '{context_type}': {err}.\nKnown valid values are {set(known_types)}"
+                f"Cannot get context for '{context_type}': {err}. Known valid values are {set(known_types)}"
             ) from None
 
         # Obtain factory to produce context
+        factory_name = class_name or "rendercanvas_context_hook"
         try:
-            hook_func = module.rendercanvas_context_hook
+            factory_func = getattr(module, factory_name)
         except AttributeError:
             raise ValueError(
-                f"Cannot get context for '{context_type}': could not find `rendercanvas_context_hook` in '{module.__name__}'"
+                f"Cannot get context for '{context_type}': could not find `{factory_name}` in '{module.__name__}'"
             ) from None
 
         # Create the context
-        context = hook_func(self, self._rc_get_present_methods())
+        context = factory_func(self, self._rc_get_present_methods())
 
         # Quick checks to make sure the context has the correct API
         if not (hasattr(context, "canvas") and context.canvas is self):

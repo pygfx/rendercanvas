@@ -24,7 +24,7 @@ os.environ["RENDERCANVAS_FORCE_OFFSCREEN"] = "true"
 import rendercanvas  # noqa: E402
 import rendercanvas.stub  # noqa: E402 - we use the stub backend to generate doccs
 import rendercanvas._context  # noqa: E402 - we use the ContexInterface to generate doccs
-import rendercanvas.utils.bitmaptoscreenadapter  # noqa: E402
+import rendercanvas.utils.bitmappresentadapter  # noqa: E402
 
 # -- Project information -----------------------------------------------------
 

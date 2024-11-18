@@ -23,9 +23,9 @@ class BitmapRenderingContext:
         assert "screen" in present_methods or "bitmap" in present_methods
         self._present_method = "bitmap" if "bitmap" in present_methods else "screen"
         if self._present_method == "screen":
-            from rendercanvas.utils.bitmaptoscreenadapter import BitmapToScreenAdapter
+            from rendercanvas.utils.bitmappresentadapter import BitmapPresentAdapter
 
-            self._screen_adapter = BitmapToScreenAdapter(canvas, present_methods)
+            self._screen_adapter = BitmapPresentAdapter(canvas, present_methods)
 
         self._bitmap_and_format = None
 

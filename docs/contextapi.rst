@@ -44,7 +44,7 @@ on the CPU. All GPU API's have ways to do this.
                          download from gpu to cpu
 
 If the context has a bitmap to present, and the canvas only supports presenting
-to screen, you can usse a small utility: the ``BitmapToScreenAdapter`` takes a
+to screen, you can usse a small utility: the ``BitmapPresentAdapter`` takes a
 bitmap and presents it to the screen.
 
 .. code-block::
@@ -54,7 +54,7 @@ bitmap and presents it to the screen.
     ──render──► | Context │           │            │ Canvas │
                 │         │  ──bitmap─┘            │        |
                 └─────────┘                        └────────┘
-                          use BitmapToScreenAdapter
+                          use BitmapPresentAdapter
 
 This way, contexts can be made to work with all canvas backens.
 
@@ -94,6 +94,6 @@ Also see https://github.com/pygfx/rendercanvas/blob/main/rendercanvas/_context.p
 Adapter
 -------
 
-.. autoclass:: rendercanvas.utils.bitmaptoscreenadapter.BitmapToScreenAdapter
+.. autoclass:: rendercanvas.utils.bitmappresentadapter.BitmapPresentAdapter
     :members:
     :no-index:

@@ -1,5 +1,5 @@
 """
-A stub context imlpementation for documentation purposes.
+A stub context implementation for documentation purposes.
 It does actually work, but presents nothing.
 """
 

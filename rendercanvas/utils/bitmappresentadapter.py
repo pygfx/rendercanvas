@@ -6,21 +6,14 @@ import sys
 import wgpu
 
 
-class BitmapToScreenAdapter:
-    """An adapter to present a bitmap to screen (using wgpu).
+class BitmapPresentAdapter:
+    """An adapter to present a bitmap to a canvas using wgpu.
 
     This adapter can be used by context objects that want to present a bitmap, when the
     canvas only supoorts presenting to screen.
     """
 
     def __init__(self, canvas, present_methods):
-        # We're going to pretend that the canvas can *only* present to screen, so we force wgpu to present to screen.
-        if "screen" not in present_methods:
-            raise RuntimeError(
-                "Cannot use BitmapToScreenAdapter if the canvas does not support presenting to screen"
-            )
-        present_methods = {"screen": present_methods["screen"]}
-
         # Init wgpu
         adapter = wgpu.gpu.request_adapter_sync(power_preference="high-performance")
         device = self._device = adapter.request_device_sync(required_limits={})
@@ -37,19 +30,20 @@ class BitmapToScreenAdapter:
         """Present the given bitmap to screen.
 
         Supported formats are "rgba-u8" and "i-u8" (grayscale).
+        Returns the present-result dict produced by ``GPUCanvasContext.present()``.
         """
 
         self._texture_helper.set_texture_data(bitmap)
 
         if not self._context_is_configured:
-            self._context.configure(device=self._device, format=None)
+            self._context.configure(device=self._device, format="rgba8unorm")
 
         target = self._context.get_current_texture().create_view()
         command_encoder = self._device.create_command_encoder()
         self._texture_helper.draw(command_encoder, target)
         self._device.queue.submit([command_encoder.finish()])
 
-        self._context.present()
+        return self._context.present()
 
 
 class FullscreenTexture:
@@ -339,9 +333,12 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     } else if (uniforms.format == 2) {
         color = vec4<f32>(value.r, value.r, value.r, value.g);
     }
-    let physical_color = vec3<f32>(pow(color.rgb, vec3<f32>(2.2)));  // gamma correct
+    // We assume that the input color is sRGB. We don't need to go to physical/linear
+    // colorspace, because we don't need light calculations or anything. The
+    // output texture format is a regular rgba8unorm (not srgb), so that no transform
+    // happens as we write to the texture; the pixel values are already srgb.
     var out: FragmentOutput;
-    out.color = vec4<f32>(physical_color.rgb, color.a);
+    out.color = color;
     return out;
 }
 """
