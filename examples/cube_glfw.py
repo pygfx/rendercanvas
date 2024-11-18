@@ -1,4 +1,7 @@
 """
+Cube glfw
+---------
+
 Run a wgpu example on the glfw backend.
 """
 

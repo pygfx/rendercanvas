@@ -1,4 +1,7 @@
 """
+Cube offscreen
+--------------
+
 Render a wgpu example offscreen, and display as an image.
 """
 

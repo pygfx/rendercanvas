@@ -1,4 +1,7 @@
 """
+Cube qt
+-------
+
 Run a wgpu example on the Qt backend.
 
 Works with either PySide6, PyQt6, PyQt5 or PySide2.

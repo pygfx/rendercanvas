@@ -1,4 +1,7 @@
 """
+wx app
+------
+
 An example demonstrating a wx app with a wgpu viz inside.
 """
 

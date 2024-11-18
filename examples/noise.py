@@ -1,4 +1,7 @@
 """
+Noise
+-----
+
 Simple example that uses the bitmap-context to show images of noise.
 """
 

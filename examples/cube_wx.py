@@ -1,4 +1,7 @@
 """
+Cube wx
+-------
+
 Run a wgpu example on the wx backend.
 """
 

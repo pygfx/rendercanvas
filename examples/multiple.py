@@ -1,4 +1,7 @@
 """
+Multiple
+--------
+
 Run cube example in two canvases.
 """
 
