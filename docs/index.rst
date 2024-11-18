@@ -10,6 +10,7 @@ Welcome to the rendercanvas docs!
     start
     api
     backends
+    utils
     advanced
 
 
