@@ -119,3 +119,5 @@ This code is distributed under the 2-clause BSD license.
 * Use `ruff check` to check for linting errors.
 * Optionally, if you install [pre-commit](https://github.com/pre-commit/pre-commit/) hooks with `pre-commit install`, lint fixes and formatting will be automatically applied on `git commit`.
 * Use `pytest tests` to run the tests.
+* Use `pytest examples` to run a subset of the examples.
+

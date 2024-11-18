@@ -5,6 +5,8 @@ Cube auto
 Run a wgpu example on an automatically selected backend.
 """
 
+# run_example = true
+
 from rendercanvas.auto import RenderCanvas, run
 
 from rendercanvas.utils.cube import setup_drawing_sync
