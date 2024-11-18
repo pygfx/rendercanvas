@@ -1,4 +1,7 @@
 """
+Events
+------
+
 A simple example to demonstrate events.
 """
 

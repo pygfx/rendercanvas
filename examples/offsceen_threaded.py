@@ -1,4 +1,7 @@
 """
+Offscreen threaded
+------------------
+
 Example that renders frames in a separate thread.
 
 This uses an offscreen canvas, the result is only used to print the

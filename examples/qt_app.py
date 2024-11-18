@@ -1,4 +1,7 @@
 """
+Qt app
+------
+
 An example demonstrating a qt app with a wgpu viz inside.
 If needed, change the PySide6 import to e.g. PyQt6, PyQt5, or PySide2.
 

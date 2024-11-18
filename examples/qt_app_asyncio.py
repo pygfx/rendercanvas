@@ -1,4 +1,7 @@
 """
+Qt app with asyncio
+-------------------
+
 An example demonstrating a qt app with a wgpu viz inside.
 
 This is the same as the ``qt_app.py`` example, except this uses

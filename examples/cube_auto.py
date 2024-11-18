@@ -1,4 +1,7 @@
 """
+Cube auto
+---------
+
 Run a wgpu example on an automatically selected backend.
 """
 

@@ -1,4 +1,7 @@
 """
+Snake game
+----------
+
 Simple snake game based on bitmap rendering. Work in progress.
 """
 

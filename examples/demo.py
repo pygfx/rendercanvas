@@ -1,4 +1,7 @@
 """
+Demo
+----
+
 An example that uses events to trigger some canvas functionality.
 
 A nice demo, and very convenient to test the different backends.

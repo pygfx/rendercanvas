@@ -11,6 +11,7 @@ Welcome to the rendercanvas docs!
     api
     backends
     utils
+    Gallery <gallery/index.rst>
     advanced
 
 
