@@ -3,7 +3,7 @@ from rendercanvas.utils.bitmappresentadapter import BitmapPresentAdapter
 from rendercanvas.utils.bitmaprenderingcontext import BitmapRenderingContext
 from rendercanvas.offscreen import ManualOffscreenRenderCanvas
 
-from testutils import run_tests
+from testutils import can_use_wgpu_lib, run_tests
 import pytest
 
 
@@ -209,6 +209,7 @@ def test_bitmap_context():
     assert np.all(result == bitmap)
 
 
+@pytest.mark.skipif(not can_use_wgpu_lib, reason="Needs wgpu lib")
 def test_bitmap_to_screen_adapter():
     # Create canvas and attach our special adapter canvas
     canvas = ManualOffscreenRenderCanvas()
