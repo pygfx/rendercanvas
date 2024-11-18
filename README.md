@@ -1,6 +1,7 @@
 [![CI](https://github.com/pygfx/rendercanvas/workflows/CI/badge.svg)](https://github.com/pygfx/rendercanvas/actions)
 [![Documentation Status](https://readthedocs.org/projects/rendercanvas/badge/?version=stable)](https://rendercanvas.readthedocs.io)
 [![PyPI version](https://badge.fury.io/py/rendercanvas.svg)](https://badge.fury.io/py/rendercanvas)
+[![EffVer Versioning](https://img.shields.io/badge/version_scheme-EffVer-0097a7)](https://jacobtomlinson.dev/effver)
 
 
 # rendercanvas
