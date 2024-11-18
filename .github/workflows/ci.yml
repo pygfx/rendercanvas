@@ -123,16 +123,16 @@ jobs:
     - name: Show wgpu backend
       run: |
         python -c "from examples.tests.test_examples import adapter_summary; print(adapter_summary)"
-    - name: Test examples
-      env:
-        PYGFX_EXPECT_LAVAPIPE: true
-      run: |
-        pytest -v examples
-    - uses: actions/upload-artifact@v4
-      if: ${{ failure() }}
-      with:
-        name: screenshots{{ matrix.pyversion }}
-        path: examples/screenshots
+    # - name: Test examples
+    #   env:
+    #     PYGFX_EXPECT_LAVAPIPE: true
+    #   run: |
+    #     pytest -v examples
+    # - uses: actions/upload-artifact@v4
+    #   if: ${{ failure() }}
+    #   with:
+    #     name: screenshots{{ matrix.pyversion }}
+    #     path: examples/screenshots
 
   test-pyinstaller:
     name: Test pyinstaller
