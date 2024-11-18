@@ -3,6 +3,7 @@ The loop mechanics: the base timer, base loop, and scheduler.
 """
 
 import time
+import signal
 import weakref
 
 from ._coreutils import log_exception, BaseEnum
@@ -143,6 +144,7 @@ class BaseLoop:
 
     def __init__(self):
         self._schedulers = set()
+        self._is_inside_run = False
         self._stop_when_no_canvases = False
 
         # The loop object runs a lightweight timer for a few reasons:
@@ -173,7 +175,8 @@ class BaseLoop:
         for scheduler in schedulers_to_close:
             self._schedulers.discard(scheduler)
 
-        # Check whether we must stop the loop
+        # Check whether we must stop the loop. Note that if the loop is not
+        # actually running, but is in an interactive mode, this has no effect.
         if self._stop_when_no_canvases and not self._schedulers:
             self.stop()
 
@@ -219,19 +222,50 @@ class BaseLoop:
         This provides a generic API to start the loop. When building an application (e.g. with Qt)
         its fine to start the loop in the normal way.
         """
+
+        # Cannot run if already running
+        if self._is_inside_run:
+            raise RuntimeError("loop.run() is not reentrant.")
+
         self._stop_when_no_canvases = bool(stop_when_no_canvases)
-        self._rc_run()
+
+        # Handle interrupts
+        try:
+            prev_int_handler = signal.signal(signal.SIGINT, self.__on_interrupt)
+        except ValueError:
+            prev_int_handler = None
+
+        # Run. We could be in this loop for a loong time. Or we can
+        # exit emmidiately if the backend already has an (interactive)
+        # event loop. In the latter case, see how we disable the signal
+        # again, so we don't interfere with that loop.
+        self._is_inside_run = True
+        try:
+            self._rc_run()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            self._is_inside_run = False
+            if prev_int_handler is not None:
+                signal.signal(signal.SIGINT, prev_int_handler)
 
     def stop(self):
         """Stop the currently running event loop."""
-        self._rc_stop()
+        # Only take action when we're inside the run() method
+        if self._is_inside_run:
+            self._rc_stop()
+
+    def __on_interrupt(self, *args):
+        self.stop()
 
     def _rc_run(self):
         """Start running the event-loop.
 
         * Start the event loop.
-        * The rest of the loop object must work just fine, also when the loop is
-          started in the "normal way" (i.e. this method may not be called).
+        * The loop object must also work when the native loop is started
+          in the GUI-native way (i.e. this method may not be called).
+        * If the backend is in interactive mode (i.e. there already is
+          an active native loop) this may return directly.
         """
         raise NotImplementedError()
 
@@ -239,7 +273,8 @@ class BaseLoop:
         """Stop the event loop.
 
         * Stop the running event loop.
-        * When running in an interactive session, this call should probably be ignored.
+        * This will only be called when the process is inside _rc_run().
+          I.e. not for interactive mode.
         """
         raise NotImplementedError()
 

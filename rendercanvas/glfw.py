@@ -12,7 +12,6 @@ __all__ = ["RenderCanvas", "loop"]
 import sys
 import time
 import atexit
-import weakref
 
 import glfw
 
@@ -172,9 +171,6 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         self._changing_pixel_ratio = False
         self._is_minimized = False
 
-        # Register ourselves
-        loop.all_glfw_canvases.add(self)
-
         # Register callbacks. We may get notified too often, but that's
         # ok, they'll result in a single draw.
         glfw.set_framebuffer_size_callback(self._window, weakbind(self._on_size_change))
@@ -306,6 +302,8 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         self._set_logical_size((float(width), float(height)))
 
     def _rc_close(self):
+        if not loop._glfw_initialized:
+            return  # glfw is probably already terminated
         if self._window is not None:
             glfw.set_window_should_close(self._window, True)
             self._check_close()
@@ -340,7 +338,6 @@ class GlfwRenderCanvas(BaseRenderCanvas):
             self._on_close()
 
     def _on_close(self, *args):
-        loop.all_glfw_canvases.discard(self)
         if self._window is not None:
             glfw.destroy_window(self._window)  # not just glfw.hide_window
             self._window = None
@@ -529,26 +526,25 @@ RenderCanvas = GlfwRenderCanvas
 class GlfwAsyncioLoop(AsyncioLoop):
     def __init__(self):
         super().__init__()
-        self.all_glfw_canvases = weakref.WeakSet()
-        self.stop_if_no_more_canvases = True
         self._glfw_initialized = False
+        atexit.register(self._terminate_glfw)
 
     def init_glfw(self):
-        glfw.init()  # Safe to call multiple times
         if not self._glfw_initialized:
+            glfw.init()  # Note: safe to call multiple times
             self._glfw_initialized = True
-            atexit.register(glfw.terminate)
+
+    def _terminate_glfw(self):
+        self._glfw_initialized = False
+        glfw.terminate()
 
     def _rc_gui_poll(self):
         glfw.post_empty_event()  # Awake the event loop, if it's in wait-mode
         glfw.poll_events()
-        if self.stop_if_no_more_canvases and not tuple(self.all_glfw_canvases):
-            self.stop()
 
     def _rc_run(self):
         super()._rc_run()
-        if not self._is_interactive:
-            poll_glfw_briefly()
+        poll_glfw_briefly()
 
 
 loop = GlfwAsyncioLoop()

@@ -500,11 +500,16 @@ class WxLoop(BaseLoop):
 
     def _rc_run(self):
         self._frame_to_keep_loop_alive = wx.Frame(None)
-        self._app.MainLoop()
+        try:
+            self._app.MainLoop()
+        finally:
+            self._rc_stop()
 
     def _rc_stop(self):
-        self._frame_to_keep_loop_alive.Destroy()
-        _frame_to_keep_loop_alive = None
+        # Stop the loop by closing the last frame
+        if self._frame_to_keep_loop_alive:
+            self._frame_to_keep_loop_alive.Destroy()
+            self._frame_to_keep_loop_alive = None
 
     def _rc_gui_poll(self):
         pass  # We can assume the wx loop is running.
