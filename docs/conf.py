@@ -77,15 +77,6 @@ sphinx_gallery_conf = {
     "doc_module": ("rendercanvas",),
     # "image_scrapers": (),,
     "remove_config_comments": True,
-    # Define order of appearance of the examples
-    # "subsection_order": ExplicitOrder(
-    #     [
-    #         "../examples/introductory",
-    #         "../examples/feature_demo",
-    #         "../examples/validation",
-    #         "../examples/other",
-    #     ]
-    # ),
     "examples_dirs": "../examples/",
 }
 
