@@ -5,6 +5,8 @@ Noise
 Simple example that uses the bitmap-context to show images of noise.
 """
 
+# run_example = true
+
 import numpy as np
 from rendercanvas.auto import RenderCanvas, loop
 
