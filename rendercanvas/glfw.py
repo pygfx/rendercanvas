@@ -174,7 +174,7 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         # Register callbacks. We may get notified too often, but that's
         # ok, they'll result in a single draw.
         glfw.set_framebuffer_size_callback(self._window, weakbind(self._on_size_change))
-        glfw.set_window_close_callback(self._window, weakbind(self._check_close))
+        glfw.set_window_close_callback(self._window, weakbind(self._on_want_close))
         glfw.set_window_refresh_callback(self._window, weakbind(self._on_window_dirty))
         glfw.set_window_focus_callback(self._window, weakbind(self._on_window_dirty))
         set_window_content_scale_callback(
@@ -229,6 +229,16 @@ class GlfwRenderCanvas(BaseRenderCanvas):
             "pixel_ratio": self._pixel_ratio,
         }
         self.submit_event(ev)
+
+    def _on_want_close(self, *args):
+        # Called when the user attempts to close the window, for example by clicking the close widget in the title bar.
+        # We could prevent closing the window here. But we don't :)
+        pass  # Prevent closing: glfw.set_window_should_close(self._window, 0)
+
+    def _maybe_close(self):
+        if self._window is not None:
+            if glfw.window_should_close(self._window):
+                self._rc_close()
 
     # %% Methods to implement RenderCanvas
 
@@ -305,8 +315,9 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         if not loop._glfw_initialized:
             return  # glfw is probably already terminated
         if self._window is not None:
-            glfw.set_window_should_close(self._window, True)
-            self._check_close()
+            glfw.destroy_window(self._window)  # not just glfw.hide_window
+            self._window = None
+            self.submit_event({"event_type": "close"})
 
     def _rc_is_closed(self):
         return self._window is None
@@ -329,19 +340,6 @@ class GlfwRenderCanvas(BaseRenderCanvas):
     def _on_size_change(self, *args):
         self._determine_size()
         self.request_draw()
-
-    def _check_close(self, *args):
-        # Follow the close flow that glfw intended.
-        # This method can be overloaded and the close-flag can be set to False
-        # using set_window_should_close() if now is not a good time to close.
-        if self._window is not None and glfw.window_should_close(self._window):
-            self._on_close()
-
-    def _on_close(self, *args):
-        if self._window is not None:
-            glfw.destroy_window(self._window)  # not just glfw.hide_window
-            self._window = None
-            self.submit_event({"event_type": "close"})
 
     def _on_mouse_button(self, window, but, action, mods):
         # Map button being changed, which we use to update self._pointer_buttons.
@@ -539,6 +537,9 @@ class GlfwAsyncioLoop(AsyncioLoop):
         glfw.terminate()
 
     def _rc_gui_poll(self):
+        for canvas in self.get_canvases():
+            canvas._maybe_close()
+            del canvas
         glfw.post_empty_event()  # Awake the event loop, if it's in wait-mode
         glfw.poll_events()
 

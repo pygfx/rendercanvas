@@ -116,9 +116,9 @@ class BaseRenderCanvas:
             self.set_title(kwargs["title"])
 
     def __del__(self):
-        # On delete, we call the custom close method.
+        # On delete, we call the custom destroy method.
         try:
-            self.close()
+            self._rc_close()
         except Exception:
             pass
         # Since this is sometimes used in a multiple inheritance, the
@@ -497,9 +497,6 @@ class BaseRenderCanvas:
     def _rc_close(self):
         """Close the canvas.
 
-        For widgets that are wrapped by a ``WrapperRenderCanvas``, this should probably
-        close the wrapper instead.
-
         Note that ``BaseRenderCanvas`` implements the ``close()`` method, which
         is a rather common name; it may be necessary to re-implement that too.
         """
@@ -511,9 +508,6 @@ class BaseRenderCanvas:
 
     def _rc_set_title(self, title):
         """Set the canvas title. May be ignored when it makes no sense.
-
-        For widgets that are wrapped by a ``WrapperRenderCanvas``, this should probably
-        set the title of the wrapper instead.
 
         The default implementation does nothing.
         """
