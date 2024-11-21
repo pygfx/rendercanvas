@@ -105,7 +105,7 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
     def _rc_close(self):
         RemoteFrameBuffer.close(self)
 
-    def _rc_is_closed(self):
+    def _rc_get_closed(self):
         return self._is_closed
 
     def _rc_set_title(self, title):
@@ -142,7 +142,7 @@ class JupyterAsyncioLoop(AsyncioLoop):
         canvases = [r() for r in self._pending_jupyter_canvases]
         self._pending_jupyter_canvases.clear()
         for w in canvases:
-            if w and not w.is_closed():
+            if w and not w.get_closed():
                 display(w)
 
 

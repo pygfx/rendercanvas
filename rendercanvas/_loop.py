@@ -451,7 +451,7 @@ class Scheduler:
     def get_canvas(self):
         """Get the canvas, or None if it is closed or gone."""
         canvas = self._canvas_ref()
-        if canvas is None or canvas.is_closed():
+        if canvas is None or canvas.get_closed():
             # Pretty nice, we can send a close event, even if the canvas no longer exists
             self._events._rc_close()
             return None

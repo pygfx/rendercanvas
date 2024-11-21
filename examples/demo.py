@@ -51,7 +51,7 @@ def process_event(event):
         # Should see this exactly once, either when pressing escape, or
         # when pressing the window close button.
         print("Close detected!")
-        assert canvas.is_closed()
+        assert canvas.get_closed()
 
 
 if __name__ == "__main__":

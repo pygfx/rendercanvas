@@ -278,7 +278,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         else:
             self.Hide()
 
-    def _rc_is_closed(self):
+    def _rc_get_closed(self):
         return self._is_closed
 
     def _rc_set_title(self, title):

@@ -34,7 +34,7 @@ def main():
     frame_count = 0
     canvas.request_draw(draw_frame)
 
-    while not canvas.is_closed():
+    while not canvas.get_closed():
         image = canvas.draw()
         frame_count += 1
         print(f"Rendered {frame_count} frames, last shape is {image.shape}")
