@@ -176,7 +176,7 @@ class BaseLoop:
         schedulers = []
 
         for scheduler in self._schedulers:
-            canvas = scheduler._get_canvas()
+            canvas = scheduler.get_canvas()
             if canvas is not None:
                 canvases.append(canvas)
                 schedulers.append(scheduler)
@@ -199,7 +199,6 @@ class BaseLoop:
             return
 
         # Should we stop?
-
         if not self._schedulers:
             # Stop when there are no more canvases
             self._rc_stop()
@@ -264,6 +263,9 @@ class BaseLoop:
         # Cannot run if already running
         if self._is_inside_run:
             raise RuntimeError("loop.run() is not reentrant.")
+
+        # Make sure that the internal timer is running, even if no canvases.
+        self._gui_timer.start(0.1)
 
         # Register interrupt handler
         prev_sig_handlers = self.__setup_interrupt()
@@ -448,7 +450,8 @@ class Scheduler:
         # Register this scheduler/canvas at the loop object
         loop._register_scheduler(self)
 
-    def _get_canvas(self):
+    def get_canvas(self):
+        """Get the canvas, or None if it is closed or gone."""
         canvas = self._canvas_ref()
         if canvas is None or canvas.is_closed():
             # Pretty nice, we can send a close event, even if the canvas no longer exists
@@ -489,7 +492,7 @@ class Scheduler:
         self._last_tick_time = time.perf_counter()
 
         # Get canvas or stop
-        if (canvas := self._get_canvas()) is None:
+        if (canvas := self.get_canvas()) is None:
             return
 
         # Process events, handlers may request a draw
