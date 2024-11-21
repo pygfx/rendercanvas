@@ -58,10 +58,10 @@ def test_glfw_canvas_basics():
     assert isinstance(canvas.get_pixel_ratio(), float)
 
     # Close
-    assert not canvas.is_closed()
+    assert not canvas.get_closed()
     canvas.close()
     glfw.poll_events()
-    assert canvas.is_closed()
+    assert canvas.get_closed()
 
 
 def test_glfw_canvas_del():

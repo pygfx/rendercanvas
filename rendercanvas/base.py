@@ -8,7 +8,7 @@ import importlib
 
 from ._events import EventEmitter, EventType  # noqa: F401
 from ._loop import Scheduler, BaseLoop, BaseTimer
-from ._coreutils import log_exception
+from ._coreutils import logger, log_exception
 
 
 # Notes on naming and prefixes:
@@ -327,7 +327,7 @@ class BaseRenderCanvas:
             # "draw event" that we requested, or as part of a forced draw.
 
             # Cannot draw to a closed canvas.
-            if self._rc_is_closed():
+            if self._rc_get_closed():
                 return
 
             # Process special events
@@ -382,9 +382,15 @@ class BaseRenderCanvas:
         """Close the canvas."""
         self._rc_close()
 
-    def is_closed(self):
+    def get_closed(self):
         """Get whether the window is closed."""
-        return self._rc_is_closed()
+        return self._rc_get_closed()
+
+    def is_closed(self):
+        logger.warning(
+            "canvas.is_closed() is deprecated, use canvas.get_closed() instead."
+        )
+        return self._rc_get_closed()
 
     # %% Secondary canvas management methods
 
@@ -502,7 +508,7 @@ class BaseRenderCanvas:
         """
         pass
 
-    def _rc_is_closed(self):
+    def _rc_get_closed(self):
         """Get whether the canvas is closed."""
         return False
 
@@ -557,6 +563,9 @@ class WrapperRenderCanvas(BaseRenderCanvas):
 
     def close(self):
         self._subwidget.close()
+
+    def get_closed(self):
+        return self._subwidget.get_closed()
 
     def is_closed(self):
         return self._subwidget.is_closed()

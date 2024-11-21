@@ -343,7 +343,7 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         else:
             QtWidgets.QWidget.close(self)
 
-    def _rc_is_closed(self):
+    def _rc_get_closed(self):
         return self._is_closed
 
     def _rc_set_title(self, title):

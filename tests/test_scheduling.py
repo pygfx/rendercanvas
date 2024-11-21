@@ -52,7 +52,7 @@ class MyCanvas(BaseRenderCanvas):
     def _rc_close(self):
         self._closed = True
 
-    def _rc_is_closed(self):
+    def _rc_get_closed(self):
         return self._closed
 
     def _process_events(self):

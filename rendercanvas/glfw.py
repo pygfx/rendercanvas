@@ -319,7 +319,7 @@ class GlfwRenderCanvas(BaseRenderCanvas):
             self._window = None
             self.submit_event({"event_type": "close"})
 
-    def _rc_is_closed(self):
+    def _rc_get_closed(self):
         return self._window is None
 
     def _rc_set_title(self, title):
