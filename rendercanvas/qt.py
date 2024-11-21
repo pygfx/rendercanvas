@@ -577,8 +577,8 @@ class QtLoop(BaseLoop):
         app.exec() if hasattr(app, "exec") else app.exec_()
 
     def _rc_stop(self):
-        if not already_had_app_on_import:
-            self._app.quit()
+        # Note: is only called when we're inside _rc_run
+        self._app.quit()
 
     def _rc_gui_poll(self):
         pass  # we assume the Qt event loop is running. Calling processEvents() will cause recursive repaints.

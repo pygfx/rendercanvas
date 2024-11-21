@@ -3,12 +3,20 @@ The loop mechanics: the base timer, base loop, and scheduler.
 """
 
 import time
+import signal
 import weakref
 
-from ._coreutils import log_exception, BaseEnum
+from ._coreutils import logger, log_exception, BaseEnum
+
 
 # Note: technically, we could have a global loop proxy object that defers to any of the other loops.
 # That would e.g. allow using glfw with qt together. Probably a too weird use-case for the added complexity.
+
+
+HANDLED_SIGNALS = (
+    signal.SIGINT,  # Unix signal 2. Sent by Ctrl+C.
+    signal.SIGTERM,  # Unix signal 15. Sent by `kill <pid>`.
+)
 
 
 class BaseTimer:
@@ -142,8 +150,9 @@ class BaseLoop:
     _TimerClass = None  # subclases must set this
 
     def __init__(self):
-        self._schedulers = set()
-        self._stop_when_no_canvases = False
+        self._schedulers = []
+        self._is_inside_run = False
+        self._should_stop = 0
 
         # The loop object runs a lightweight timer for a few reasons:
         # * Support running the loop without windows (e.g. to keep animations going).
@@ -156,26 +165,51 @@ class BaseLoop:
 
     def _register_scheduler(self, scheduler):
         # Gets called whenever a canvas in instantiated
-        self._schedulers.add(scheduler)
+        self._schedulers.append(scheduler)
         self._gui_timer.start(0.1)  # (re)start our internal timer
+
+    def get_canvases(self):
+        """Get a list of currently active (not-closed) canvases."""
+        canvases = []
+        schedulers = []
+
+        for scheduler in self._schedulers:
+            canvas = scheduler.get_canvas()
+            if canvas is not None:
+                canvases.append(canvas)
+                schedulers.append(scheduler)
+
+        # Forget schedulers that no longer have a live canvas
+        self._schedulers = schedulers
+
+        return canvases
 
     def _tick(self):
         # Keep the GUI alive on every tick
         self._rc_gui_poll()
 
-        # Check all schedulers
-        schedulers_to_close = []
-        for scheduler in self._schedulers:
-            if scheduler._get_canvas() is None:
-                schedulers_to_close.append(scheduler)
+        # Clean internal schedulers list
+        self.get_canvases()
 
-        # Forget schedulers that no longer have an live canvas
-        for scheduler in schedulers_to_close:
-            self._schedulers.discard(scheduler)
+        # Our loop can still tick, even if the loop is not started via our run() method.
+        # If this is the case, we don't run the close/stop logic
+        if not self._is_inside_run:
+            return
 
-        # Check whether we must stop the loop
-        if self._stop_when_no_canvases and not self._schedulers:
-            self.stop()
+        # Should we stop?
+        if not self._schedulers:
+            # Stop when there are no more canvases
+            self._rc_stop()
+        elif self._should_stop >= 2:
+            # force a stop without waiting for the canvases to close
+            self._rc_stop()
+        elif self._should_stop:
+            # Close all remaining canvases. Loop will stop in a next iteration.
+            for canvas in self.get_canvases():
+                if not getattr(canvas, "_rc_closed_by_loop", False):
+                    canvas._rc_closed_by_loop = True
+                    canvas._rc_close()
+                    del canvas
 
     def call_soon(self, callback, *args):
         """Arrange for a callback to be called as soon as possible.
@@ -213,25 +247,83 @@ class BaseLoop:
         timer.start()
         return timer
 
-    def run(self, stop_when_no_canvases=True):
+    def run(self):
         """Enter the main loop.
 
         This provides a generic API to start the loop. When building an application (e.g. with Qt)
         its fine to start the loop in the normal way.
         """
-        self._stop_when_no_canvases = bool(stop_when_no_canvases)
-        self._rc_run()
+        # Note that when the loop is started via this method, we always stop
+        # when the last canvas is closed. Keeping the loop alive is a use-case
+        # for interactive sessions, where the loop is already running, or started
+        # "behind our back". So we don't need to accomodate for this.
+
+        # Cannot run if already running
+        if self._is_inside_run:
+            raise RuntimeError("loop.run() is not reentrant.")
+
+        # Make sure that the internal timer is running, even if no canvases.
+        self._gui_timer.start(0.1)
+
+        # Register interrupt handler
+        prev_sig_handlers = self.__setup_interrupt()
+
+        # Run. We could be in this loop for a long time. Or we can exit
+        # immediately if the backend already has an (interactive) event
+        # loop. In the latter case, note how we restore the sigint
+        # handler again, so we don't interfere with that loop.
+        self._is_inside_run = True
+        try:
+            self._rc_run()
+        finally:
+            self._is_inside_run = False
+            for sig, cb in prev_sig_handlers.items():
+                signal.signal(sig, cb)
 
     def stop(self):
-        """Stop the currently running event loop."""
-        self._rc_stop()
+        """Close all windows and stop the currently running event loop.
+
+        This only has effect when the event loop is currently running via ``.run()``.
+        I.e. not when a Qt app is started with ``app.exec()``, or when Qt or asyncio
+        is running interactively in your IDE.
+        """
+        # Only take action when we're inside the run() method
+        if self._is_inside_run:
+            self._should_stop += 1
+            if self._should_stop >= 4:
+                # If for some reason the tick method is no longer being called, but the loop is still running, we can still stop it by spamming stop() :)
+                self._rc_stop()
+
+    def __setup_interrupt(self):
+        def on_interrupt(sig, _frame):
+            logger.warning(f"Received signal {signal.strsignal(sig)}")
+            self.stop()
+
+        prev_handlers = {}
+
+        for sig in HANDLED_SIGNALS:
+            prev_handler = signal.getsignal(sig)
+            if prev_handler in (None, signal.SIG_IGN, signal.SIG_DFL):
+                # Only register if the old handler for SIGINT was not None,
+                # which means that a non-python handler was installed, i.e. in
+                # Julia, and not SIG_IGN which means we should ignore the interrupts.
+                pass
+            else:
+                # Setting the signal can raise ValueError if this is not the main thread/interpreter
+                try:
+                    prev_handlers[sig] = signal.signal(signal.SIGINT, on_interrupt)
+                except ValueError:
+                    break
+        return prev_handlers
 
     def _rc_run(self):
         """Start running the event-loop.
 
         * Start the event loop.
-        * The rest of the loop object must work just fine, also when the loop is
-          started in the "normal way" (i.e. this method may not be called).
+        * The loop object must also work when the native loop is started
+          in the GUI-native way (i.e. this method may not be called).
+        * If the backend is in interactive mode (i.e. there already is
+          an active native loop) this may return directly.
         """
         raise NotImplementedError()
 
@@ -239,7 +331,8 @@ class BaseLoop:
         """Stop the event loop.
 
         * Stop the running event loop.
-        * When running in an interactive session, this call should probably be ignored.
+        * This will only be called when the process is inside _rc_run().
+          I.e. not for interactive mode.
         """
         raise NotImplementedError()
 
@@ -355,7 +448,8 @@ class Scheduler:
         # Register this scheduler/canvas at the loop object
         loop._register_scheduler(self)
 
-    def _get_canvas(self):
+    def get_canvas(self):
+        """Get the canvas, or None if it is closed or gone."""
         canvas = self._canvas_ref()
         if canvas is None or canvas.is_closed():
             # Pretty nice, we can send a close event, even if the canvas no longer exists
@@ -396,7 +490,7 @@ class Scheduler:
         self._last_tick_time = time.perf_counter()
 
         # Get canvas or stop
-        if (canvas := self._get_canvas()) is None:
+        if (canvas := self.get_canvas()) is None:
             return
 
         # Process events, handlers may request a draw

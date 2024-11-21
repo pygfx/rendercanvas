@@ -482,7 +482,6 @@ class WxTimer(BaseTimer):
 class WxLoop(BaseLoop):
     _TimerClass = WxTimer
     _the_app = None
-    _frame_to_keep_loop_alive = None
 
     def init_wx(self):
         _ = self._app
@@ -499,12 +498,13 @@ class WxLoop(BaseLoop):
         wx.CallSoon(callback, args)
 
     def _rc_run(self):
-        self._frame_to_keep_loop_alive = wx.Frame(None)
         self._app.MainLoop()
 
     def _rc_stop(self):
-        self._frame_to_keep_loop_alive.Destroy()
-        _frame_to_keep_loop_alive = None
+        # It looks like we cannot make wx stop the loop.
+        # In general not a problem, because the BaseLoop will try
+        # to close all windows before stopping a loop.
+        pass
 
     def _rc_gui_poll(self):
         pass  # We can assume the wx loop is running.
