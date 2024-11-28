@@ -3,18 +3,15 @@ Support for rendering in a Qt widget. Provides a widget subclass that
 can be used as a standalone window or in a larger GUI.
 """
 
-__all__ = ["RenderCanvas", "RenderWidget", "QRenderWidget", "loop"]
+__all__ = ["QRenderWidget", "RenderCanvas", "RenderWidget", "loop"]
 
 import sys
+import time
 import ctypes
 import importlib
 
-from .base import (
-    WrapperRenderCanvas,
-    BaseRenderCanvas,
-    BaseLoop,
-    BaseTimer,
-)
+
+from .base import WrapperRenderCanvas, BaseRenderCanvas, BaseLoop
 from ._coreutils import (
     logger,
     SYSTEM_IS_WAYLAND,
@@ -521,25 +518,7 @@ RenderWidget = QRenderWidget
 RenderCanvas = QRenderCanvas
 
 
-class QtTimer(BaseTimer):
-    """Timer basef on Qt."""
-
-    def _rc_init(self):
-        self._qt_timer = QtCore.QTimer()
-        self._qt_timer.timeout.connect(self._tick)
-        self._qt_timer.setSingleShot(True)
-        self._qt_timer.setTimerType(PreciseTimer)
-
-    def _rc_start(self):
-        self._qt_timer.start(int(self._interval * 1000))
-
-    def _rc_stop(self):
-        self._qt_timer.stop()
-
-
 class QtLoop(BaseLoop):
-    _TimerClass = QtTimer
-
     def init_qt(self):
         _ = self._app
         self._latest_timeout = 0
@@ -553,11 +532,15 @@ class QtLoop(BaseLoop):
             self._the_app = app = QtWidgets.QApplication([])
         return app
 
-    def _rc_call_soon(self, callback, *args):
-        func = callback
-        if args:
-            func = lambda: callback(*args)
-        QtCore.QTimer.singleshot(0, func)
+    def _rc_call_soon(self, callback):
+        QtCore.QTimer.singleShot(0, callback)
+
+    def _rc_call_at(self, when, callback):
+        delay_ms = int(max(0, (when - time.perf_counter()) * 1000))
+        QtCore.QTimer.singleShot(delay_ms, callback)
+
+    def _rc_add_task(self, *args):
+        return super()._rc_add_task(*args)
 
     def _rc_run(self):
         # Note: we could detect if asyncio is running (interactive session) and wheter
@@ -578,6 +561,7 @@ class QtLoop(BaseLoop):
 
     def _rc_stop(self):
         # Note: is only called when we're inside _rc_run
+        super()._rc_stop()
         self._app.quit()
 
     def _rc_gui_poll(self):

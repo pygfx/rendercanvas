@@ -8,6 +8,9 @@ import weakref
 
 from ._coreutils import logger, log_exception, BaseEnum
 
+from ._async_sniffs import sleep, Event  # rename this module
+from asyncio import iscoroutinefunction
+from ._async_adapter import Task as AsyncAdapterTask
 
 # Note: technically, we could have a global loop proxy object that defers to any of the other loops.
 # That would e.g. allow using glfw with qt together. Probably a too weird use-case for the added complexity.
@@ -19,154 +22,26 @@ HANDLED_SIGNALS = (
 )
 
 
-class BaseTimer:
-    """The Base class for a timer object.
-
-    Each backends provides its own timer subclass. The timer is used by the internal scheduling mechanics,
-    and is also returned by user-facing API such as ``loop.call_later()``.
-    """
-
-    _running_timers = set()
-
-    def __init__(self, loop, callback, *args, one_shot=False):
-        # The loop arg is passed as an argument, so that the Loop object itself can create a timer.
-        self._loop = loop
-        # Check callable
-        if not callable(callback):
-            raise TypeError("Given timer callback is not a callable.")
-        self._callback = callback
-        self._args = args
-        # Internal variables
-        self._one_shot = bool(one_shot)
-        self._interval = None
-        self._expect_tick_at = None
-
-    def start(self, interval):
-        """Start the timer with the given interval.
-
-        When the interval has passed, the callback function will be called,
-        unless the timer is stopped earlier.
-
-        When the timer is currently running, it is first stopped and then
-        restarted.
-        """
-        if self._interval is None:
-            self._rc_init()
-        if self.is_running:
-            self._rc_stop()
-        BaseTimer._running_timers.add(self)
-        self._interval = max(0.0, float(interval))
-        self._expect_tick_at = time.perf_counter() + self._interval
-        self._rc_start()
-
-    def stop(self):
-        """Stop the timer.
-
-        If the timer is currently running, it is stopped, and the
-        callback is *not* called. If the timer is currently not running,
-        this method does nothing.
-        """
-        BaseTimer._running_timers.discard(self)
-        self._expect_tick_at = None
-        self._rc_stop()
-
-    def _tick(self):
-        """The implementations must call this method."""
-        # Stop or restart
-        if self._one_shot:
-            BaseTimer._running_timers.discard(self)
-            self._expect_tick_at = None
-        else:
-            self._expect_tick_at = time.perf_counter() + self._interval
-            self._rc_start()
-        # Callback
-        with log_exception("Timer callback error"):
-            self._callback(*self._args)
-
-    @property
-    def time_left(self):
-        """The expected time left before the callback is called.
-
-        None means that the timer is not running. The value can be negative
-        (which means that the timer is late).
-        """
-        if self._expect_tick_at is None:
-            return None
-        else:
-            return self._expect_tick_at - time.perf_counter()
-
-    @property
-    def is_running(self):
-        """Whether the timer is running.
-
-        A running timer means that a new call to the callback is scheduled and
-        will happen in ``time_left`` seconds (assuming the event loop keeps
-        running).
-        """
-        return self._expect_tick_at is not None
-
-    @property
-    def is_one_shot(self):
-        """Whether the timer is one-shot or continuous.
-
-        A one-shot timer stops running after the currently scheduled call to the callback.
-        It can then be started again. A continuous timer (i.e. not one-shot) automatically
-        schedules new calls.
-        """
-        return self._one_shot
-
-    def _rc_init(self):
-        """Initialize the (native) timer object.
-
-        Opportunity to initialize the timer object. This is called right
-        before the timer is first started.
-        """
-        pass
-
-    def _rc_start(self):
-        """Start the timer.
-
-        * Must schedule for ``self._tick`` to be called in ``self._interval`` seconds.
-        * Must call it exactly once (the base class takes care of repeating the timer).
-        * When ``self._rc_stop()`` is called before the timer finished, the call to ``self._tick()`` must be cancelled.
-        """
-        raise NotImplementedError()
-
-    def _rc_stop(self):
-        """Stop the timer.
-
-        * If the timer is running, cancel the pending call to ``self._tick()``.
-        * Otherwise, this should do nothing.
-        """
-        raise NotImplementedError()
-
-
 class BaseLoop:
     """The base class for an event-loop object.
 
-    Each backends provides its own loop subclass, so that rendercanvas can run cleanly in the backend's event loop.
+    Each backend provides its own loop subclass, so that rendercanvas can run cleanly in the backend's event loop.
     """
 
-    _TimerClass = None  # subclases must set this
-
     def __init__(self):
+        self.__tasks = []
         self._schedulers = []
         self._is_inside_run = False
         self._should_stop = 0
-
-        # The loop object runs a lightweight timer for a few reasons:
-        # * Support running the loop without windows (e.g. to keep animations going).
-        # * Detect closed windows. Relying on the backend alone is tricky, since the
-        #   loop usually stops when the last window is closed, so the close event may
-        #   not be fired.
-        # * Keep the GUI going even when the canvas loop is on pause e.g. because its
-        #   minimized (applies to backends that implement _rc_gui_poll).
-        self._gui_timer = self._TimerClass(self, self._tick, one_shot=False)
+        self.__created_loop_task = False
 
     def _register_scheduler(self, scheduler):
         # Gets called whenever a canvas in instantiated
         self._schedulers.append(scheduler)
-        self._gui_timer.start(0.1)  # (re)start our internal timer
+        # self._gui_timer.start(0.1)  # (re)start our internal timer
+        if not self.__created_loop_task:
+            self.__created_loop_task = True
+            self.add_task(self._loop_task, name="loop")
 
     def get_canvases(self):
         """Get a list of currently active (not-closed) canvases."""
@@ -184,32 +59,53 @@ class BaseLoop:
 
         return canvases
 
-    def _tick(self):
-        # Keep the GUI alive on every tick
-        self._rc_gui_poll()
+    async def _loop_task(self):
+        # This task has multiple purposes:
+        #
+        # * Detect closed windows. Relying on the backend alone is tricky, since the
+        #   loop usually stops when the last window is closed, so the close event may
+        #   not be fired.
+        # * Keep the GUI going even when the canvas loop is on pause e.g. because its
+        #   minimized (applies to backends that implement _rc_gui_poll).
 
-        # Clean internal schedulers list
-        self.get_canvases()
+        while True:
+            await sleep(0.1)
 
-        # Our loop can still tick, even if the loop is not started via our run() method.
-        # If this is the case, we don't run the close/stop logic
-        if not self._is_inside_run:
-            return
+            # Keep the GUI alive on every tick. This is extra, since the canvas task also calls it.
+            self._rc_gui_poll()
 
-        # Should we stop?
-        if not self._schedulers:
-            # Stop when there are no more canvases
-            self._rc_stop()
-        elif self._should_stop >= 2:
-            # force a stop without waiting for the canvases to close
-            self._rc_stop()
-        elif self._should_stop:
-            # Close all remaining canvases. Loop will stop in a next iteration.
-            for canvas in self.get_canvases():
-                if not getattr(canvas, "_rc_closed_by_loop", False):
-                    canvas._rc_closed_by_loop = True
-                    canvas._rc_close()
-                    del canvas
+            # Clean internal schedulers list
+            self.get_canvases()
+
+            # Our loop can still tick, even if the loop is not started via our run() method.
+            # If this is the case, we don't run the close/stop logic
+            if not self._is_inside_run:
+                continue
+
+            # Should we stop?
+            if not self._schedulers:
+                # Stop when there are no more canvases
+                self._rc_stop()
+            elif self._should_stop >= 2:
+                # force a stop without waiting for the canvases to close
+                self._rc_stop()
+            elif self._should_stop:
+                # Close all remaining canvases. Loop will stop in a next iteration.
+                for canvas in self.get_canvases():
+                    if not getattr(canvas, "_rc_closed_by_loop", False):
+                        canvas._rc_closed_by_loop = True
+                        canvas._rc_close()
+                        del canvas
+
+    def add_task(self, async_func, *args, name="unnamed"):
+        if not (callable(async_func) and iscoroutinefunction(async_func)):
+            raise TypeError("call_soon() expects an async function.")
+
+        async def wrapper():
+            with log_exception(f"Error in {name} task:"):
+                await async_func(*args)
+
+        self._rc_add_task(wrapper, name)
 
     def call_soon(self, callback, *args):
         """Arrange for a callback to be called as soon as possible.
@@ -217,7 +113,17 @@ class BaseLoop:
         The callback will be called in the next iteration of the event-loop,
         but other pending events/callbacks may be handled first. Returns None.
         """
-        self._rc_call_soon(callback, *args)
+        if not callable(callback):
+            raise TypeError("call_soon() expects a callable.")
+        elif iscoroutinefunction(callback):
+            raise TypeError("call_soon() expects a normal callable, not an async one.")
+
+        async def wrapper():
+            with log_exception("Callback error:"):
+                callback(*args)
+
+        self._rc_add_task(wrapper, "call_soon")
+        # self._rc_call_soon(callback, *args)
 
     def call_later(self, delay, callback, *args):
         """Arrange for a callback to be called after the given delay (in seconds).
@@ -229,9 +135,7 @@ class BaseLoop:
         It's not necessary to hold a reference to the timer object; a
         ref is held automatically, and discarded when the timer ends or stops.
         """
-        timer = self._TimerClass(self, callback, *args, one_shot=True)
-        timer.start(delay)
-        return timer
+        raise NotImplementedError()
 
     def call_repeated(self, interval, callback, *args):
         """Arrange for a callback to be called repeatedly.
@@ -243,9 +147,7 @@ class BaseLoop:
         ref is held automatically, and discarded when the timer is
         stopped.
         """
-        timer = self._TimerClass(self, callback, *args, one_shot=False)
-        timer.start()
-        return timer
+        raise NotImplementedError()
 
     def run(self):
         """Enter the main loop.
@@ -263,7 +165,9 @@ class BaseLoop:
             raise RuntimeError("loop.run() is not reentrant.")
 
         # Make sure that the internal timer is running, even if no canvases.
-        self._gui_timer.start(0.1)
+        if not self.__created_loop_task:
+            self.__created_loop_task = True
+            self.add_task(self._loop_task, name="loop")
 
         # Register interrupt handler
         prev_sig_handlers = self.__setup_interrupt()
@@ -279,6 +183,10 @@ class BaseLoop:
             self._is_inside_run = False
             for sig, cb in prev_sig_handlers.items():
                 signal.signal(sig, cb)
+
+    async def run_async(self):
+        """ "Alternative to ``run()``, to enter the mainloop from a running async framework."""
+        await self._rc_run_async()
 
     def stop(self):
         """Close all windows and stop the currently running event loop.
@@ -327,22 +235,52 @@ class BaseLoop:
         """
         raise NotImplementedError()
 
+    async def _rc_run_async(self):
+        """Enter the mainloop by awaiting this co-routine.
+
+        Should only be implemented by loop-backends that are async (asyncio, trio).
+        Other backends can ignore this.
+        """
+        raise NotImplementedError()
+
     def _rc_stop(self):
         """Stop the event loop.
 
         * Stop the running event loop.
+        * Cancel any remaining tasks.
+        * todo: is the below still (supposed to be) true?
         * This will only be called when the process is inside _rc_run().
           I.e. not for interactive mode.
         """
-        raise NotImplementedError()
+        for task in self.__tasks:
+            task.cancel()
+        self.__tasks = []
 
-    def _rc_call_soon(self, callback, *args):
+    def _rc_add_task(self, async_func, name):
+        """Add an async task to the running loop.
+
+        This method is optional. A backend must either implement ``_rc_add_task``
+        or implement both ``_rc_call_soon()`` and ``_rc_call_at``.
+
+        * Schedule running the task defined by the given co-routine function.
+        * The name is for debugging purposes only.
+        * The backend is responsible for cancelling remaining tasks in _rc_stop.
+        """
+        task = AsyncAdapterTask(self, async_func(), name)
+        self.__tasks.append(task)
+        task.add_done_callback(self.__tasks.remove)
+
+    def _rc_call_soon(self, callback):
         """Method to call a callback in the next iteraction of the event-loop.
 
-        * A quick path to have callback called in a next invocation of the event loop.
-        * This method is optional: the default implementation just calls ``call_later()`` with a zero delay.
+        This method must only be implemented if ``_rc_add_task()`` is not.
         """
-        self.call_later(0, callback, *args)
+
+    def _rc_call_at(self, when, callback):
+        """Method to call a callback at a specific time.
+
+        This method must only be implemented if ``_rc_add_task()`` is not.
+        """
 
     def _rc_gui_poll(self):
         """Process GUI events.
@@ -436,6 +374,7 @@ class Scheduler:
         self._max_fps = float(max_fps)
         self._draw_requested = True  # Start with a draw in ondemand mode
         self._last_draw_time = 0
+        self._async_draw_event = None
 
         # Keep track of fps
         self._draw_stats = 0, time.perf_counter()
@@ -443,10 +382,13 @@ class Scheduler:
         # Initialise the timer that runs our scheduling loop.
         # Note that the backend may do a first draw earlier, starting the loop, and that's fine.
         self._last_tick_time = -0.1
-        self._timer = loop.call_later(0.1, self._tick)
+        # self._timer = loop.call_later(0.1, self._tick)
 
         # Register this scheduler/canvas at the loop object
         loop._register_scheduler(self)
+        loop.add_task(
+            self.__scheduler_task, name=f"{canvas.__class__.__name__} scheduler"
+        )
 
     def get_canvas(self):
         """Get the canvas, or None if it is closed or gone."""
@@ -463,78 +405,79 @@ class Scheduler:
         # Just set the flag
         self._draw_requested = True
 
-    def _schedule_next_tick(self):
+    async def __scheduler_task(self):
         """Schedule _tick() to be called via our timer."""
 
-        if self._timer.is_running:
-            return
-
-        # Determine delay
-        if self._mode == "fastest" or self._max_fps <= 0:
-            delay = 0
-        else:
-            delay = 1 / self._max_fps
-            delay = 0 if delay < 0 else delay  # 0 means cannot keep up
-
-        # Offset delay for time spent on processing events, etc.
-        time_since_tick_start = time.perf_counter() - self._last_tick_time
-        delay -= time_since_tick_start
-        delay = max(0, delay)
-
-        # Go!
-        self._timer.start(delay)
-
-    def _tick(self):
-        """Process event and schedule a new draw or tick."""
-
-        self._last_tick_time = time.perf_counter()
-
-        # Get canvas or stop
-        if (canvas := self.get_canvas()) is None:
-            return
-
-        # Process events, handlers may request a draw
-        canvas._process_events()
-
-        # Determine what to do next ...
-
-        if self._mode == "fastest":
-            # fastest: draw continuously as fast as possible, ignoring fps settings.
-            canvas._rc_request_draw()
-
-        elif self._mode == "continuous":
-            # continuous: draw continuously, aiming for a steady max framerate.
-            canvas._rc_request_draw()
-
-        elif self._mode == "ondemand":
-            # ondemand: draw when needed (detected by calls to request_draw).
-            # Aim for max_fps when drawing is needed, otherwise min_fps.
-            if self._draw_requested:
-                canvas._rc_request_draw()
-            elif (
-                self._min_fps > 0
-                and time.perf_counter() - self._last_draw_time > 1 / self._min_fps
-            ):
-                canvas._rc_request_draw()
+        while True:
+            # Determine delay
+            if self._mode == "fastest" or self._max_fps <= 0:
+                delay = 0
             else:
-                self._schedule_next_tick()
+                delay = 1 / self._max_fps
+                delay = 0 if delay < 0 else delay  # 0 means cannot keep up
 
-        elif self._mode == "manual":
-            # manual: never draw, except when ... ?
-            self._schedule_next_tick()
+            # Offset delay for time spent on processing events, etc.
+            time_since_tick_start = time.perf_counter() - self._last_tick_time
+            delay -= time_since_tick_start
+            delay = max(0, delay)
 
-        else:
-            raise RuntimeError(f"Unexpected scheduling mode: '{self._mode}'")
+            # Wait
+            await sleep(delay)
+
+            # Get canvas or stop
+            if (canvas := self.get_canvas()) is None:
+                return
+
+            # Below is the "tick"
+
+            self._last_tick_time = time.perf_counter()
+
+            # Process events, handlers may request a draw
+            await canvas._process_events()
+
+            # Determine what to do next ...
+
+            do_draw = False
+
+            if self._mode == "fastest":
+                # fastest: draw continuously as fast as possible, ignoring fps settings.
+                do_draw = True
+            elif self._mode == "continuous":
+                # continuous: draw continuously, aiming for a steady max framerate.
+                do_draw = True
+            elif self._mode == "ondemand":
+                # ondemand: draw when needed (detected by calls to request_draw).
+                # Aim for max_fps when drawing is needed, otherwise min_fps.
+                if self._draw_requested:
+                    do_draw = True
+                elif (
+                    self._min_fps > 0
+                    and time.perf_counter() - self._last_draw_time > 1 / self._min_fps
+                ):
+                    do_draw = True
+
+            elif self._mode == "manual":
+                pass
+            else:
+                raise RuntimeError(f"Unexpected scheduling mode: '{self._mode}'")
+
+            # If we don't want to draw, we move to the next iter
+            if not do_draw:
+                continue
+
+            canvas._rc_request_draw()
+            self._async_draw_event = Event()
+            await self._async_draw_event.wait()
 
     def on_draw(self):
-        """Called from canvas._draw_frame_and_present()."""
-
         # Bookkeeping
         self._last_draw_time = time.perf_counter()
         self._draw_requested = False
 
         # Keep ticking
-        self._schedule_next_tick()
+        if self._async_draw_event:
+            self._async_draw_event.set()
+            self._async_draw_event = None
 
         # Update stats
         count, last_time = self._draw_stats

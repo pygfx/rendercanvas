@@ -2,12 +2,12 @@
 The base classes.
 """
 
-__all__ = ["WrapperRenderCanvas", "BaseRenderCanvas", "BaseLoop", "BaseTimer"]
+__all__ = ["BaseLoop", "BaseRenderCanvas", "WrapperRenderCanvas"]
 
 import importlib
 
 from ._events import EventEmitter, EventType  # noqa: F401
-from ._loop import Scheduler, BaseLoop, BaseTimer
+from ._loop import Scheduler, BaseLoop
 from ._coreutils import logger, log_exception
 
 
@@ -229,7 +229,8 @@ class BaseRenderCanvas:
 
     # %% Scheduling and drawing
 
-    def _process_events(self):
+    # todo: now that it's async, we cannot call it from anywhere ...
+    async def _process_events(self):
         """Process events and animations.
 
         Called from the scheduler.
@@ -247,7 +248,7 @@ class BaseRenderCanvas:
 
         # Flush our events, so downstream code can update stuff.
         # Maybe that downstream code request a new draw.
-        self._events.flush()
+        await self._events.flush()
 
         # TODO: implement later (this is a start but is not tested)
         # Schedule animation events until the lag is gone
@@ -333,7 +334,7 @@ class BaseRenderCanvas:
             # Process special events
             # Note that we must not process normal events here, since these can do stuff
             # with the canvas (resize/close/etc) and most GUI systems don't like that.
-            self._events.emit({"event_type": "before_draw"})
+            # todo: self._events.emit({"event_type": "before_draw"})
 
             # Notify the scheduler
             if self.__scheduler is not None:

@@ -4,7 +4,7 @@ Offscreen canvas. No scheduling.
 
 __all__ = ["RenderCanvas", "loop"]
 
-from .base import BaseRenderCanvas, BaseLoop, BaseTimer
+from .base import BaseRenderCanvas, BaseLoop
 
 
 class ManualOffscreenRenderCanvas(BaseRenderCanvas):
@@ -85,17 +85,6 @@ class ManualOffscreenRenderCanvas(BaseRenderCanvas):
 RenderCanvas = ManualOffscreenRenderCanvas
 
 
-class StubTimer(BaseTimer):
-    def _rc_init(self):
-        pass
-
-    def _rc_start(self):
-        pass
-
-    def _rc_stop(self):
-        pass
-
-
 class StubLoop(BaseLoop):
     # If we consider the use-cases for using this offscreen canvas:
     #
@@ -110,13 +99,13 @@ class StubLoop(BaseLoop):
     # In summary, we provide a call_later() and run() that behave pretty
     # well for the first case.
 
-    _TimerClass = StubTimer  # subclases must set this
-
     def _process_timers(self):
+        pass
         # Running this loop processes any timers
-        for timer in list(BaseTimer._running_timers):
-            if timer.time_left <= 0:
-                timer._tick()
+        # todo: xxxx
+        # for timer in list(BaseTimer._running_timers):
+        #     if timer.time_left <= 0:
+        #         timer._tick()
 
     def _rc_run(self):
         self._process_timers()

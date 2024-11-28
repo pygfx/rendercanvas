@@ -16,7 +16,7 @@ import atexit
 import glfw
 
 from .base import BaseRenderCanvas
-from .asyncio import AsyncioLoop
+from .loops import AsyncioLoop
 from ._coreutils import SYSTEM_IS_WAYLAND, weakbind, logger
 
 
@@ -521,7 +521,7 @@ class GlfwRenderCanvas(BaseRenderCanvas):
 RenderCanvas = GlfwRenderCanvas
 
 
-class GlfwAsyncioLoop(AsyncioLoop):
+class GlfwLoop(AsyncioLoop):
     def __init__(self):
         super().__init__()
         self._glfw_initialized = False
@@ -548,7 +548,7 @@ class GlfwAsyncioLoop(AsyncioLoop):
         poll_glfw_briefly()
 
 
-loop = GlfwAsyncioLoop()
+loop = GlfwLoop()
 run = loop.run  # backwards compat
 
 

@@ -3,6 +3,7 @@ The event system.
 """
 
 import time
+from asyncio import iscoroutinefunction  # note: is not asyncio-specific
 from collections import defaultdict, deque
 
 from ._coreutils import log_exception, BaseEnum
@@ -182,7 +183,7 @@ class EventEmitter:
 
         self._pending_events.append(event)
 
-    def flush(self):
+    async def flush(self):
         """Dispatch all pending events.
 
         This should generally be left to the scheduler.
@@ -192,9 +193,9 @@ class EventEmitter:
                 event = self._pending_events.popleft()
             except IndexError:
                 break
-            self.emit(event)
+            await self.emit(event)
 
-    def emit(self, event):
+    async def emit(self, event):
         """Directly emit the given event.
 
         In most cases events should be submitted, so that they are flushed
@@ -208,11 +209,14 @@ class EventEmitter:
             if event.get("stop_propagation", False):
                 break
             with log_exception(f"Error during handling {event_type} event"):
-                callback(event)
+                if iscoroutinefunction(callback):
+                    await callback(event)
+                else:
+                    callback(event)
 
     def _rc_close(self):
         """Wrap up when the scheduler detects the canvas is closed/dead."""
         # This is a little feature because detecting a widget from closing can be tricky.
         if not self._closed:
             self.submit({"event_type": "close"})
-        self.flush()
+        # todo: !! ??self.flush()

@@ -22,7 +22,6 @@ from .base import (
     WrapperRenderCanvas,
     BaseRenderCanvas,
     BaseLoop,
-    BaseTimer,
 )
 
 
@@ -468,19 +467,7 @@ class TimerWithCallback(wx.Timer):
             pass  # wrapped C/C++ object of type WxRenderWidget has been deleted
 
 
-class WxTimer(BaseTimer):
-    def _rc_init(self):
-        self._wx_timer = TimerWithCallback(self._tick)
-
-    def _rc_start(self):
-        self._wx_timer.StartOnce(int(self._interval * 1000))
-
-    def _rc_stop(self):
-        self._wx_timer.Stop()
-
-
 class WxLoop(BaseLoop):
-    _TimerClass = WxTimer
     _the_app = None
 
     def init_wx(self):

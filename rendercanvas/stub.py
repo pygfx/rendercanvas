@@ -4,7 +4,7 @@ A stub backend for documentation purposes.
 
 __all__ = ["RenderCanvas", "loop"]
 
-from .base import WrapperRenderCanvas, BaseRenderCanvas, BaseLoop, BaseTimer
+from .base import WrapperRenderCanvas, BaseRenderCanvas, BaseLoop
 
 
 class StubRenderCanvas(BaseRenderCanvas):
@@ -78,28 +78,10 @@ class ToplevelRenderCanvas(WrapperRenderCanvas):
         self._subwidget = StubRenderCanvas(self, **kwargs)
 
 
-class StubTimer(BaseTimer):
-    """
-    Backends must subclass ``BaseTimer`` and implement a set of methods prefixed with ``_rc__``.
-    """
-
-    def _rc_init(self):
-        pass
-
-    def _rc_start(self):
-        raise NotImplementedError()
-
-    def _rc_stop(self):
-        raise NotImplementedError()
-
-
 class StubLoop(BaseLoop):
     """
     Backends must subclass ``BaseLoop`` and implement a set of methods prefixed with ``_rc__``.
-    In addition to that, the class attribute ``_TimerClass`` must be set to the corresponding timer subclass.
     """
-
-    _TimerClass = StubTimer
 
     def _rc_run(self):
         raise NotImplementedError()
