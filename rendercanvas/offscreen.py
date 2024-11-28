@@ -102,22 +102,20 @@ class StubLoop(BaseLoop):
     # In summary, we provide a call_later() and run() that behave pretty
     # well for the first case.
 
-    def _process_timers(self):
-        pass
-        # Running this loop processes any timers
-        # todo: xxxx
-        # for timer in list(BaseTimer._running_timers):
-        #     if timer.time_left <= 0:
-        #         timer._tick()
-
     def _rc_run(self):
-        self._process_timers()
+        pass
+
+    async def _rc_run_async(self):
+        raise NotImplementedError()
 
     def _rc_stop(self):
         pass
 
-    def _rc_call_soon(self, callback):
-        super()._rc_call_soon(callback)
+    def _rc_add_task(self, async_func, name):
+        pass
+
+    def _rc_call_later(self, delay, callback):
+        pass
 
 
 loop = StubLoop()

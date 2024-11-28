@@ -1,3 +1,7 @@
+"""
+A micro async framework that only support sleep() and Event. Behaves well with sniffio.
+"""
+
 import time
 import logging
 
@@ -8,14 +12,15 @@ logger = logging.getLogger("rendercanvas")
 
 
 class Sleeper:
-    def __init__(self, when):
-        self.when = when
+    """Awaitable to implement sleep."""
+
+    def __init__(self, delay):
+        self.delay = delay
 
     def __await__(self):
         # This most be a generator, but it is unspecified what must be yielded; this
         # is framework-specific. So we use our own little protocol.
-        # todo: make that sleep 0 resolves to call_soon
-        yield {"wait_method": "sleep", "when": self.when}
+        yield {"wait_method": "sleep", "delay": self.delay}
 
 
 async def sleep(delay):
@@ -42,7 +47,7 @@ class Event:
     def set(self):
         self._is_set = True
         for task in self._tasks:
-            task.call_step_soon()
+            task.call_step_later(0)
         self._tasks = []
 
 
@@ -59,7 +64,7 @@ class Task:
         self.name = name
         self.cancelled = False
         self._done_callbacks = []
-        self.call_step_soon()
+        self.call_step_later(0)
 
     def add_done_callback(self, callback):
         self._done_callbacks.append(callback)
@@ -73,11 +78,8 @@ class Task:
             except Exception:
                 pass
 
-    def call_step_soon(self):
-        self.loop._rc_call_soon(self.step)
-
-    def call_step_at(self, when):
-        self.loop._rc_call_at(when, self.step)
+    def call_step_later(self, delay):
+        self.loop._rc_call_later(delay, self.step)
 
     def cancel(self):
         self.cancelled = True
@@ -120,7 +122,7 @@ class Task:
         wait_method = result["wait_method"]
 
         if wait_method == "sleep":
-            self.call_step_at(result["when"])
+            self.call_step_later(result["delay"])
         elif wait_method == "event":
             result["event"]._add_task(self)
         else:

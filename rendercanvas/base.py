@@ -230,7 +230,6 @@ class BaseRenderCanvas:
 
     # %% Scheduling and drawing
 
-    # todo: now that it's async, we cannot call it from anywhere ...
     async def _process_events(self):
         """Process events and animations.
 
@@ -333,7 +332,6 @@ class BaseRenderCanvas:
             # Process special events
             # Note that we must not process normal events here, since these can do stuff
             # with the canvas (resize/close/etc) and most GUI systems don't like that.
-            # todo: self._events.emit({"event_type": "before_draw"})
 
             # Notify the scheduler
             if self.__scheduler is not None:
@@ -459,11 +457,6 @@ class BaseRenderCanvas:
         by calling ``_draw_frame_and_present()``. It's the responsibility
         for the canvas subclass to make sure that a draw is made as
         soon as possible.
-
-        Canvases that have a limit on how fast they can 'consume' frames, like
-        remote frame buffers, do good to call self._process_events() when the
-        draw had to wait a little. That way the user interaction will lag as
-        little as possible.
 
         The default implementation does nothing, which is equivalent to waiting
         for a forced draw or a draw invoked by the GUI system.

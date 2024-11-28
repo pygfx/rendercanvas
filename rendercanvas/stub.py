@@ -20,8 +20,8 @@ class StubRenderCanvas(BaseRenderCanvas):
     def _final_canvas_init(self):
         return super()._final_canvas_init()
 
-    def _process_events(self):
-        return super()._process_events()
+    async def _process_events(self):
+        return await super()._process_events()
 
     def _draw_frame_and_present(self):
         return super()._draw_frame_and_present()
@@ -92,8 +92,11 @@ class StubLoop(BaseLoop):
     def _rc_stop(self):
         raise NotImplementedError()
 
-    def _rc_call_soon(self, callback, *args):
-        self.call_later(0, callback, *args)
+    def _rc_add_task(self):
+        raise NotImplementedError()
+
+    def _rc_call_later(self, delay, callback):
+        raise NotImplementedError()
 
 
 # Make available under a common name

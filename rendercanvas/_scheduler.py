@@ -6,7 +6,7 @@ import time
 import weakref
 
 from ._coreutils import BaseEnum
-from ._async_sniffs import sleep, Event  # todo: rename this module
+from .utils.asyncs import sleep, Event
 
 
 class UpdateMode(BaseEnum):
@@ -90,14 +90,10 @@ class Scheduler:
         self._min_fps = float(min_fps)
         self._max_fps = float(max_fps)
         self._draw_requested = True  # Start with a draw in ondemand mode
-        self._last_draw_time = 0
         self._async_draw_event = None
 
         # Keep track of fps
         self._draw_stats = 0, time.perf_counter()
-
-        self._last_tick_time = -0.1
-        # todo: some vars maybe moved to inside the coro
 
         loop.add_scheduler(self)
         loop.add_task(self.__scheduler_task)
@@ -118,6 +114,9 @@ class Scheduler:
     async def __scheduler_task(self):
         """The coro that reprsents the scheduling loop for a canvas."""
 
+        last_draw_time = 0
+        last_tick_time = -0.1
+
         while True:
             # Determine delay
             if self._mode == "fastest" or self._max_fps <= 0:
@@ -127,7 +126,7 @@ class Scheduler:
                 delay = 0 if delay < 0 else delay  # 0 means cannot keep up
 
             # Offset delay for time spent on processing events, etc.
-            time_since_tick_start = time.perf_counter() - self._last_tick_time
+            time_since_tick_start = time.perf_counter() - last_tick_time
             delay -= time_since_tick_start
             delay = max(0, delay)
 
@@ -140,7 +139,7 @@ class Scheduler:
 
             # Below is the "tick"
 
-            self._last_tick_time = time.perf_counter()
+            last_tick_time = time.perf_counter()
 
             # Process events, handlers may request a draw
             await canvas._process_events()
@@ -162,7 +161,7 @@ class Scheduler:
                     do_draw = True
                 elif (
                     self._min_fps > 0
-                    and time.perf_counter() - self._last_draw_time > 1 / self._min_fps
+                    and time.perf_counter() - last_draw_time > 1 / self._min_fps
                 ):
                     do_draw = True
 
@@ -175,15 +174,17 @@ class Scheduler:
             if not do_draw:
                 continue
 
+            await self._events.emit({"event_type": "before_draw"})
+
             canvas._rc_request_draw()
             self._async_draw_event = Event()
             await self._async_draw_event.wait()
+            last_draw_time = time.perf_counter()
 
         await self._events._rc_canvas_close()
 
     def on_draw(self):
         # Bookkeeping
-        self._last_draw_time = time.perf_counter()
         self._draw_requested = False
 
         # Keep ticking

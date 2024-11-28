@@ -6,7 +6,7 @@ import signal
 
 from ._coreutils import logger, log_exception
 from ._scheduler import Scheduler
-from ._async_sniffs import sleep
+from .utils.asyncs import sleep
 from asyncio import iscoroutinefunction
 from ._async_adapter import Task as AsyncAdapterTask
 
@@ -145,8 +145,9 @@ class BaseLoop:
         self._stop()
 
     def add_task(self, async_func, *args, name="unnamed"):
+        """Run an async function in the event-loop."""
         if not (callable(async_func) and iscoroutinefunction(async_func)):
-            raise TypeError("call_soon() expects an async function.")
+            raise TypeError("add_task() expects an async function.")
 
         async def wrapper():
             with log_exception(f"Error in {name} task:"):
@@ -170,31 +171,20 @@ class BaseLoop:
                 callback(*args)
 
         self._rc_add_task(wrapper, "call_soon")
-        # self._rc_call_soon(callback, *args)
 
     def call_later(self, delay, callback, *args):
-        """Arrange for a callback to be called after the given delay (in seconds).
+        """Arrange for a callback to be called after the given delay (in seconds)."""
+        if not callable(callback):
+            raise TypeError("call_later() expects a callable.")
+        elif iscoroutinefunction(callback):
+            raise TypeError("call_later() expects a normal callable, not an async one.")
 
-        Returns a timer object (in one-shot mode) that can be used to
-        stop the time (i.e. cancel the callback being called), and/or
-        to restart the timer.
+        async def wrapper():
+            with log_exception("Callback error:"):
+                await sleep(delay)
+                callback(*args)
 
-        It's not necessary to hold a reference to the timer object; a
-        ref is held automatically, and discarded when the timer ends or stops.
-        """
-        raise NotImplementedError()
-
-    def call_repeated(self, interval, callback, *args):
-        """Arrange for a callback to be called repeatedly.
-
-        Returns a timer object (in multi-shot mode) that can be used for
-        further control.
-
-        It's not necessary to hold a reference to the timer object; a
-        ref is held automatically, and discarded when the timer is
-        stopped.
-        """
-        raise NotImplementedError()
+        self._rc_add_task(wrapper, "call_later")
 
     def run(self):
         """Enter the main loop.
@@ -310,9 +300,7 @@ class BaseLoop:
 
         * Stop the running event loop.
         * Cancel any remaining tasks.
-        * todo: is the below still (supposed to be) true?
-        * This will only be called when the process is inside _rc_run().
-          I.e. not for interactive mode.
+        * This will only be called when the process is inside _rc_run(), i.e. not for interactive mode.
         """
         raise NotImplementedError()
 
@@ -320,7 +308,7 @@ class BaseLoop:
         """Add an async task to the running loop.
 
         This method is optional. A backend must either implement ``_rc_add_task``
-        or implement both ``_rc_call_soon()`` and ``_rc_call_at``.
+        or implement ``_rc_call_later``.
 
         * Schedule running the task defined by the given co-routine function.
         * The name is for debugging purposes only.
@@ -330,14 +318,10 @@ class BaseLoop:
         self.__tasks.append(task)
         task.add_done_callback(self.__tasks.remove)
 
-    def _rc_call_soon(self, callback):
-        """Method to call a callback in the next iteraction of the event-loop.
+    def _rc_call_later(self, delay, callback):
+        """Method to call a callback in delay number of seconds.
 
         This method must only be implemented if ``_rc_add_task()`` is not.
+        If delay is zero, this should behave like "call_later".
         """
-
-    def _rc_call_at(self, when, callback):
-        """Method to call a callback at a specific time.
-
-        This method must only be implemented if ``_rc_add_task()`` is not.
-        """
+        raise NotImplementedError()

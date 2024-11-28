@@ -479,8 +479,8 @@ class WxLoop(BaseLoop):
             wx.App.SetInstance(app)
         return app
 
-    def _rc_call_soon(self, delay, callback, *args):
-        wx.CallSoon(callback, args)
+    def _rc_call_later(self, delay, callback, *args):
+        raise NotImplementedError()  # todo: wx.CallSoon(callback, args)
 
     def _rc_run(self):
         self._app.MainLoop()

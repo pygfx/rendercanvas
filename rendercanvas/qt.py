@@ -6,7 +6,6 @@ can be used as a standalone window or in a larger GUI.
 __all__ = ["QRenderWidget", "RenderCanvas", "RenderWidget", "loop"]
 
 import sys
-import time
 import ctypes
 import importlib
 
@@ -530,11 +529,8 @@ class QtLoop(BaseLoop):
             self._the_app = app = QtWidgets.QApplication([])
         return app
 
-    def _rc_call_soon(self, callback):
-        QtCore.QTimer.singleShot(0, callback)
-
-    def _rc_call_at(self, when, callback):
-        delay_ms = int(max(0, (when - time.perf_counter()) * 1000))
+    def _rc_call_later(self, delay, callback):
+        delay_ms = int(max(0, delay * 1000))
         QtCore.QTimer.singleShot(delay_ms, callback)
 
     def _rc_add_task(self, *args):
