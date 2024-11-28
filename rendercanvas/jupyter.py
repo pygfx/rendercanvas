@@ -54,7 +54,10 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
     # %% Methods to implement RenderCanvas
 
     def _rc_get_loop(self):
-        return loop
+        return loop  # asyncio only
+
+    def _rc_gui_poll(self):
+        pass  # The Jupyter UI is running in a separate process :)
 
     def _rc_get_present_methods(self):
         # We stick to the two common formats, because these can be easily converted to png
@@ -132,9 +135,6 @@ class JupyterAsyncioLoop(AsyncioLoop):
     def __init__(self):
         super().__init__()
         self._pending_jupyter_canvases = []
-
-    def _rc_gui_poll(self):
-        pass  # Jupyter is running in a separate process :)
 
     def run(self):
         # Show all widgets that have been created so far.

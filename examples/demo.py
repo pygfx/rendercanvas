@@ -15,13 +15,12 @@ A nice demo, and very convenient to test the different backends.
 import time
 
 from rendercanvas.auto import RenderCanvas, loop
-
 from rendercanvas.utils.cube import setup_drawing_sync
 
 
 canvas = RenderCanvas(
     size=(640, 480),
-    title="Canvas events on $backend - $fps fps",
+    title="Canvas events with $backend - $fps fps",
     max_fps=10,
     update_mode="continuous",
     present_method="",
@@ -33,7 +32,7 @@ canvas.request_draw(draw_frame)
 
 
 @canvas.add_event_handler("*")
-def process_event(event):
+async def process_event(event):
     if event["event_type"] not in ["pointer_move", "before_draw", "animate"]:
         print(event)
 

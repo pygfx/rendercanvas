@@ -65,6 +65,7 @@ class EventEmitter:
         self._pending_events = deque()
         self._event_handlers = defaultdict(list)
         self._closed = False
+        # todo: remove all handlers when closing
 
     def add_handler(self, *args, order: float = 0):
         """Register an event handler to receive events.
@@ -159,8 +160,6 @@ class EventEmitter:
         event_type = event["event_type"]
         if event_type not in EventType:
             raise ValueError(f"Submitting with invalid event_type: '{event_type}'")
-        if event_type == "close":
-            self._closed = True
 
         event.setdefault("time_stamp", time.perf_counter())
         event_merge_info = self._EVENTS_THAT_MERGE.get(event_type, None)
@@ -203,6 +202,8 @@ class EventEmitter:
         """
         # Collect callbacks
         event_type = event.get("event_type")
+        if event_type == "close":
+            self._closed = True
         callbacks = self._event_handlers[event_type] + self._event_handlers["*"]
         # Dispatch
         for _order, callback in callbacks:
@@ -214,9 +215,9 @@ class EventEmitter:
                 else:
                     callback(event)
 
-    def _rc_close(self):
+    async def _rc_canvas_close(self):
         """Wrap up when the scheduler detects the canvas is closed/dead."""
         # This is a little feature because detecting a widget from closing can be tricky.
         if not self._closed:
-            self.submit({"event_type": "close"})
-        # todo: !! ??self.flush()
+            self._pending_events.clear()
+            await self.emit({"event_type": "close"})

@@ -16,7 +16,8 @@ import atexit
 import glfw
 
 from .base import BaseRenderCanvas
-from .loops import AsyncioLoop
+from ._loop import global_loop_proxy
+from .asyncio import loop
 from ._coreutils import SYSTEM_IS_WAYLAND, weakbind, logger
 
 
@@ -146,13 +147,23 @@ def get_physical_size(window):
     return int(psize[0]), int(psize[1])
 
 
+glfw_is_terminated = False
+
+
+@atexit.register
+def terminate_glfw():
+    global glfw_is_terminated
+    glfw_is_terminated = True
+    glfw.terminate()
+
+
 class GlfwRenderCanvas(BaseRenderCanvas):
     """A glfw window providing a render canvas."""
 
     # See https://www.glfw.org/docs/latest/group__window.html
 
     def __init__(self, *args, present_method=None, **kwargs):
-        loop.init_glfw()
+        glfw.init()
         super().__init__(*args, **kwargs)
 
         if present_method == "bitmap":
@@ -240,8 +251,6 @@ class GlfwRenderCanvas(BaseRenderCanvas):
             if glfw.window_should_close(self._window):
                 self._rc_close()
 
-    # %% Methods to implement RenderCanvas
-
     def _set_logical_size(self, new_logical_size):
         if self._window is None:
             return
@@ -278,15 +287,22 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         if pixel_ratio != self._pixel_ratio:
             self._determine_size()
 
+    # %% Methods to implement RenderCanvas
+
     def _rc_get_loop(self):
-        return loop
+        return global_loop_proxy
+
+    def _rc_gui_poll(self):
+        glfw.post_empty_event()  # Awake the event loop, if it's in wait-mode
+        glfw.poll_events()
+        self._maybe_close()
 
     def _rc_get_present_methods(self):
         return get_glfw_present_methods(self._window)
 
     def _rc_request_draw(self):
         if not self._is_minimized:
-            loop.call_soon(self._draw_frame_and_present)
+            self._rc_get_loop().call_soon(self._draw_frame_and_present)
 
     def _rc_force_draw(self):
         self._draw_frame_and_present()
@@ -312,12 +328,14 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         self._set_logical_size((float(width), float(height)))
 
     def _rc_close(self):
-        if not loop._glfw_initialized:
-            return  # glfw is probably already terminated
-        if self._window is not None:
+        if glfw_is_terminated:
+            # May not always be able to close the proper way on system exit
+            self._window = None
+        elif self._window is not None:
             glfw.destroy_window(self._window)  # not just glfw.hide_window
             self._window = None
             self.submit_event({"event_type": "close"})
+            poll_glfw_briefly(0.02)
 
     def _rc_get_closed(self):
         return self._window is None
@@ -517,41 +535,6 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         self.submit_event(ev)
 
 
-# Make available under a name that is the same for all backends
-RenderCanvas = GlfwRenderCanvas
-
-
-class GlfwLoop(AsyncioLoop):
-    def __init__(self):
-        super().__init__()
-        self._glfw_initialized = False
-        atexit.register(self._terminate_glfw)
-
-    def init_glfw(self):
-        if not self._glfw_initialized:
-            glfw.init()  # Note: safe to call multiple times
-            self._glfw_initialized = True
-
-    def _terminate_glfw(self):
-        self._glfw_initialized = False
-        glfw.terminate()
-
-    def _rc_gui_poll(self):
-        for canvas in self.get_canvases():
-            canvas._maybe_close()
-            del canvas
-        glfw.post_empty_event()  # Awake the event loop, if it's in wait-mode
-        glfw.poll_events()
-
-    def _rc_run(self):
-        super()._rc_run()
-        poll_glfw_briefly()
-
-
-loop = GlfwLoop()
-run = loop.run  # backwards compat
-
-
 def poll_glfw_briefly(poll_time=0.1):
     """Briefly poll glfw for a set amount of time.
 
@@ -565,3 +548,9 @@ def poll_glfw_briefly(poll_time=0.1):
     end_time = time.perf_counter() + poll_time
     while time.perf_counter() < end_time:
         glfw.wait_events_timeout(end_time - time.perf_counter())
+
+
+# Make available under a name that is the same for all backends
+# Note that the loop object is just a default; this backend can be used with any loop
+RenderCanvas = GlfwRenderCanvas
+run = loop.run  # backwards compat

@@ -23,7 +23,10 @@ class ManualOffscreenRenderCanvas(BaseRenderCanvas):
     # %% Methods to implement RenderCanvas
 
     def _rc_get_loop(self):
-        return None  # No scheduling
+        return None  # no scheduling
+
+    def _rc_gui_poll(self):
+        pass
 
     def _rc_get_present_methods(self):
         return {
@@ -115,9 +118,6 @@ class StubLoop(BaseLoop):
 
     def _rc_call_soon(self, callback):
         super()._rc_call_soon(callback)
-
-    def _rc_gui_poll(self):
-        pass
 
 
 loop = StubLoop()

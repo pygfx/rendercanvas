@@ -7,7 +7,8 @@ __all__ = ["BaseLoop", "BaseRenderCanvas", "WrapperRenderCanvas"]
 import importlib
 
 from ._events import EventEmitter, EventType  # noqa: F401
-from ._loop import Scheduler, BaseLoop
+from ._loop import BaseLoop
+from ._scheduler import Scheduler
 from ._coreutils import logger, log_exception
 
 
@@ -87,7 +88,7 @@ class BaseRenderCanvas:
             self.__scheduler = Scheduler(
                 self,
                 self._events,
-                self._rc_get_loop(),
+                loop,
                 min_fps=min_fps,
                 max_fps=max_fps,
                 mode=update_mode,
@@ -242,9 +243,7 @@ class BaseRenderCanvas:
         # when there are no draws (in ondemand and manual mode).
 
         # Get events from the GUI into our event mechanism.
-        loop = self._rc_get_loop()
-        if loop:
-            loop._rc_gui_poll()
+        self._rc_gui_poll()
 
         # Flush our events, so downstream code can update stuff.
         # Maybe that downstream code request a new draw.
@@ -417,10 +416,14 @@ class BaseRenderCanvas:
     def _rc_get_loop(self):
         """Get the loop instance for this backend.
 
-        Must return the global loop instance (a BaseLoop subclass) for the canvas subclass,
-        or None for a canvas without scheduled draws.
+        Must return the global loop instance (a BaseLoop subclass) or a
+        compatible proxy object, or None for a canvas without scheduled draws.
         """
         return None
+
+    def _rc_gui_poll(self):
+        """Process GUI events."""
+        pass
 
     def _rc_get_present_methods(self):
         """Get info on the present methods supported by this canvas.

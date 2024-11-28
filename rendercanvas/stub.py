@@ -31,6 +31,9 @@ class StubRenderCanvas(BaseRenderCanvas):
     def _rc_get_loop(self):
         return None
 
+    def _rc_gui_poll(self):
+        pass
+
     def _rc_get_present_methods(self):
         raise NotImplementedError()
 
@@ -91,9 +94,6 @@ class StubLoop(BaseLoop):
 
     def _rc_call_soon(self, callback, *args):
         self.call_later(0, callback, *args)
-
-    def _rc_gui_poll(self):
-        pass
 
 
 # Make available under a common name

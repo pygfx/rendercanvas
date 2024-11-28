@@ -12,6 +12,9 @@ class Sleeper:
         self.when = when
 
     def __await__(self):
+        # This most be a generator, but it is unspecified what must be yielded; this
+        # is framework-specific. So we use our own little protocol.
+        # todo: make that sleep 0 resolves to call_soon
         yield {"wait_method": "sleep", "when": self.when}
 
 

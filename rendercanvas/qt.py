@@ -236,7 +236,10 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
     # %% Methods to implement RenderCanvas
 
     def _rc_get_loop(self):
-        return loop
+        return loop  # qt loop only
+
+    def _rc_gui_poll(self):
+        pass  # we assume the Qt event loop is running. Calling processEvents() will cause recursive repaints.
 
     def _rc_get_present_methods(self):
         global _show_image_method_warning
@@ -513,11 +516,6 @@ class QRenderCanvas(WrapperRenderCanvas, QtWidgets.QWidget):
         self._subwidget.closeEvent(event)
 
 
-# Make available under a name that is the same for all gui backends
-RenderWidget = QRenderWidget
-RenderCanvas = QRenderCanvas
-
-
 class QtLoop(BaseLoop):
     def init_qt(self):
         _ = self._app
@@ -561,12 +559,12 @@ class QtLoop(BaseLoop):
 
     def _rc_stop(self):
         # Note: is only called when we're inside _rc_run
-        super()._rc_stop()
         self._app.quit()
-
-    def _rc_gui_poll(self):
-        pass  # we assume the Qt event loop is running. Calling processEvents() will cause recursive repaints.
 
 
 loop = QtLoop()
+
+# Make available under a name that is the same for all gui backends
+RenderWidget = QRenderWidget
+RenderCanvas = QRenderCanvas
 run = loop.run  # backwards compat

@@ -202,7 +202,10 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
     # %% Methods to implement RenderCanvas
 
     def _rc_get_loop(self):
-        return loop
+        return loop  # wx loop only
+
+    def _rc_gui_poll(self):
+        pass  # We can assume the wx loop is running.
 
     def _rc_get_present_methods(self):
         if self._surface_ids is None:
@@ -450,11 +453,6 @@ class WxRenderCanvas(WrapperRenderCanvas, wx.Frame):
         super().Destroy()
 
 
-# Make available under a name that is the same for all gui backends
-RenderWidget = WxRenderWidget
-RenderCanvas = WxRenderCanvas
-
-
 class TimerWithCallback(wx.Timer):
     def __init__(self, callback):
         super().__init__()
@@ -493,9 +491,6 @@ class WxLoop(BaseLoop):
         # to close all windows before stopping a loop.
         pass
 
-    def _rc_gui_poll(self):
-        pass  # We can assume the wx loop is running.
-
     def process_wx_events(self):
         old = wx.GUIEventLoop.GetActive()
         new = wx.GUIEventLoop()
@@ -506,4 +501,9 @@ class WxLoop(BaseLoop):
 
 
 loop = WxLoop()
+
+
+# Make available under a name that is the same for all gui backends
+RenderWidget = WxRenderWidget
+RenderCanvas = WxRenderCanvas
 run = loop.run  # backwards compat
