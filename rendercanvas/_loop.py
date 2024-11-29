@@ -5,7 +5,6 @@ The base loop implementation.
 import signal
 
 from ._coreutils import logger, log_exception
-from ._scheduler import Scheduler
 from .utils.asyncs import sleep
 from asyncio import iscoroutinefunction
 from ._async_adapter import Task as AsyncAdapterTask
@@ -48,11 +47,11 @@ class LoopProxy:
 
     # proxy methods
 
-    def add_scheduler(self, *args):
+    def _register_scheduler(self, *args):
         if self._current_loop:
-            self._current_loop.add_scheduler(*args)
+            self._current_loop._register_scheduler(*args)
         else:
-            self._pending_calls.append(("add_scheduler", args))
+            self._pending_calls.append(("_register_scheduler", args))
 
     def add_task(self, *args):
         if self._current_loop:
@@ -79,14 +78,13 @@ class BaseLoop:
     _loop_proxy = global_loop_proxy
 
     def __init__(self):
-        self.__tasks = []
+        self.__tasks = set()
         self._schedulers = []
         self._is_inside_run = False
         self._should_stop = 0
         self.__created_loop_task = False
 
-    def add_scheduler(self, scheduler):
-        assert isinstance(scheduler, Scheduler)
+    def _register_scheduler(self, scheduler):
         self._schedulers.append(scheduler)
 
     def get_canvases(self):
@@ -174,6 +172,9 @@ class BaseLoop:
 
     def call_later(self, delay, callback, *args):
         """Arrange for a callback to be called after the given delay (in seconds)."""
+        if delay <= 0:
+            return self.call_soon(callback, *args)
+
         if not callable(callback):
             raise TypeError("call_later() expects a callable.")
         elif iscoroutinefunction(callback):
@@ -186,6 +187,16 @@ class BaseLoop:
 
         self._rc_add_task(wrapper, "call_later")
 
+    def activate(self):
+        # todo: ???
+        if self._loop_proxy is not None:
+            self._loop_proxy.set_current_loop(self)
+
+        # Make sure that the internal timer is running, even if no canvases.
+        if not self.__created_loop_task:
+            self.__created_loop_task = True
+            self.add_task(self._loop_task, name="loop")
+
     def run(self):
         """Enter the main loop.
 
@@ -197,17 +208,11 @@ class BaseLoop:
         # for interactive sessions, where the loop is already running, or started
         # "behind our back". So we don't need to accomodate for this.
 
-        if self._loop_proxy is not None:
-            self._loop_proxy.set_current_loop(self)
-
         # Cannot run if already running
         if self._is_inside_run:
             raise RuntimeError("loop.run() is not reentrant.")
 
-        # Make sure that the internal timer is running, even if no canvases.
-        if not self.__created_loop_task:
-            self.__created_loop_task = True
-            self.add_task(self._loop_task, name="loop")
+        self.activate()
 
         # Register interrupt handler
         prev_sig_handlers = self.__setup_interrupt()
@@ -225,10 +230,11 @@ class BaseLoop:
                 signal.signal(sig, cb)
 
     async def run_async(self):
-        """ "Alternative to ``run()``, to enter the mainloop from a running async framework."""
-        if self._loop_proxy is not None:
-            self._loop_proxy.set_current_loop(self)
-        await self._rc_run_async()
+        """ "Alternative to ``run()``, to enter the mainloop from a running async framework.
+
+        Only support by the asyncio and trio loops.
+        """
+        raise NotImplementedError()
 
     def stop(self):
         """Close all windows and stop the currently running event loop.
@@ -248,10 +254,10 @@ class BaseLoop:
         if self._loop_proxy is not None:
             with log_exception("unset loop:"):
                 self._loop_proxy.unset_current_loop(self)
-        for task in self.__tasks:
+        while self.__tasks:
+            task = self.__tasks.pop()
             with log_exception("task cancel:"):
                 task.cancel()
-        self.__tasks = []
         self._rc_stop()
 
     def __setup_interrupt(self):
@@ -287,14 +293,6 @@ class BaseLoop:
         """
         raise NotImplementedError()
 
-    async def _rc_run_async(self):
-        """Enter the mainloop by awaiting this co-routine.
-
-        Should only be implemented by loop-backends that are async (asyncio, trio).
-        Other backends can ignore this.
-        """
-        raise NotImplementedError()
-
     def _rc_stop(self):
         """Stop the event loop.
 
@@ -315,13 +313,14 @@ class BaseLoop:
         * The backend is responsible for cancelling remaining tasks in _rc_stop.
         """
         task = AsyncAdapterTask(self, async_func(), name)
-        self.__tasks.append(task)
-        task.add_done_callback(self.__tasks.remove)
+        self.__tasks.add(task)
+        task.add_done_callback(self.__tasks.discard)
 
     def _rc_call_later(self, delay, callback):
         """Method to call a callback in delay number of seconds.
 
         This method must only be implemented if ``_rc_add_task()`` is not.
         If delay is zero, this should behave like "call_later".
+        No need to catch errors from the callback; that's dealt with internally.
         """
         raise NotImplementedError()

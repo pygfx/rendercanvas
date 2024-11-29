@@ -30,7 +30,7 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
         self._draw_request_time = 0
 
         # Register so this can be display'ed when run() is called
-        loop._pending_jupyter_canvases.append(weakref.ref(self))
+        self._rc_get_loop()._pending_jupyter_canvases.append(weakref.ref(self))
 
         # Set size, title, etc.
         self._final_canvas_init()

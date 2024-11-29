@@ -2,7 +2,6 @@
 A micro async framework that only support sleep() and Event. Behaves well with sniffio.
 """
 
-import time
 import logging
 
 from sniffio import thread_local as sniffio_thread_local
@@ -24,7 +23,7 @@ class Sleeper:
 
 
 async def sleep(delay):
-    await Sleeper(time.perf_counter() + delay)
+    await Sleeper(delay)
 
 
 class Event:
@@ -114,16 +113,21 @@ class Task:
         if stop:
             return self._close()
 
+        error = None
         if not (isinstance(result, dict) and result.get("wait_method", None)):
-            raise RuntimeError(
+            error = f"Incompatible awaitable result {result!r}. Maybe you used asyncio or trio (this does not run on either)?"
+        else:
+            wait_method = result["wait_method"]
+            if wait_method == "sleep":
+                self.call_step_later(result["delay"])
+            elif wait_method == "event":
+                result["event"]._add_task(self)
+            else:
+                error = f"Unknown wait_method {wait_method!r}."
+
+        if error:
+            logger.error(
                 f"Incompatible awaitable result {result!r}. Maybe you used asyncio or trio (this does not run on either)?"
             )
-
-        wait_method = result["wait_method"]
-
-        if wait_method == "sleep":
-            self.call_step_later(result["delay"])
-        elif wait_method == "event":
-            result["event"]._add_task(self)
-        else:
-            raise RuntimeError(f"Unknown wait_method {wait_method!r}.")
+            self.cancel()
+            self.call_step_later(0)

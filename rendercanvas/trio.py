@@ -17,11 +17,7 @@ class TrioLoop(BaseLoop):
         self._cancel_scope = None
         self._send_channel, self._receive_channel = trio.open_memory_channel(99)
 
-    def _rc_add_task(self, async_func, name):
-        self._send_channel.send_nowait((async_func, name))
-        return None
-
-    async def _rc_run_async(self):
+    async def run_async(self):
         import trio
 
         with trio.CancelScope() as self._cancel_scope:
@@ -40,6 +36,13 @@ class TrioLoop(BaseLoop):
         # Cancel the main task and all its child tasks.
         if self._cancel_scope is not None:
             self._cancel_scope.cancel()
+
+    def _rc_add_task(self, async_func, name):
+        self._send_channel.send_nowait((async_func, name))
+        return None
+
+    def _rc_call_later(self, delay, callback):
+        raise NotImplementedError()  # we implement _rc_add_task() instead
 
 
 loop = TrioLoop()

@@ -4,6 +4,8 @@ Offscreen canvas. No scheduling.
 
 __all__ = ["RenderCanvas", "loop"]
 
+import time
+
 from .base import BaseRenderCanvas, BaseLoop
 
 
@@ -80,7 +82,7 @@ class ManualOffscreenRenderCanvas(BaseRenderCanvas):
         This object can be converted to a numpy array (without copying data)
         using ``np.asarray(arr)``.
         """
-        loop._process_timers()  # Little trick to keep the event loop going
+        loop.process_tasks()  # Little trick to keep the event loop going
         self._draw_frame_and_present()
         return self._last_image
 
@@ -102,20 +104,34 @@ class StubLoop(BaseLoop):
     # In summary, we provide a call_later() and run() that behave pretty
     # well for the first case.
 
-    def _rc_run(self):
-        pass
+    def __init__(self):
+        super().__init__()
+        self._callbacks = []
 
-    async def _rc_run_async(self):
-        raise NotImplementedError()
+    def process_tasks(self):
+        callbacks_to_run = []
+        new_callbacks = []
+        for etime, callback in self._callbacks:
+            if time.perf_counter() >= etime:
+                callbacks_to_run.append(callback)
+            else:
+                new_callbacks.append((etime, callback))
+        if callbacks_to_run:
+            self._callbacks = new_callbacks
+            for callback in callbacks_to_run:
+                callback()
+
+    def _rc_run(self):
+        self.process_tasks()
 
     def _rc_stop(self):
-        pass
+        self._callbacks = []
 
     def _rc_add_task(self, async_func, name):
-        pass
+        super()._rc_add_task(async_func, name)
 
     def _rc_call_later(self, delay, callback):
-        pass
+        self._callbacks.append((time.perf_counter() + delay, callback))
 
 
 loop = StubLoop()

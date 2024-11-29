@@ -6,34 +6,40 @@ as the behabior of the different update modes.
 
 import time
 from testutils import run_tests
-from rendercanvas import BaseRenderCanvas, BaseLoop, BaseTimer
-
-
-class MyTimer(BaseTimer):
-    def _rc_start(self):
-        pass
-
-    def _rc_stop(self):
-        pass
+from rendercanvas import BaseRenderCanvas, BaseLoop
 
 
 class MyLoop(BaseLoop):
-    _TimerClass = MyTimer
-
     def __init__(self):
         super().__init__()
         self.__stopped = False
+        self._callbacks = []
 
-    def process_timers(self):
-        for timer in list(BaseTimer._running_timers):
-            if timer.time_left <= 0:
-                timer._tick()
+    def process_tasks(self):
+        callbacks_to_run = []
+        new_callbacks = []
+        for etime, callback in self._callbacks:
+            if time.perf_counter() >= etime:
+                callbacks_to_run.append(callback)
+            else:
+                new_callbacks.append((etime, callback))
+        if callbacks_to_run:
+            self._callbacks = new_callbacks
+            for callback in callbacks_to_run:
+                callback()
 
     def _rc_run(self):
         self.__stopped = False
 
     def _rc_stop(self):
         self.__stopped = True
+
+    def _rc_add_task(self, async_func, name):
+        # Run tasks via call_later
+        super()._rc_add_task(async_func, name)
+
+    def _rc_call_later(self, delay, callback):
+        self._callbacks.append((time.perf_counter() + delay, callback))
 
 
 class MyCanvas(BaseRenderCanvas):
@@ -76,7 +82,7 @@ class MyCanvas(BaseRenderCanvas):
         etime = time.perf_counter() + delay
         while time.perf_counter() < etime:
             time.sleep(0.001)
-            loop.process_timers()
+            loop.process_tasks()
             self.draw_if_necessary()
 
 
@@ -97,7 +103,7 @@ def test_scheduling_manual():
     canvas.request_draw()
     canvas.active_sleep(0.11)
     assert canvas.draw_count == 0
-    assert canvas.events_count in range(10, 20)
+    assert canvas.events_count in range(1, 20)
 
     # Only when we force one
     canvas.force_draw()

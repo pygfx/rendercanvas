@@ -95,7 +95,7 @@ class Scheduler:
         # Keep track of fps
         self._draw_stats = 0, time.perf_counter()
 
-        loop.add_scheduler(self)
+        loop._register_scheduler(self)
         loop.add_task(self.__scheduler_task)
 
     def get_canvas(self):
@@ -115,7 +115,10 @@ class Scheduler:
         """The coro that reprsents the scheduling loop for a canvas."""
 
         last_draw_time = 0
-        last_tick_time = -0.1
+        last_tick_time = 0
+
+        # Little startup sleep
+        await sleep(0.05)
 
         while True:
             # Determine delay
@@ -130,7 +133,8 @@ class Scheduler:
             delay -= time_since_tick_start
             delay = max(0, delay)
 
-            # Wait
+            # Wait. Even if delay is zero, it gives control back to the loop,
+            # allowing other tasks to do work.
             await sleep(delay)
 
             # Get canvas or stop

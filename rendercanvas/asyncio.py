@@ -13,7 +13,7 @@ class AsyncioLoop(BaseLoop):
 
     def __init__(self):
         super().__init__()
-        self._tasks = []
+        self.__tasks = set()
 
     @property
     def _loop(self):
@@ -29,22 +29,30 @@ class AsyncioLoop(BaseLoop):
                 asyncio.set_event_loop(self._the_loop)
         return self._the_loop
 
-    def _rc_add_task(self, func, name):
-        task = self._loop.create_task(func(), name=name)
-        self._tasks.append(task)
-        task.add_done_callback(self._tasks.remove)
-        return task
+    async def run_async(self):
+        pass  # todo: xx
 
     def _rc_run(self):
         if not self._loop.is_running():
             self._loop.run_forever()
 
     def _rc_stop(self):
-        # Note: is only called when we're inside _rc_run
+        # Note: is only called when we're inside _rc_run.
+        # I.e. if the loop was already running
+        while self.__tasks:
+            task = self.__tasks.pop()
+            task.cancel()  # is a no-op if the task is no longer running
         self._loop.stop()
-        while self._tasks:
-            t = self._tasks.pop(-1)
-            t.cancel()  # is a no-op if the task is no longer running
+        self._the_loop = None
+
+    def _rc_add_task(self, func, name):
+        task = self._loop.create_task(func(), name=name)
+        self.__tasks.add(task)
+        task.add_done_callback(self.__tasks.discard)
+        return task
+
+    def _rc_call_later(self, *args):
+        raise NotImplementedError()  # we implement _rc_add_task instead
 
 
 loop = AsyncioLoop()

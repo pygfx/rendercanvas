@@ -529,13 +529,6 @@ class QtLoop(BaseLoop):
             self._the_app = app = QtWidgets.QApplication([])
         return app
 
-    def _rc_call_later(self, delay, callback):
-        delay_ms = int(max(0, delay * 1000))
-        QtCore.QTimer.singleShot(delay_ms, callback)
-
-    def _rc_add_task(self, *args):
-        return super()._rc_add_task(*args)
-
     def _rc_run(self):
         # Note: we could detect if asyncio is running (interactive session) and wheter
         # we can use QtAsyncio. However, there's no point because that's up for the
@@ -556,6 +549,14 @@ class QtLoop(BaseLoop):
     def _rc_stop(self):
         # Note: is only called when we're inside _rc_run
         self._app.quit()
+
+    def _rc_add_task(self, async_func, name):
+        # we use the async adapter with call_later
+        return super()._rc_add_task(async_func, name)
+
+    def _rc_call_later(self, delay, callback):
+        delay_ms = int(max(0, delay * 1000))
+        QtCore.QTimer.singleShot(delay_ms, callback)
 
 
 loop = QtLoop()

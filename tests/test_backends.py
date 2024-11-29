@@ -2,7 +2,7 @@
 Test basic validity of the backends.
 
 * Test that each backend module has the expected names in its namespace.
-* Test that the classes (canvas, loop, timer) implement the correct _rx_xx methods.
+* Test that the classes (canvas, loop) implement the correct _rx_xx methods.
 """
 
 import os
@@ -121,28 +121,8 @@ class Module:
         rc_methods = self.get_rc_methods(loop_class)
         self.check_rc_methods(rc_methods, loop_rc_methods)
 
-    def get_timer_class(self, loop_class):
-        timer_class = None
-        for statement in loop_class.body:
-            if (
-                isinstance(statement, ast.Assign)
-                and statement.targets[0].id == "_TimerClass"
-            ):
-                timer_class = self.names[statement.value.id]
-
-        assert timer_class
-        timer_bases = self.get_bases(timer_class)
-        print(f"    loop._TimerClass -> {timer_class.name}: {', '.join(timer_bases)}")
-
-        return timer_class
-
-    def check_timer(self, timer_class):
-        rc_methods = self.get_rc_methods(timer_class)
-        self.check_rc_methods(rc_methods, timer_rc_methods)
-
 
 canvas_rc_methods = get_ref_rc_methods("RenderCanvas")
-timer_rc_methods = get_ref_rc_methods("Timer")
 loop_rc_methods = get_ref_rc_methods("Loop")
 
 
@@ -174,12 +154,8 @@ def test_ref_rc_methods():
     print("    Loop")
     for x in loop_rc_methods:
         print(f"        {x}")
-    print("    Timer")
-    for x in timer_rc_methods:
-        print(f"        {x}")
 
     assert len(canvas_rc_methods) >= 10
-    assert len(timer_rc_methods) >= 3
     assert len(loop_rc_methods) >= 3
 
 
@@ -201,9 +177,6 @@ def test_base_module():
     loop_class = m.names["BaseLoop"]
     m.check_loop(loop_class)
 
-    timer_class = m.names["BaseTimer"]
-    m.check_timer(timer_class)
-
 
 def test_auto_module():
     m = Module("auto")
@@ -212,16 +185,27 @@ def test_auto_module():
     assert "run" in m.names
 
 
+# %% Test modules that only provide a loop
+
+
 def test_asyncio_module():
     m = Module("asyncio")
 
+    assert "loop" in m.names
+    assert m.names["loop"]
     loop_class = m.names["AsyncioLoop"]
     m.check_loop(loop_class)
     assert loop_class.name == "AsyncioLoop"
 
-    timer_class = m.get_timer_class(loop_class)
-    m.check_timer(timer_class)
-    assert timer_class.name == "AsyncioTimer"
+
+def test_trio_module():
+    m = Module("trio")
+
+    assert "loop" in m.names
+    assert m.names["loop"]
+    loop_class = m.names["TrioLoop"]
+    m.check_loop(loop_class)
+    assert loop_class.name == "TrioLoop"
 
 
 # %% Test the backend modules
@@ -238,10 +222,6 @@ def test_stub_module():
     m.check_loop(loop_class)
     assert loop_class.name == "StubLoop"
 
-    timer_class = m.get_timer_class(loop_class)
-    m.check_timer(timer_class)
-    assert timer_class.name == "StubTimer"
-
 
 def test_glfw_module():
     m = Module("glfw")
@@ -250,11 +230,34 @@ def test_glfw_module():
     m.check_canvas(canvas_class)
     assert canvas_class.name == "GlfwRenderCanvas"
 
+    # Loop is imported from asyncio
+    assert m.names["loop"]
+
+
+def test_jupyter_module():
+    m = Module("jupyter")
+
+    canvas_class = m.get_canvas_class()
+    m.check_canvas(canvas_class)
+    assert canvas_class.name == "JupyterRenderCanvas"
+
     loop_class = m.get_loop_class()
-    assert loop_class.name == "GlfwAsyncioLoop"
+    assert loop_class.name == "JupyterAsyncioLoop"
 
     # Loop is provided by our asyncio module
     assert m.get_bases(loop_class) == ["AsyncioLoop"]
+
+
+def test_offscreen_module():
+    m = Module("offscreen")
+
+    canvas_class = m.get_canvas_class()
+    m.check_canvas(canvas_class)
+    assert canvas_class.name == "ManualOffscreenRenderCanvas"
+
+    loop_class = m.get_loop_class()
+    m.check_loop(loop_class)
+    assert loop_class.name == "StubLoop"
 
 
 def test_qt_module():
@@ -267,10 +270,6 @@ def test_qt_module():
     loop_class = m.get_loop_class()
     m.check_loop(loop_class)
     assert loop_class.name == "QtLoop"
-
-    timer_class = m.get_timer_class(loop_class)
-    m.check_timer(timer_class)
-    assert timer_class.name == "QtTimer"
 
 
 def test_pyside6_module():
@@ -303,40 +302,6 @@ def test_wx_module():
     loop_class = m.get_loop_class()
     m.check_loop(loop_class)
     assert loop_class.name == "WxLoop"
-
-    timer_class = m.get_timer_class(loop_class)
-    m.check_timer(timer_class)
-    assert timer_class.name == "WxTimer"
-
-
-def test_offscreen_module():
-    m = Module("offscreen")
-
-    canvas_class = m.get_canvas_class()
-    m.check_canvas(canvas_class)
-    assert canvas_class.name == "ManualOffscreenRenderCanvas"
-
-    loop_class = m.get_loop_class()
-    m.check_loop(loop_class)
-    assert loop_class.name == "StubLoop"
-
-    timer_class = m.get_timer_class(loop_class)
-    m.check_timer(timer_class)
-    assert timer_class.name == "StubTimer"
-
-
-def test_jupyter_module():
-    m = Module("jupyter")
-
-    canvas_class = m.get_canvas_class()
-    m.check_canvas(canvas_class)
-    assert canvas_class.name == "JupyterRenderCanvas"
-
-    loop_class = m.get_loop_class()
-    assert loop_class.name == "JupyterAsyncioLoop"
-
-    # Loop is provided by our asyncio module
-    assert m.get_bases(loop_class) == ["AsyncioLoop"]
 
 
 if __name__ == "__main__":

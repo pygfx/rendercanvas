@@ -479,8 +479,13 @@ class WxLoop(BaseLoop):
             wx.App.SetInstance(app)
         return app
 
-    def _rc_call_later(self, delay, callback, *args):
-        raise NotImplementedError()  # todo: wx.CallSoon(callback, args)
+    def process_wx_events(self):
+        old = wx.GUIEventLoop.GetActive()
+        new = wx.GUIEventLoop()
+        wx.GUIEventLoop.SetActive(new)
+        while new.Pending():
+            new.Dispatch()
+        wx.GUIEventLoop.SetActive(old)
 
     def _rc_run(self):
         self._app.MainLoop()
@@ -491,13 +496,12 @@ class WxLoop(BaseLoop):
         # to close all windows before stopping a loop.
         pass
 
-    def process_wx_events(self):
-        old = wx.GUIEventLoop.GetActive()
-        new = wx.GUIEventLoop()
-        wx.GUIEventLoop.SetActive(new)
-        while new.Pending():
-            new.Dispatch()
-        wx.GUIEventLoop.SetActive(old)
+    def _rc_add_task(self, async_func, name):
+        # we use the async adapter with call_later
+        return super()._rc_add_task(async_func, name)
+
+    def _rc_call_later(self, delay, callback):
+        raise NotImplementedError()  # todo: wx.CallSoon(callback, args)
 
 
 loop = WxLoop()

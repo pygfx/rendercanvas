@@ -92,7 +92,7 @@ class StubLoop(BaseLoop):
     def _rc_stop(self):
         raise NotImplementedError()
 
-    def _rc_add_task(self):
+    def _rc_add_task(self, async_func, name):
         raise NotImplementedError()
 
     def _rc_call_later(self, delay, callback):

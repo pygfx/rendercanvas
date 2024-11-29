@@ -104,7 +104,8 @@ def test_glfw_canvas_render():
 
     import wgpu
     import glfw
-    from rendercanvas.glfw import RenderCanvas, loop
+    from rendercanvas.glfw import RenderCanvas
+    from rendercanvas.asyncio import loop
 
     def run_briefly():
         asyncio_loop = loop._loop
@@ -122,6 +123,11 @@ def test_glfw_canvas_render():
         nonlocal frame_counter
         frame_counter += 1
         draw_frame1()
+
+    # todo: we must also deactivate/stop the loop
+    # do we need a notion of the loop being active vs running?
+    # aaaaaaarg!
+    loop.activate()
 
     canvas.request_draw(draw_frame2)
 
@@ -145,7 +151,7 @@ def test_glfw_canvas_render():
     run_briefly()
     assert frame_counter == 3
 
-    # canvas.close()
+    canvas.close()
     glfw.poll_events()
 
 

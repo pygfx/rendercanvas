@@ -551,6 +551,6 @@ def poll_glfw_briefly(poll_time=0.1):
 
 
 # Make available under a name that is the same for all backends
-# Note that the loop object is just a default; this backend can be used with any loop
+loop = loop  # default loop is AsyncioLoop
 RenderCanvas = GlfwRenderCanvas
 run = loop.run  # backwards compat
