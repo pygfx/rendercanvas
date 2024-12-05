@@ -88,7 +88,11 @@ class BaseRenderCanvas:
 
     """
 
-    _rc_canvas_group = None  # todo: doc this
+    _rc_canvas_group = None
+    """Class attribute that refers to the ``CanvasGroup`` instance to use for canvases of this class.
+    It specifies what loop is used, and enables users to changing the used loop.
+    Set to None to not use a loop.
+    """
 
     def __init__(
         self,

@@ -89,8 +89,9 @@ class ManualOffscreenRenderCanvas(BaseRenderCanvas):
 RenderCanvas = ManualOffscreenRenderCanvas
 
 
-# todo: move to different module
 class StubLoop(BaseLoop):
+    # Note: we can move this into its own module if it turns out we need this in more places.
+    #
     # If we consider the use-cases for using this offscreen canvas:
     #
     # * Using rendercanvas.auto in test-mode: in this case run() should not hang,

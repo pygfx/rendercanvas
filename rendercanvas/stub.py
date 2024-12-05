@@ -4,11 +4,26 @@ A stub backend for documentation purposes.
 
 __all__ = ["RenderCanvas", "loop"]
 
-from .base import WrapperRenderCanvas, BaseRenderCanvas, BaseLoop
+from .base import BaseCanvasGroup, WrapperRenderCanvas, BaseRenderCanvas, BaseLoop
+
+
+class StubCanvasGroup(BaseCanvasGroup):
+    """
+    The ``CanvasGroup`` representss a group of canvas objects from the same class, that share a loop.
+
+    Backends can subclass ``BaseCanvasGroup`` and set an instance at their ``RenderCanvas._rc_canvas_group``.
+    It can also be omitted for canvases that don't need to run in a loop. Note that this class is only
+    for internal use, mainly to connect canvases to a loop; it is not public API.
+
+    The subclassing is only really done so the group has a distinguishable name. Though we may add ``_rc_`` methods
+    to this class in the future.
+    """
 
 
 class StubRenderCanvas(BaseRenderCanvas):
     """
+    The ``RenderCanvas`` represents the canvas to render to.
+
     Backends must subclass ``BaseRenderCanvas`` and implement a set of methods prefixed with ``_rc_``.
     This class also shows a few other private methods of the base canvas class, that a backend must be aware of.
     """
@@ -28,7 +43,7 @@ class StubRenderCanvas(BaseRenderCanvas):
 
     # Must be implemented by subclasses.
 
-    _rc_canvas_group = None  # todo: must end up in the docs
+    _rc_canvas_group = None
 
     def _rc_gui_poll(self):
         raise NotImplementedError()
@@ -82,6 +97,12 @@ class ToplevelRenderCanvas(WrapperRenderCanvas):
 
 class StubLoop(BaseLoop):
     """
+    The ``Loop`` represents the event loop that drives the rendering and events.
+
+    Some backends will provide a corresponding loop (like qt and ws). Other backends may use
+    existing loops (like glfw and jupyter). And then there are loop-backends that only implement
+    a loop (e.g. asyncio or trio).
+
     Backends must subclass ``BaseLoop`` and implement a set of methods prefixed with ``_rc__``.
     """
 
