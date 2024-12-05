@@ -7,6 +7,7 @@ __all__ = ["TrioLoop", "loop"]
 
 from .base import BaseLoop
 
+import trio
 import sniffio
 
 
@@ -18,13 +19,9 @@ class TrioLoop(BaseLoop):
         self._send_channel, self._receive_channel = trio.open_memory_channel(99)
 
     def _rc_run(self):
-        import trio
-
         trio.run(self._rc_run_async, restrict_keyboard_interrupt_to_checkpoints=False)
 
     async def _rc_run_async(self):
-        import trio
-
         # Protect against usage of wrong loop object
         libname = sniffio.current_async_library()
         if libname != "trio":

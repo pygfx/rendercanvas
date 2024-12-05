@@ -3,10 +3,10 @@ The base loop implementation.
 """
 
 import signal
+from inspect import iscoroutinefunction
 
 from ._coreutils import logger, log_exception
 from .utils.asyncs import sleep
-from asyncio import iscoroutinefunction
 from ._async_adapter import Task as AsyncAdapterTask
 
 
