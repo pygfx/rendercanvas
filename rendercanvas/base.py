@@ -545,8 +545,16 @@ class BaseRenderCanvas:
     def _rc_close(self):
         """Close the canvas.
 
-        Note that ``BaseRenderCanvas`` implements the ``close()`` method, which
-        is a rather common name; it may be necessary to re-implement that too.
+        Note that ``BaseRenderCanvas`` implements the ``close()`` method, which is a
+        rather common name; it may be necessary to re-implement that too.
+
+        Backends should probably not mark the canvas as closed yet, but wait until the
+        underlying system really closes the canvas. Otherwise the loop may end before a
+        canvas gets properly cleaned up.
+
+        Backends can emit a closed event, either in this method, or when the real close
+        happens, but this is optional, since the loop detects canvases getting closed
+        and sends the close event if this has not happened yet.
         """
         pass
 

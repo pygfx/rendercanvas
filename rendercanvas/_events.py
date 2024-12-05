@@ -65,7 +65,11 @@ class EventEmitter:
         self._pending_events = deque()
         self._event_handlers = defaultdict(list)
         self._closed = False
-        # todo: remove all handlers when closing
+
+    def _set_closed(self):
+        self._closed = True
+        self._pending_events.clear()
+        self._event_handlers.clear()
 
     def add_handler(self, *args, order: float = 0):
         """Register an event handler to receive events.
@@ -133,6 +137,8 @@ class EventEmitter:
         return decorator(callback)
 
     def _add_handler(self, callback, order, *types):
+        if self._closed:
+            return
         self.remove_handler(callback, *types)
         for type in types:
             self._event_handlers[type].append((order, callback))
@@ -157,6 +163,8 @@ class EventEmitter:
 
         Events are emitted later by the scheduler.
         """
+        if self._closed:
+            return
         event_type = event["event_type"]
         if event_type not in EventType:
             raise ValueError(f"Submitting with invalid event_type: '{event_type}'")
@@ -202,8 +210,6 @@ class EventEmitter:
         """
         # Collect callbacks
         event_type = event.get("event_type")
-        if event_type == "close":
-            self._closed = True
         callbacks = self._event_handlers[event_type] + self._event_handlers["*"]
         # Dispatch
         for _order, callback in callbacks:
@@ -214,10 +220,17 @@ class EventEmitter:
                     await callback(event)
                 else:
                     callback(event)
+        # Close?
+        if event_type == "close":
+            self._set_closed()
 
-    async def _rc_canvas_close(self):
-        """Wrap up when the scheduler detects the canvas is closed/dead."""
+    async def close(self):
+        """Close the event handler.
+
+        Drops all pending events, send the close event, and disables the emitter.
+        """
         # This is a little feature because detecting a widget from closing can be tricky.
         if not self._closed:
             self._pending_events.clear()
-            await self.emit({"event_type": "close"})
+            self.submit({"event_type": "close"})
+            await self.flush()

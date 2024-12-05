@@ -193,14 +193,10 @@ class Scheduler:
             await self._async_draw_event.wait()
             last_draw_time = time.perf_counter()
 
-        # todo: sending the close event is tricky.
-        # Even if the canvas has submitted its close event, it may not be flushed yet.
-        # We can flush here, but the problem is that when all canvases are closed, the loop
-        # closes and cancels all tasks, including this one. We can write a finally-clause,
-        # so that we can do something even when being cancelled. However, we cannot await
-        # something there .... sigh!  Maybe if we require the close-handlers to be sync?
-        # self._events._rc_canvas_close()
-        await self._events.flush()
+        # Note that when the canvas is closed, we may detect it here and break from the loop.
+        # But the task may also be waiting for a draw to happen, or something else. In that case
+        # this task will be cancelled when the loop ends. In any case, this is why this is not
+        # a good place to detect the canvas getting closed, the loop does this.
 
     def on_draw(self):
         # Bookkeeping

@@ -88,20 +88,34 @@ class BaseLoop:
         # Detect active loop
         self.__state = max(self.__state, 2)
 
+        # Keep track of event emitter objects
+        event_emitters = {id(c): c._events for c in self.get_canvases()}
+
         try:
             while True:
                 await sleep(0.1)
 
+                # Get list of canvases, beware to delete the list when we're done with it!
                 canvases = self.get_canvases()
+
+                # Send close event for closed canvases
+                new_event_emitters = {id(c): c._events for c in canvases}
+                closed_canvas_ids = set(event_emitters) - set(new_event_emitters)
+                for canvas_id in closed_canvas_ids:
+                    events = event_emitters[canvas_id]
+                    await events.close()
 
                 # Keep canvases alive
                 for canvas in canvases:
                     canvas._rc_gui_poll()
                     del canvas
 
+                canvas_count = len(canvases)
+                del canvases
+
                 # Should we stop?
 
-                if not canvases:
+                if canvas_count == 0:
                     # Stop when there are no more canvases
                     break
                 elif self.__should_stop >= 2:
@@ -109,12 +123,11 @@ class BaseLoop:
                     break
                 elif self.__should_stop:
                     # Close all remaining canvases. Loop will stop in a next iteration.
-                    for canvas in canvases:
+                    for canvas in self.get_canvases():
                         if not getattr(canvas, "_rc_closed_by_loop", False):
                             canvas._rc_closed_by_loop = True
                             canvas._rc_close()
                         del canvas
-                del canvases
 
         finally:
             self._stop()
@@ -124,8 +137,6 @@ class BaseLoop:
 
         All tasks are stopped when the loop stops.
         """
-        # todo: implement iscoroutinefunction outside of asyncio
-        # todo: test that we don't even import asyncio by default
         if not (callable(async_func) and iscoroutinefunction(async_func)):
             raise TypeError("add_task() expects an async function.")
 
