@@ -6,7 +6,11 @@ as the behabior of the different update modes.
 
 import time
 from testutils import run_tests
-from rendercanvas import BaseRenderCanvas, BaseLoop
+from rendercanvas.base import BaseCanvasGroup, BaseRenderCanvas, BaseLoop
+
+
+class MyCanvasGroup(BaseCanvasGroup):
+    pass
 
 
 class MyLoop(BaseLoop):
@@ -43,17 +47,14 @@ class MyLoop(BaseLoop):
 
 
 class MyCanvas(BaseRenderCanvas):
-    _loop = MyLoop()
-    _gui_draw_requested = False
+    _rc_canvas_group = MyCanvasGroup(MyLoop())
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._closed = False
         self.draw_count = 0
         self.events_count = 0
-
-    def _rc_get_loop(self):
-        return self._loop
+        self._gui_draw_requested = False
 
     def _rc_close(self):
         self._closed = True
@@ -78,7 +79,7 @@ class MyCanvas(BaseRenderCanvas):
             self._draw_frame_and_present()
 
     def active_sleep(self, delay):
-        loop = self._rc_get_loop()
+        loop = self._rc_canvas_group.get_loop()  # <----
         etime = time.perf_counter() + delay
         while time.perf_counter() < etime:
             time.sleep(0.001)

@@ -21,6 +21,7 @@ from ._coreutils import (
 from .base import (
     WrapperRenderCanvas,
     BaseRenderCanvas,
+    BaseCanvasGroup,
     BaseLoop,
 )
 
@@ -126,8 +127,59 @@ _show_image_method_warning = (
 )
 
 
+class TimerWithCallback(wx.Timer):
+    def __init__(self, callback):
+        super().__init__()
+        self._callback = callback
+
+    def Notify(self, *args):  # noqa: N802
+        try:
+            self._callback()
+        except RuntimeError:
+            pass  # wrapped C/C++ object of type WxRenderWidget has been deleted
+
+
+class WxLoop(BaseLoop):
+    _app = None
+
+    def _rc_init(self):
+        if self._app is None:
+            app = wx.App.GetInstance()
+            if app is None:
+                self._app = wx.App()
+                wx.App.SetInstance(app)
+
+    def _rc_run(self):
+        self._app.MainLoop()
+
+    async def _rc_run_async(self):
+        raise NotImplementedError()
+
+    def _rc_stop(self):
+        # It looks like we cannot make wx stop the loop.
+        # In general not a problem, because the BaseLoop will try
+        # to close all windows before stopping a loop.
+        pass
+
+    def _rc_add_task(self, async_func, name):
+        # we use the async adapter with call_later
+        return super()._rc_add_task(async_func, name)
+
+    def _rc_call_later(self, delay, callback):
+        raise NotImplementedError()  # todo: wx.CallSoon(callback, args)
+
+
+loop = WxLoop()
+
+
+class WxCanvasGroup(BaseCanvasGroup):
+    pass
+
+
 class WxRenderWidget(BaseRenderCanvas, wx.Window):
     """A wx Window representing a render canvas that can be embedded in a wx application."""
+
+    _rc_canvas_group = WxCanvasGroup(loop)
 
     def __init__(self, *args, present_method=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -201,11 +253,17 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
 
     # %% Methods to implement RenderCanvas
 
-    def _rc_get_loop(self):
-        return loop  # wx loop only
-
     def _rc_gui_poll(self):
-        pass  # We can assume the wx loop is running.
+        if isinstance(self._rc_canvas_group.get_loop(), WxLoop):
+            pass  # all is well
+        else:
+            old_loop = wx.EventLoop.GetActive()
+            event_loop = wx.EventLoop()
+            wx.EventLoop.SetActive(event_loop)
+            while event_loop.Pending():
+                event_loop.Dispatch()
+            self.app.ProcessIdle()
+            wx.EventLoop.SetActive(old_loop)
 
     def _rc_get_present_methods(self):
         if self._surface_ids is None:
@@ -434,7 +492,7 @@ class WxRenderCanvas(WrapperRenderCanvas, wx.Frame):
 
     def __init__(self, parent=None, **kwargs):
         # There needs to be an application before any widget is created.
-        loop.init_wx()
+        loop._rc_init()
         # Any kwargs that we want to pass to *this* class, must be explicitly
         # specified in the signature. The rest goes to the subwidget.
         super().__init__(parent)
@@ -451,60 +509,6 @@ class WxRenderCanvas(WrapperRenderCanvas, wx.Frame):
     def Destroy(self):  # noqa: N802 - this is a wx method
         self._subwidget._is_closed = True
         super().Destroy()
-
-
-class TimerWithCallback(wx.Timer):
-    def __init__(self, callback):
-        super().__init__()
-        self._callback = callback
-
-    def Notify(self, *args):  # noqa: N802
-        try:
-            self._callback()
-        except RuntimeError:
-            pass  # wrapped C/C++ object of type WxRenderWidget has been deleted
-
-
-class WxLoop(BaseLoop):
-    _the_app = None
-
-    def init_wx(self):
-        _ = self._app
-
-    @property
-    def _app(self):
-        app = wx.App.GetInstance()
-        if app is None:
-            self._the_app = app = wx.App()
-            wx.App.SetInstance(app)
-        return app
-
-    def process_wx_events(self):
-        old = wx.GUIEventLoop.GetActive()
-        new = wx.GUIEventLoop()
-        wx.GUIEventLoop.SetActive(new)
-        while new.Pending():
-            new.Dispatch()
-        wx.GUIEventLoop.SetActive(old)
-
-    def _rc_run(self):
-        self._app.MainLoop()
-
-    def _rc_stop(self):
-        # It looks like we cannot make wx stop the loop.
-        # In general not a problem, because the BaseLoop will try
-        # to close all windows before stopping a loop.
-        pass
-
-    def _rc_add_task(self, async_func, name):
-        # we use the async adapter with call_later
-        return super()._rc_add_task(async_func, name)
-
-    def _rc_call_later(self, delay, callback):
-        raise NotImplementedError()  # todo: wx.CallSoon(callback, args)
-
-
-loop = WxLoop()
 
 
 # Make available under a name that is the same for all gui backends

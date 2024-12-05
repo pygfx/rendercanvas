@@ -71,9 +71,8 @@ class Scheduler:
     # Note that any extra draws, e.g. via force_draw() or due to window resizes,
     # don't affect the scheduling loop; they are just extra draws.
 
-    def __init__(self, canvas, events, loop, *, mode="ondemand", min_fps=1, max_fps=30):
+    def __init__(self, canvas, events, *, mode="ondemand", min_fps=1, max_fps=30):
         self.name = f"{canvas.__class__.__name__} scheduler"
-        assert loop is not None
 
         # We don't keep a ref to the canvas to help gc. This scheduler object can be
         # referenced via a callback, but it won't prevent the canvas from being deleted!
@@ -95,8 +94,12 @@ class Scheduler:
         # Keep track of fps
         self._draw_stats = 0, time.perf_counter()
 
-        loop._register_scheduler(self)
-        loop.add_task(self.__scheduler_task)
+    def get_task(self):
+        # Get task. Can be called exactly once. Used by the canvas.
+        task = self.__scheduler_task
+        self.__scheduler_task = None
+        assert task is not None
+        return task
 
     def get_canvas(self):
         """Get the canvas, or None if it is closed or gone."""
@@ -137,16 +140,15 @@ class Scheduler:
             # allowing other tasks to do work.
             await sleep(delay)
 
-            # Get canvas or stop
-            if (canvas := self.get_canvas()) is None:
-                break
-
             # Below is the "tick"
 
             last_tick_time = time.perf_counter()
 
             # Process events, handlers may request a draw
+            if (canvas := self.get_canvas()) is None:
+                break
             await canvas._process_events()
+            del canvas
 
             # Determine what to do next ...
 
@@ -180,12 +182,25 @@ class Scheduler:
 
             await self._events.emit({"event_type": "before_draw"})
 
+            # Ask the canvas to draw
+            if (canvas := self.get_canvas()) is None:
+                break
             canvas._rc_request_draw()
+            del canvas
+
+            # Wait for the draw to happen
             self._async_draw_event = Event()
             await self._async_draw_event.wait()
             last_draw_time = time.perf_counter()
 
-        await self._events._rc_canvas_close()
+        # todo: sending the close event is tricky.
+        # Even if the canvas has submitted its close event, it may not be flushed yet.
+        # We can flush here, but the problem is that when all canvases are closed, the loop
+        # closes and cancels all tasks, including this one. We can write a finally-clause,
+        # so that we can do something even when being cancelled. However, we cannot await
+        # something there .... sigh!  Maybe if we require the close-handlers to be sync?
+        # self._events._rc_canvas_close()
+        await self._events.flush()
 
     def on_draw(self):
         # Bookkeeping

@@ -15,8 +15,7 @@ import atexit
 
 import glfw
 
-from .base import BaseRenderCanvas
-from ._loop import global_loop_proxy
+from .base import BaseRenderCanvas, BaseCanvasGroup
 from .asyncio import loop
 from ._coreutils import SYSTEM_IS_WAYLAND, weakbind, logger
 
@@ -147,14 +146,19 @@ def get_physical_size(window):
     return int(psize[0]), int(psize[1])
 
 
-glfw_is_terminated = False
+def enable_glfw():
+    glfw.init()
+    glfw._rc_alive = True
 
 
 @atexit.register
 def terminate_glfw():
-    global glfw_is_terminated
-    glfw_is_terminated = True
     glfw.terminate()
+    glfw._rc_alive = False
+
+
+class GlfwCanvasGroup(BaseCanvasGroup):
+    pass
 
 
 class GlfwRenderCanvas(BaseRenderCanvas):
@@ -162,9 +166,12 @@ class GlfwRenderCanvas(BaseRenderCanvas):
 
     # See https://www.glfw.org/docs/latest/group__window.html
 
+    _rc_canvas_group = GlfwCanvasGroup(loop)
+
     def __init__(self, *args, present_method=None, **kwargs):
-        glfw.init()
         super().__init__(*args, **kwargs)
+
+        enable_glfw()
 
         if present_method == "bitmap":
             logger.warning(
@@ -289,9 +296,6 @@ class GlfwRenderCanvas(BaseRenderCanvas):
 
     # %% Methods to implement RenderCanvas
 
-    def _rc_get_loop(self):
-        return global_loop_proxy
-
     def _rc_gui_poll(self):
         glfw.post_empty_event()  # Awake the event loop, if it's in wait-mode
         glfw.poll_events()
@@ -302,7 +306,8 @@ class GlfwRenderCanvas(BaseRenderCanvas):
 
     def _rc_request_draw(self):
         if not self._is_minimized:
-            self._rc_get_loop().call_soon(self._draw_frame_and_present)
+            loop = self._rc_canvas_group.get_loop()
+            loop.call_soon(self._draw_frame_and_present)
 
     def _rc_force_draw(self):
         self._draw_frame_and_present()
@@ -328,14 +333,17 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         self._set_logical_size((float(width), float(height)))
 
     def _rc_close(self):
-        if glfw_is_terminated:
+        if not glfw._rc_alive:
             # May not always be able to close the proper way on system exit
             self._window = None
         elif self._window is not None:
             glfw.destroy_window(self._window)  # not just glfw.hide_window
             self._window = None
             self.submit_event({"event_type": "close"})
-            poll_glfw_briefly(0.02)
+        # If this is the last canvas to close, the loop will stop, and glfw will not be polled anymore.
+        # But on some systems glfw needs a bit of time to properly close the window.
+        if not self._rc_canvas_group.get_canvases():
+            poll_glfw_briefly(0.05)
 
     def _rc_get_closed(self):
         return self._window is None
@@ -553,4 +561,4 @@ def poll_glfw_briefly(poll_time=0.1):
 # Make available under a name that is the same for all backends
 loop = loop  # default loop is AsyncioLoop
 RenderCanvas = GlfwRenderCanvas
-run = loop.run  # backwards compat
+run = loop.run()  # backwards compat

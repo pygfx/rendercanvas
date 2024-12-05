@@ -15,6 +15,8 @@ class ManualOffscreenRenderCanvas(BaseRenderCanvas):
     Call the ``.draw()`` method to perform a draw and get the result.
     """
 
+    _rc_canvas_group = None  # unmanaged, no loop
+
     def __init__(self, *args, pixel_ratio=1.0, **kwargs):
         super().__init__(*args, **kwargs)
         self._pixel_ratio = pixel_ratio
@@ -23,9 +25,6 @@ class ManualOffscreenRenderCanvas(BaseRenderCanvas):
         self._final_canvas_init()
 
     # %% Methods to implement RenderCanvas
-
-    def _rc_get_loop(self):
-        return None  # no scheduling
 
     def _rc_gui_poll(self):
         pass
@@ -90,6 +89,7 @@ class ManualOffscreenRenderCanvas(BaseRenderCanvas):
 RenderCanvas = ManualOffscreenRenderCanvas
 
 
+# todo: move to different module
 class StubLoop(BaseLoop):
     # If we consider the use-cases for using this offscreen canvas:
     #

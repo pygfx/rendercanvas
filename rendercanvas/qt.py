@@ -10,7 +10,7 @@ import ctypes
 import importlib
 
 
-from .base import WrapperRenderCanvas, BaseRenderCanvas, BaseLoop
+from .base import WrapperRenderCanvas, BaseCanvasGroup, BaseRenderCanvas, BaseLoop
 from ._coreutils import (
     logger,
     SYSTEM_IS_WAYLAND,
@@ -157,8 +157,65 @@ _show_image_method_warning = (
 )
 
 
+class QtLoop(BaseLoop):
+    _app = None
+    _we_run_the_loop = False
+
+    def _rc_init(self):
+        if self._app is None:
+            app = QtWidgets.QApplication.instance()
+            if app is None:
+                self._app = QtWidgets.QApplication([])
+
+    def _rc_run(self):
+        # Note: we could detect if asyncio is running (interactive session) and wheter
+        # we can use QtAsyncio. However, there's no point because that's up for the
+        # end-user to decide.
+
+        # Note: its possible, and perfectly ok, if the application is started from user
+        # code. This works fine because the application object is global. This means
+        # though, that we cannot assume anything based on whether this method is called
+        # or not.
+
+        if already_had_app_on_import:
+            return  # Likely in an interactive session or larger application that will start the Qt app.
+
+        self._we_run_the_loop = True
+        try:
+            app = self._app
+            app.setQuitOnLastWindowClosed(False)
+            app.exec() if hasattr(app, "exec") else app.exec_()
+        finally:
+            self._we_run_the_loop = False
+
+    async def _rc_run_async(self):
+        raise NotImplementedError()
+
+    def _rc_stop(self):
+        # Note: is only called when we're inside _rc_run
+        if self._we_run_the_loop:
+            self._app.quit()
+
+    def _rc_add_task(self, async_func, name):
+        # we use the async adapter with call_later
+        return super()._rc_add_task(async_func, name)
+
+    def _rc_call_later(self, delay, callback):
+        delay_ms = int(max(0, delay * 1000))
+        QtCore.QTimer.singleShot(delay_ms, callback)
+
+
+loop = QtLoop()
+
+
+class QtCanvasGroup(BaseCanvasGroup):
+    pass
+
+
 class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
     """A QWidget representing a render canvas that can be embedded in a Qt application."""
+
+    _rc_canvas_group = QtCanvasGroup(loop)
 
     def __init__(self, *args, present_method=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -234,11 +291,14 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
 
     # %% Methods to implement RenderCanvas
 
-    def _rc_get_loop(self):
-        return loop  # qt loop only
-
     def _rc_gui_poll(self):
-        pass  # we assume the Qt event loop is running. Calling processEvents() will cause recursive repaints.
+        if isinstance(self._rc_canvas_group.get_loop(), QtLoop):
+            # If the Qt event loop is running, qt events are already processed, and calling processEvents() will cause recursive repaints.
+            pass
+        else:
+            # Running from another loop. Not recommended, but it could work.
+            loop._app.sendPostedEvents()
+            loop._app.processEvents()
 
     def _rc_get_present_methods(self):
         global _show_image_method_warning
@@ -482,7 +542,7 @@ class QRenderCanvas(WrapperRenderCanvas, QtWidgets.QWidget):
 
     def __init__(self, parent=None, **kwargs):
         # There needs to be an application before any widget is created.
-        loop.init_qt()
+        loop._rc_init()
         # Any kwargs that we want to pass to *this* class, must be explicitly
         # specified in the signature. The rest goes to the subwidget.
         super().__init__(parent)
@@ -514,52 +574,6 @@ class QRenderCanvas(WrapperRenderCanvas, QtWidgets.QWidget):
     def closeEvent(self, event):  # noqa: N802
         self._subwidget.closeEvent(event)
 
-
-class QtLoop(BaseLoop):
-    def init_qt(self):
-        _ = self._app
-        self._latest_timeout = 0
-
-    @property
-    def _app(self):
-        """Return global instance of Qt app instance or create one if not created yet."""
-        # Note: PyQt6 needs the app to be stored, or it will be gc'd.
-        app = QtWidgets.QApplication.instance()
-        if app is None:
-            self._the_app = app = QtWidgets.QApplication([])
-        return app
-
-    def _rc_run(self):
-        # Note: we could detect if asyncio is running (interactive session) and wheter
-        # we can use QtAsyncio. However, there's no point because that's up for the
-        # end-user to decide.
-
-        # Note: its possible, and perfectly ok, if the application is started from user
-        # code. This works fine because the application object is global. This means
-        # though, that we cannot assume anything based on whether this method is called
-        # or not.
-
-        if already_had_app_on_import:
-            return  # Likely in an interactive session or larger application that will start the Qt app.
-
-        app = self._app
-        app.setQuitOnLastWindowClosed(False)
-        app.exec() if hasattr(app, "exec") else app.exec_()
-
-    def _rc_stop(self):
-        # Note: is only called when we're inside _rc_run
-        self._app.quit()
-
-    def _rc_add_task(self, async_func, name):
-        # we use the async adapter with call_later
-        return super()._rc_add_task(async_func, name)
-
-    def _rc_call_later(self, delay, callback):
-        delay_ms = int(max(0, delay * 1000))
-        QtCore.QTimer.singleShot(delay_ms, callback)
-
-
-loop = QtLoop()
 
 # Make available under a name that is the same for all gui backends
 RenderWidget = QRenderWidget

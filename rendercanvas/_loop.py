@@ -9,9 +9,6 @@ from .utils.asyncs import sleep
 from asyncio import iscoroutinefunction
 from ._async_adapter import Task as AsyncAdapterTask
 
-# Note: technically, we could have a global loop proxy object that defers to any of the other loops.
-# That would e.g. allow using glfw with qt together. Probably a too weird use-case for the added complexity.
-
 
 HANDLED_SIGNALS = (
     signal.SIGINT,  # Unix signal 2. Sent by Ctrl+C.
@@ -19,88 +16,64 @@ HANDLED_SIGNALS = (
 )
 
 
-class LoopProxy:
-    """Proxy loop object that canvases can use to register themselves before a loop is selected."""
-
-    def __init__(self):
-        self._current_loop = None
-        self._pending_calls = []  # (method_name, args) elements
-
-    def set_current_loop(self, loop):
-        if loop is self._current_loop:
-            return
-        if self._current_loop:
-            raise RuntimeError(
-                "Cannot set the current loop while another loop is active."
-            )
-        self._current_loop = loop
-        while self._pending_calls:
-            method_name, args = self._pending_calls.pop(-1)
-            func = getattr(self._current_loop, method_name)
-            func(*args)
-
-    def unset_current_loop(self, loop):
-        if loop is self._current_loop:
-            self._current_loop = None
-        else:
-            raise RuntimeError("Cannot unset loop that is not active.")
-
-    # proxy methods
-
-    def _register_scheduler(self, *args):
-        if self._current_loop:
-            self._current_loop._register_scheduler(*args)
-        else:
-            self._pending_calls.append(("_register_scheduler", args))
-
-    def add_task(self, *args):
-        if self._current_loop:
-            self._current_loop.add_task(*args)
-        else:
-            self._pending_calls.append(("add_task", args))
-
-    def call_soon(self, *args):
-        if self._current_loop:
-            self._current_loop.call_soon(*args)
-        else:
-            self._pending_calls.append(("call_soon", args))
-
-
-global_loop_proxy = LoopProxy()
-
-
 class BaseLoop:
     """The base class for an event-loop object.
 
-    Each backend provides its own loop subclass, so that rendercanvas can run cleanly in the backend's event loop.
-    """
+    Canvas backends can implement their own loop subclass (like qt and wx do), but a
+    canvas backend can also rely on one of muliple loop implementations (like glfw
+    running on asyncio or trio).
 
-    _loop_proxy = global_loop_proxy
+    The lifecycle states of a loop are:
+
+    * off (0): the initial state, the subclass should probably not even import dependencies yet.
+    * ready (1): the first canvas is created, ``_rc_init()`` is called to get the loop ready for running.
+    * active (2): the loop is active, but not running via our entrypoints.
+    * running (3): the loop is running via ``_rc_run()`` or ``_rc_run_async()``.
+
+    Notes:
+
+    * The loop goes back to the "off" state after all canvases are closed.
+    * Stopping the loop (via ``.stop()``) closes the canvases, which will then stop the loop.
+    * From there it can go back to the ready state (which would call ``_rc_init()`` again).
+    * In backends like Qt, the native loop can be started without us knowing: state "active".
+    * In interactive settings like an IDE that runs an syncio or Qt loop, the
+      loop can become "active" as soon as the first canvas is created.
+
+    """
 
     def __init__(self):
         self.__tasks = set()
-        self._schedulers = []
-        self._is_inside_run = False
-        self._should_stop = 0
-        self.__created_loop_task = False
+        self.__canvas_groups = set()
+        self.__state = 0  # 0: idle, 1: ready, 2: active, 3: running via our entrypoint
+        self.__should_stop = 0
 
-    def _register_scheduler(self, scheduler):
-        self._schedulers.append(scheduler)
+    def __repr__(self):
+        state = ["off", "ready", "active", "running"][self.__state]
+        return f"<{self.__class__.__module__}.{self.__class__.__name__} '{state}' at {hex(id(self))}>"
+
+    def _mark_as_interactive(self):
+        """For subclasses to set active from ``_rc_init()``"""
+        if self.__state == 1:
+            self.__state = 2
+
+    def _register_canvas_group(self, canvas_group):
+        # A CanvasGroup will call this every time that a new canvas is created for this loop.
+        # So now is also a good time to initialize.
+        if self.__state == 0:
+            self.__state = 1
+            self._rc_init()
+            self.add_task(self._loop_task)
+        self.__canvas_groups.add(canvas_group)
+
+    def _unregister_canvas_group(self, canvas_group):
+        # A CanvasGroup will call this when it selects a different loop.
+        self.__canvas_groups.discard(canvas_group)
 
     def get_canvases(self):
         """Get a list of currently active (not-closed) canvases."""
         canvases = []
-        schedulers = []
-
-        for scheduler in self._schedulers:
-            canvas = scheduler.get_canvas()
-            if canvas is not None:
-                canvases.append(canvas)
-                schedulers.append(scheduler)
-
-        # Forget schedulers that no longer have a live canvas
-        self._schedulers = schedulers
-
+        for canvas_group in self.__canvas_groups:
+            canvases += canvas_group.get_canvases()
         return canvases
 
     async def _loop_task(self):
@@ -112,38 +85,47 @@ class BaseLoop:
         # * Keep the GUI going even when the canvas loop is on pause e.g. because its
         #   minimized (applies to backends that implement _rc_gui_poll).
 
-        while True:
-            await sleep(0.1)
+        # Detect active loop
+        self.__state = max(self.__state, 2)
 
-            # Clean internal schedulers list, and keep the loop alive
-            for canvas in self.get_canvases():
-                canvas._rc_gui_poll()
-                del canvas
+        try:
+            while True:
+                await sleep(0.1)
 
-            # Our loop can still tick, even if the loop is not started via our run() method.
-            # If this is the case, we don't run the close/stop logic
-            if not self._is_inside_run:
-                continue
+                canvases = self.get_canvases()
 
-            # Should we stop?
-            if not self._schedulers:
-                # Stop when there are no more canvases
-                break
-            elif self._should_stop >= 2:
-                # force a stop without waiting for the canvases to close
-                break
-            elif self._should_stop:
-                # Close all remaining canvases. Loop will stop in a next iteration.
-                for canvas in self.get_canvases():
-                    if not getattr(canvas, "_rc_closed_by_loop", False):
-                        canvas._rc_closed_by_loop = True
-                        canvas._rc_close()
+                # Keep canvases alive
+                for canvas in canvases:
+                    canvas._rc_gui_poll()
+                    del canvas
+
+                # Should we stop?
+
+                if not canvases:
+                    # Stop when there are no more canvases
+                    break
+                elif self.__should_stop >= 2:
+                    # force a stop without waiting for the canvases to close
+                    break
+                elif self.__should_stop:
+                    # Close all remaining canvases. Loop will stop in a next iteration.
+                    for canvas in canvases:
+                        if not getattr(canvas, "_rc_closed_by_loop", False):
+                            canvas._rc_closed_by_loop = True
+                            canvas._rc_close()
                         del canvas
+                del canvases
 
-        self._stop()
+        finally:
+            self._stop()
 
     def add_task(self, async_func, *args, name="unnamed"):
-        """Run an async function in the event-loop."""
+        """Run an async function in the event-loop.
+
+        All tasks are stopped when the loop stops.
+        """
+        # todo: implement iscoroutinefunction outside of asyncio
+        # todo: test that we don't even import asyncio by default
         if not (callable(async_func) and iscoroutinefunction(async_func)):
             raise TypeError("add_task() expects an async function.")
 
@@ -187,80 +169,91 @@ class BaseLoop:
 
         self._rc_add_task(wrapper, "call_later")
 
-    def activate(self):
-        # todo: ???
-        if self._loop_proxy is not None:
-            self._loop_proxy.set_current_loop(self)
-
-        # Make sure that the internal timer is running, even if no canvases.
-        if not self.__created_loop_task:
-            self.__created_loop_task = True
-            self.add_task(self._loop_task, name="loop")
-
     def run(self):
         """Enter the main loop.
 
         This provides a generic API to start the loop. When building an application (e.g. with Qt)
         its fine to start the loop in the normal way.
+
+        This call usually blocks, but it can also return immediately, e.g. when there are no
+        canvases, or when the loop is already active (e.g. interactve via IDE).
         """
-        # Note that when the loop is started via this method, we always stop
-        # when the last canvas is closed. Keeping the loop alive is a use-case
-        # for interactive sessions, where the loop is already running, or started
-        # "behind our back". So we don't need to accomodate for this.
 
-        # Cannot run if already running
-        if self._is_inside_run:
-            raise RuntimeError("loop.run() is not reentrant.")
-
-        self.activate()
+        # Can we enter the loop?
+        if self.__state == 0:
+            # Euhm, I guess we can run it one iteration, just make sure our loop-task is running!
+            self._register_canvas_group(0)
+            self.__canvas_groups.discard(0)
+        if self.__state == 1:
+            # Yes we can
+            pass
+        elif self.__state == 2:
+            # No, already active (interactive mode)
+            return
+        else:
+            # No, what are you doing??
+            raise RuntimeError(f"loop.run() is not reentrant ({self.__state}).")
 
         # Register interrupt handler
         prev_sig_handlers = self.__setup_interrupt()
 
-        # Run. We could be in this loop for a long time. Or we can exit
-        # immediately if the backend already has an (interactive) event
-        # loop. In the latter case, note how we restore the sigint
-        # handler again, so we don't interfere with that loop.
-        self._is_inside_run = True
+        # Run. We could be in this loop for a long time. Or we can exit immediately if
+        # the backend already has an (interactive) event loop and did not call _mark_as_interactive().
+        self.__state = 3
         try:
             self._rc_run()
         finally:
-            self._is_inside_run = False
+            self.__state = min(self.__state, 1)
             for sig, cb in prev_sig_handlers.items():
                 signal.signal(sig, cb)
 
     async def run_async(self):
         """ "Alternative to ``run()``, to enter the mainloop from a running async framework.
 
-        Only support by the asyncio and trio loops.
+        Only supported by the asyncio and trio loops.
         """
-        raise NotImplementedError()
+
+        # Can we enter the loop?
+        if self.__state == 0:
+            # Euhm, I guess we can run it one iteration, just make sure our loop-task is running!
+            self._register_canvas_group(0)
+            self.__canvas_groups.discard(0)
+        if self.__state == 1:
+            # Yes we can
+            pass
+        else:
+            raise RuntimeError(
+                f"loop.run_async() can only be awaited once ({self.__state})."
+            )
+
+        await self._rc_run_async()
 
     def stop(self):
         """Close all windows and stop the currently running event loop.
 
-        This only has effect when the event loop is currently running via ``.run()``.
-        I.e. not when a Qt app is started with ``app.exec()``, or when Qt or asyncio
-        is running interactively in your IDE.
+        If the loop is active but not running via our ``run()`` method, the loop
+        moves back to its "off" state, but the underlying loop is not stopped.
         """
         # Only take action when we're inside the run() method
-        if self._is_inside_run:
-            self._should_stop += 1
-            if self._should_stop >= 4:
-                # If for some reason the tick method is no longer being called, but the loop is still running, we can still stop it by spamming stop() :)
-                self._stop()
+        self.__should_stop += 1
+        if self.__should_stop >= 4:
+            # If for some reason the tick method is no longer being called, but the loop is still running, we can still stop it by spamming stop() :)
+            self._stop()
 
     def _stop(self):
-        if self._loop_proxy is not None:
-            with log_exception("unset loop:"):
-                self._loop_proxy.unset_current_loop(self)
+        """Move to our off state."""
+        # If we used the async adapter, cancel any tasks
         while self.__tasks:
             task = self.__tasks.pop()
             with log_exception("task cancel:"):
                 task.cancel()
+        # Turn off
+        self.__state = 0
         self._rc_stop()
 
     def __setup_interrupt(self):
+        """Setup the interrupt handlers."""
+
         def on_interrupt(sig, _frame):
             logger.warning(f"Received signal {signal.strsignal(sig)}")
             self.stop()
@@ -282,6 +275,25 @@ class BaseLoop:
                     break
         return prev_handlers
 
+    def _rc_init(self):
+        """Put the loop in a ready state.
+
+        Called when the first canvas is created to run in this loop. This is when we
+        know pretty sure that this loop is going to be used, so time to start the
+        engines. Note that in interactive settings, this method can be called again, after the
+        loop has stopped, to restart it.
+
+        * Import any dependencies.
+        * If this loop supports some kind of interactive mode, activate it!
+        * Optionally call ``_mark_as_interactive()``.
+        * Return None.
+        """
+        pass
+
+    def _rc_run_async(self):
+        """Run async."""
+        raise NotImplementedError()
+
     def _rc_run(self):
         """Start running the event-loop.
 
@@ -294,23 +306,24 @@ class BaseLoop:
         raise NotImplementedError()
 
     def _rc_stop(self):
-        """Stop the event loop.
+        """Clean up the loop, going to the off-state.
 
-        * Stop the running event loop.
         * Cancel any remaining tasks.
-        * This will only be called when the process is inside _rc_run(), i.e. not for interactive mode.
+        * Stop the running event loop, if applicable.
+        * Be ready for another call to ``_rc_init()`` in case the loop is reused.
+        * Return None.
         """
         raise NotImplementedError()
 
     def _rc_add_task(self, async_func, name):
         """Add an async task to the running loop.
 
-        This method is optional. A backend must either implement ``_rc_add_task``
-        or implement ``_rc_call_later``.
+        This method is optional. A subclass must either implement ``_rc_add_task`` or ``_rc_call_later``.
 
         * Schedule running the task defined by the given co-routine function.
         * The name is for debugging purposes only.
-        * The backend is responsible for cancelling remaining tasks in _rc_stop.
+        * The subclass is responsible for cancelling remaining tasks in _rc_stop.
+        * Return None.
         """
         task = AsyncAdapterTask(self, async_func(), name)
         self.__tasks.add(task)
@@ -319,8 +332,11 @@ class BaseLoop:
     def _rc_call_later(self, delay, callback):
         """Method to call a callback in delay number of seconds.
 
-        This method must only be implemented if ``_rc_add_task()`` is not.
-        If delay is zero, this should behave like "call_later".
-        No need to catch errors from the callback; that's dealt with internally.
+        This method is optional. A subclass must either implement ``_rc_add_task`` or ``_rc_call_later``.
+
+        * If you implememt this, make ``_rc_add_task()`` call ``super()._rc_add_task()``.
+        * If delay is zero, this should behave like "call_later".
+        * No need to catch errors from the callback; that's dealt with internally.
+        * Return None.
         """
         raise NotImplementedError()

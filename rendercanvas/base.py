@@ -4,6 +4,8 @@ The base classes.
 
 __all__ = ["BaseLoop", "BaseRenderCanvas", "WrapperRenderCanvas"]
 
+import sys
+import weakref
 import importlib
 
 from ._events import EventEmitter, EventType  # noqa: F401
@@ -21,6 +23,42 @@ from ._coreutils import logger, log_exception
 # * `._private_method`: Private methods for scheduler and subclasses.
 # * `.__private_attr`: Private to exactly this class.
 # * `._rc_method`: Methods that the subclass must implement.
+
+
+class BaseCanvasGroup:
+    """Represents a group of canvas objects from the same class, that share a loop."""
+
+    def __init__(self, default_loop):
+        self._canvases = weakref.WeakSet()
+        self._loop = default_loop
+        self.select_loop(default_loop)
+
+    def _register_canvas(self, canvas, task):
+        """Used by the canvas to register itself."""
+        self._canvases.add(canvas)
+        loop = self.get_loop()
+        loop._register_canvas_group(self)
+        loop.add_task(task)
+
+    def select_loop(self, loop):
+        """Select the loop to use for this group of canvases."""
+        if not isinstance(loop, BaseLoop):
+            raise TypeError("select_loop() requires a loop instance.")
+        elif len(self._canvases):
+            raise RuntimeError("Cannot select_loop() when live canvases exist.")
+        elif loop is self._loop:
+            pass
+        else:
+            self._loop._unregister_canvas_group(self)
+            self._loop = loop
+
+    def get_loop(self):
+        """Get the currently associated loop."""
+        return self._loop
+
+    def get_canvases(self):
+        """Get a list of currently active (not-closed) canvases for this group."""
+        return [canvas for canvas in self._canvases if not canvas.get_closed()]
 
 
 class BaseRenderCanvas:
@@ -49,6 +87,8 @@ class BaseRenderCanvas:
             Can be set to e.g. 'screen' or 'bitmap'. Default None (auto-select).
 
     """
+
+    _rc_canvas_group = None  # todo: doc this
 
     def __init__(
         self,
@@ -83,16 +123,15 @@ class BaseRenderCanvas:
         # Events and scheduler
         self._events = EventEmitter()
         self.__scheduler = None
-        loop = self._rc_get_loop()
-        if loop is not None:
+        if self._rc_canvas_group is not None:
             self.__scheduler = Scheduler(
                 self,
                 self._events,
-                loop,
                 min_fps=min_fps,
                 max_fps=max_fps,
                 mode=update_mode,
             )
+            self._rc_canvas_group._register_canvas(self, self.__scheduler.get_task())
 
         # We cannot initialize the size and title now, because the subclass may not have done
         # the initialization to support this. So we require the subclass to call _final_canvas_init.
@@ -128,6 +167,20 @@ class BaseRenderCanvas:
             super().__del__()
         except Exception:
             pass
+
+    # %% Static
+
+    @classmethod
+    def select_loop(cls, loop):
+        """Select the loop to run newly created canvases with.
+        Can only be called when there are no live canvases of this class.
+        """
+        group = cls._rc_canvas_group
+        if group is None:
+            raise NotImplementedError(
+                "The {cls.__name__} does not have a canvas group, thus no loop."
+            )
+        group.select_loop(loop)
 
     # %% Implement WgpuCanvasInterface
 
@@ -411,16 +464,8 @@ class BaseRenderCanvas:
 
     # %% Methods for the subclass to implement
 
-    def _rc_get_loop(self):
-        """Get the loop instance for this backend.
-
-        Must return the global loop instance (a BaseLoop subclass) or a
-        compatible proxy object, or None for a canvas without scheduled draws.
-        """
-        return None
-
     def _rc_gui_poll(self):
-        """Process GUI events."""
+        """Process native events."""
         pass
 
     def _rc_get_present_methods(self):
@@ -524,6 +569,11 @@ class WrapperRenderCanvas(BaseRenderCanvas):
     Subclasses should not implement any of the ``_rc_`` methods. Subclasses must instantiate the
     wrapped canvas and set it as ``_subwidget``.
     """
+
+    @classmethod
+    def select_loop(cls, loop):
+        m = sys.modules[cls.__module__]
+        return m.RenderWidget.select_loop(loop)
 
     def add_event_handler(self, *args, **kwargs):
         return self._subwidget._events.add_handler(*args, **kwargs)

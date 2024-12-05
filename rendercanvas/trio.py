@@ -1,24 +1,34 @@
 """
 Implements a trio event loop for backends that don't have an event loop by themselves, like glfw.
+Also supports a trio-friendly way to run or wait for the loop using ``run_async()``.
 """
 
 __all__ = ["TrioLoop", "loop"]
 
-
 from .base import BaseLoop
+
+import sniffio
 
 
 class TrioLoop(BaseLoop):
-    def __init__(self):
-        super().__init__()
+    def _rc_init(self):
         import trio
 
-        self._pending_tasks = []
         self._cancel_scope = None
         self._send_channel, self._receive_channel = trio.open_memory_channel(99)
 
-    async def run_async(self):
+    def _rc_run(self):
         import trio
+
+        trio.run(self._rc_run_async, restrict_keyboard_interrupt_to_checkpoints=False)
+
+    async def _rc_run_async(self):
+        import trio
+
+        # Protect against usage of wrong loop object
+        libname = sniffio.current_async_library()
+        if libname != "trio":
+            raise TypeError(f"Attempt to run TrioLoop with {libname}.")
 
         with trio.CancelScope() as self._cancel_scope:
             async with trio.open_nursery() as nursery:
@@ -26,11 +36,6 @@ class TrioLoop(BaseLoop):
                     async_func, name = await self._receive_channel.receive()
                     nursery.start_soon(async_func, name=name)
         self._cancel_scope = None
-
-    def _rc_run(self):
-        import trio
-
-        trio.run(self.run_async, restrict_keyboard_interrupt_to_checkpoints=False)
 
     def _rc_stop(self):
         # Cancel the main task and all its child tasks.

@@ -28,11 +28,10 @@ class StubRenderCanvas(BaseRenderCanvas):
 
     # Must be implemented by subclasses.
 
-    def _rc_get_loop(self):
-        return None
+    _rc_canvas_group = None  # todo: must end up in the docs
 
     def _rc_gui_poll(self):
-        pass
+        raise NotImplementedError()
 
     def _rc_get_present_methods(self):
         raise NotImplementedError()
@@ -86,7 +85,13 @@ class StubLoop(BaseLoop):
     Backends must subclass ``BaseLoop`` and implement a set of methods prefixed with ``_rc__``.
     """
 
+    def _rc_init(self):
+        raise NotImplementedError()
+
     def _rc_run(self):
+        raise NotImplementedError()
+
+    async def _rc_run_async(self):
         raise NotImplementedError()
 
     def _rc_stop(self):

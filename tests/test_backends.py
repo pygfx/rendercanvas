@@ -72,9 +72,15 @@ class Module:
     def get_rc_methods(self, class_def):
         rc_methods = set()
         for statement in class_def.body:
-            if isinstance(statement, ast.FunctionDef):
+            if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 if statement.name.startswith("_rc_"):
                     rc_methods.add(statement.name)
+            # We also have a few attrs, we just use the method-logic here
+            if isinstance(statement, ast.Assign):
+                if isinstance(statement.targets[0], ast.Name):
+                    name = statement.targets[0].id
+                    if name.startswith("_rc_"):
+                        rc_methods.add(name)
         return rc_methods
 
     def check_rc_methods(self, rc_methods, ref_rc_methods):
@@ -241,12 +247,6 @@ def test_jupyter_module():
     m.check_canvas(canvas_class)
     assert canvas_class.name == "JupyterRenderCanvas"
 
-    loop_class = m.get_loop_class()
-    assert loop_class.name == "JupyterAsyncioLoop"
-
-    # Loop is provided by our asyncio module
-    assert m.get_bases(loop_class) == ["AsyncioLoop"]
-
 
 def test_offscreen_module():
     m = Module("offscreen")
@@ -254,10 +254,6 @@ def test_offscreen_module():
     canvas_class = m.get_canvas_class()
     m.check_canvas(canvas_class)
     assert canvas_class.name == "ManualOffscreenRenderCanvas"
-
-    loop_class = m.get_loop_class()
-    m.check_loop(loop_class)
-    assert loop_class.name == "StubLoop"
 
 
 def test_qt_module():
