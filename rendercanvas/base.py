@@ -64,9 +64,6 @@ class BaseCanvasGroup:
 class BaseRenderCanvas:
     """The base canvas class.
 
-    Each backends provides its own canvas subclass by implementing a predefined
-    set of private methods.
-
     This base class defines a uniform canvas API so render systems can use code
     that is portable accross multiple GUI libraries and canvas targets. The
     scheduling mechanics are generic, even though they run on different backend
@@ -93,6 +90,18 @@ class BaseRenderCanvas:
     It specifies what loop is used, and enables users to changing the used loop.
     Set to None to not use a loop.
     """
+
+    @classmethod
+    def select_loop(cls, loop):
+        """Select the loop to run newly created canvases with.
+        Can only be called when there are no live canvases of this class.
+        """
+        group = cls._rc_canvas_group
+        if group is None:
+            raise NotImplementedError(
+                "The {cls.__name__} does not have a canvas group, thus no loop."
+            )
+        group.select_loop(loop)
 
     def __init__(
         self,
@@ -171,20 +180,6 @@ class BaseRenderCanvas:
             super().__del__()
         except Exception:
             pass
-
-    # %% Static
-
-    @classmethod
-    def select_loop(cls, loop):
-        """Select the loop to run newly created canvases with.
-        Can only be called when there are no live canvases of this class.
-        """
-        group = cls._rc_canvas_group
-        if group is None:
-            raise NotImplementedError(
-                "The {cls.__name__} does not have a canvas group, thus no loop."
-            )
-        group.select_loop(loop)
 
     # %% Implement WgpuCanvasInterface
 
@@ -288,10 +283,9 @@ class BaseRenderCanvas:
     # %% Scheduling and drawing
 
     async def _process_events(self):
-        """Process events and animations.
+        """Process events and animations (async).
 
         Called from the scheduler.
-        Subclasses *may* call this if the time between ``_rc_request_draw`` and the actual draw is relatively long.
         """
 
         # We don't want this to be called too often, because we want the

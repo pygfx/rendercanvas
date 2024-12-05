@@ -6,7 +6,7 @@ The auto backend
 
 Generally the best approach for examples and small applications is to use the
 automatically selected backend. This ensures that the code is portable
-across different machines and environments. Using ``rendercanvas.auto`` selects a
+across different machines and environments. Importinf from ``rendercanvas.auto`` selects a
 suitable backend depending on the environment and more. See
 :ref:`interactive_use` for details.
 
@@ -35,6 +35,26 @@ but you can replace ``from rendercanvas.auto`` with ``from rendercanvas.glfw`` t
     canvas.request_draw(your_draw_function)
 
     loop.run()
+
+
+By default, the ``glfw`` backend uses an event loop based on asyncio. But you can also select e.g. trio:
+
+.. code-block:: py
+
+    from rendercanvas.glfw import RenderCanvas
+    from rendercanvas.trio import loop
+
+    # Use another loop than the default
+    RenderCanvas.select_loop(loop)
+
+    canvas = RenderCanvas(title="Example")
+    canvas.request_draw(your_draw_function)
+
+    async def main():
+        .. do your trio stuff
+        await loop.run_async()
+
+    trio.run(main)
 
 
 Support for Qt
@@ -80,6 +100,23 @@ Alternatively, you can select the specific qt library to use, making it easy to 
     loop.run()  # calls app.exec_()
 
 
+It is technically possible to use a Qt canvas with another loop, or to e.g. use a ``glfw`` canvas
+with the Qt loop. However, this is not recommended. Results may vary and even get you a segfault.
+
+.. code-block:: py
+
+    from rendercanvas.pyside6 import RenderCanvas
+    from rendercanvas.trio import loop
+
+    # Use another loop than the default
+    RenderCanvas.select_loop(loop)
+
+    canvas = RenderCanvas(title="Example")
+    canvas.request_draw(your_draw_function)
+
+    trio.run(loop.run_async)
+
+
 Support for wx
 --------------
 
@@ -102,7 +139,6 @@ embed the canvas as a subwidget, use ``rendercanvas.wx.RenderWidget`` instead.
     canvas.request_draw(your_draw_function)
 
     app.MainLoop()
-
 
 
 Support for offscreen

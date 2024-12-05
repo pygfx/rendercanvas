@@ -76,6 +76,7 @@ class EventEmitter:
 
         Arguments:
             callback (callable): The event handler. Must accept a single event argument.
+                Can be a plain function or a coroutine function.
             *types (list of strings): A list of event types.
             order (float): Set callback priority order. Callbacks with lower priorities
                 are called first. Default is 0.
@@ -85,6 +86,11 @@ class EventEmitter:
 
         When an event is emitted, callbacks with the same priority are called in
         the order that they were added.
+
+        If you use async callbacks and want to keep your code portable accross
+        different canvas backends, we recommend using ``sleep``  and ``Event`` from
+        ``rendercanvas.utils.asyncs``. If you know your code always runs on e.g. the
+        asyncio loop, you can fully make use of ``asyncio``.
 
         The callback is stored, so it can be a lambda or closure. This also
         means that if a method is given, a reference to the object is held,

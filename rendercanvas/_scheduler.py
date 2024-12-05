@@ -22,48 +22,25 @@ class Scheduler:
     """Helper class to schedule event processing and drawing."""
 
     # This class makes the canvas tick. Since we do not own the event-loop, but
-    # ride on e.g. Qt, asyncio, wx, JS, or something else, our little "loop" is
-    # implemented with a timer.
+    # ride on e.g. Qt, asyncio, wx, JS, or something else, we need to abstract the loop.
+    # We implement it as an async function, that way we can cleanly support async event
+    # handlers. Note, however, that the draw-event cannot be async, so it does not
+    # fit well into the loop. An event is used to wait for it.
     #
-    # The loop looks a little like this:
+    # We have to make sure that there is only one invocation of the scheduler task,
+    # or we'd get double the intended FPS.
     #
-    #     ________________      __      ________________      __      rd = request_draw
-    #   /   wait           \  / rd \  /   wait           \  / rd \
-    #  |                    ||      ||                    ||      |
-    # --------------------------------------------------------------------> time
-    #  |                    |       |                     |       |
-    #  schedule             tick    draw                  tick    draw
-    #
-    # With update modes 'ondemand' and 'manual', the loop ticks at the same rate
-    # as on 'continuous' mode, but won't draw every tick:
-    #
-    #     ________________     ________________      __
-    #   /    wait          \  /   wait          \  / rd \
-    #  |                    ||                   ||      |
-    # --------------------------------------------------------------------> time
-    #  |                    |                    |       |
-    #  schedule             tick                tick     draw
-    #
-    # A tick is scheduled by calling _schedule_next_tick(). If this method is
-    # called when the timer is already running, it has no effect. In the _tick()
-    # method, events are processed (including animations). Then, depending on
-    # the mode and whether a draw was requested, a new tick is scheduled, or a
-    # draw is requested. In the latter case, the timer is not started, but we
-    # wait for the canvas to perform a draw. In _draw_drame_and_present() the
-    # draw is done, and a new tick is scheduled.
-    #
-    # The next tick is scheduled when a draw is done, and not earlier, otherwise
+    # After a draw is requested, we wait for it to happen, otherwise
     # the drawing may not keep up with the ticking.
     #
     # On desktop canvases the draw usually occurs very soon after it is
-    # requested, but on remote frame buffers, it may take a bit longer. To make
-    # sure the rendered image reflects the latest state, these backends may
-    # issue an extra call to _process_events() right before doing the draw.
+    # requested, but on remote frame buffers, it may take a bit longer,
+    # which may cause a laggy feeling.
     #
     # When the window is minimized, the draw will not occur until the window is
     # shown again. For the canvas to detect minimized-state, it will need to
     # receive GUI events. This is one of the reasons why the loop object also
-    # runs a timer-loop.
+    # runs a loop-task.
     #
     # The drawing itself may take longer than the intended wait time. In that
     # case, it will simply take longer than we hoped and get a lower fps.
@@ -95,7 +72,7 @@ class Scheduler:
         self._draw_stats = 0, time.perf_counter()
 
     def get_task(self):
-        # Get task. Can be called exactly once. Used by the canvas.
+        """Get task. Can be called exactly once. Used by the canvas."""
         task = self.__scheduler_task
         self.__scheduler_task = None
         assert task is not None

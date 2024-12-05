@@ -23,10 +23,13 @@ class Sleeper:
 
 
 async def sleep(delay):
+    """Async sleep for delay seconds."""
     await Sleeper(delay)
 
 
 class Event:
+    """Event object similar to asyncio.Event and Trio.Event."""
+
     def __init__(self):
         self._is_set = False
         self._tasks = []
@@ -57,6 +60,8 @@ class CancelledError(BaseException):
 
 
 class Task:
+    """Represetation of task, exectuting a co-routine."""
+
     def __init__(self, loop, coro, name):
         self.loop = loop
         self.coro = coro
