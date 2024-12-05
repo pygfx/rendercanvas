@@ -169,9 +169,8 @@ class GlfwRenderCanvas(BaseRenderCanvas):
     _rc_canvas_group = GlfwCanvasGroup(loop)
 
     def __init__(self, *args, present_method=None, **kwargs):
-        super().__init__(*args, **kwargs)
-
         enable_glfw()
+        super().__init__(*args, **kwargs)
 
         if present_method == "bitmap":
             logger.warning(
@@ -344,6 +343,8 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         # But on some systems glfw needs a bit of time to properly close the window.
         if not self._rc_canvas_group.get_canvases():
             poll_glfw_briefly(0.05)
+            # Could also terminate glfw, but we don't know if the application is using glfw in other places.
+            # terminate_glfw()
 
     def _rc_get_closed(self):
         return self._window is None

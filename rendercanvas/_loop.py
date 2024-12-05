@@ -62,7 +62,7 @@ class BaseLoop:
         if self.__state == 0:
             self.__state = 1
             self._rc_init()
-            self.add_task(self._loop_task)
+            self.add_task(self._loop_task, name="loop-task")
         self.__canvas_groups.add(canvas_group)
 
     def _unregister_canvas_group(self, canvas_group):

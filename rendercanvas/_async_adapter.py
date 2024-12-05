@@ -60,7 +60,7 @@ class CancelledError(BaseException):
 
 
 class Task:
-    """Represetation of task, exectuting a co-routine."""
+    """Representation of task, exectuting a co-routine."""
 
     def __init__(self, loop, coro, name):
         self.loop = loop

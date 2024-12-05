@@ -1,16 +1,18 @@
 """
-Cube trio
----------
+Cube asyncio
+------------
 
-Run a wgpu example on the glfw backend, and the trio loop
+Run a wgpu example on the glfw backend, and the asyncio loop
 """
 
-import trio
+import asyncio
+
 from rendercanvas.glfw import RenderCanvas
-from rendercanvas.trio import loop
+from rendercanvas.asyncio import loop
 from rendercanvas.utils.cube import setup_drawing_sync
 
 
+# The asyncio loop is the default, but this may change, so better be explicit.
 RenderCanvas.select_loop(loop)
 
 canvas = RenderCanvas(
@@ -21,16 +23,9 @@ canvas.request_draw(draw_frame)
 
 
 if __name__ == "__main__":
-    # This works, but is not very trio-ish
-    # loop.run()
-
-    # This looks more like it
-    # trio.run(loop.run_async)
-
-    # But for the sake of completeness ...
 
     async def main():
-        # ... add Trio stuff here
+        # ... add asyncio stuff here
         await loop.run_async()
 
-    trio.run(main)
+    asyncio.run(main())

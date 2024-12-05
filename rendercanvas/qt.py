@@ -319,6 +319,11 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         # Ask Qt to do a paint event
         QtWidgets.QWidget.update(self)
 
+        # When running on another loop, schedule processing events asap
+        loop = self._rc_canvas_group.get_loop()
+        if not isinstance(loop, QtLoop):
+            loop.call_soon(self._rc_gui_poll)
+
     def _rc_force_draw(self):
         # Call the paintEvent right now.
         # This works on all platforms I tested, except on MacOS when drawing with the 'image' method.

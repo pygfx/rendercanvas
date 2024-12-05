@@ -38,7 +38,7 @@ class BaseCanvasGroup:
         self._canvases.add(canvas)
         loop = self.get_loop()
         loop._register_canvas_group(self)
-        loop.add_task(task)
+        loop.add_task(task, name="scheduler-task")
 
     def select_loop(self, loop):
         """Select the loop to use for this group of canvases."""
@@ -131,6 +131,9 @@ class BaseRenderCanvas:
             "raw": "",
             "fps": "?",
             "backend": self.__class__.__name__,
+            "loop": self._rc_canvas_group.get_loop().__class__.__name__
+            if self._rc_canvas_group
+            else "no-loop",
         }
 
         # Events and scheduler
