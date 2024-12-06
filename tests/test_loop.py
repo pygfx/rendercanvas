@@ -10,6 +10,7 @@ import threading
 from rendercanvas.base import BaseCanvasGroup, BaseRenderCanvas
 from rendercanvas.asyncio import AsyncioLoop
 from rendercanvas.trio import TrioLoop
+from rendercanvas.utils.asyncs import sleep as async_sleep
 from testutils import run_tests
 import trio
 
@@ -64,6 +65,10 @@ class RealRenderCanvas(BaseRenderCanvas):
 
     def _rc_get_closed(self):
         return self._is_closed
+
+    def _rc_request_draw(self):
+        loop = self._rc_canvas_group.get_loop()
+        loop.call_soon(self._draw_frame_and_present)
 
 
 def test_run_loop_and_close_bc_no_canvases():
@@ -190,6 +195,61 @@ def test_run_loop_and_close_by_loop_stop():
 
     assert canvas1._events.is_closed
     assert canvas2._events.is_closed
+
+
+def test_run_loop_and_close_by_loop_stop_via_async():
+    # Close using a coro
+    loop = AsyncioLoop()
+    group = CanvasGroup(loop)
+
+    canvas1 = FakeCanvas()
+    canvas2 = FakeCanvas()
+    group._register_canvas(canvas1, fake_task)
+    group._register_canvas(canvas2, fake_task)
+
+    async def stopper():
+        await async_sleep(0.3)
+        loop.stop()
+
+    loop.add_task(stopper)
+
+    t0 = time.time()
+    loop.run()
+    et = time.time() - t0
+
+    print(et)
+    assert 0.25 < et < 0.55
+
+    assert canvas1._events.is_closed
+    assert canvas2._events.is_closed
+
+
+def test_run_loop_and_close_via_async_event():
+    # Stop via an async event, and an async task
+    loop = real_loop
+
+    canvas1 = RealRenderCanvas()
+    canvas2 = RealRenderCanvas()  # noqa
+
+    @canvas1.add_event_handler("key_down")
+    async def on_key_down(event):
+        print(event)
+        if event["key"] == "q":
+            await async_sleep(0.2)
+            loop.stop()
+
+    async def stopper():
+        await async_sleep(0.2)
+        canvas1._events.submit({"event_type": "key_down", "key": "q"})
+
+    loop.add_task(stopper)
+
+    t0 = time.time()
+    loop.run()
+    et = time.time() - t0
+
+    print(et)
+    assert 0.35 < et < 0.65
 
 
 def test_run_loop_and_close_by_deletion():
