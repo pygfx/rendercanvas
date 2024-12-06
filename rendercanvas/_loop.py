@@ -270,6 +270,7 @@ class BaseLoop:
                 task.cancel()
         # Turn off
         self.__state = 0
+        self.__should_stop = 0
         self._rc_stop()
 
     def __setup_interrupt(self):
