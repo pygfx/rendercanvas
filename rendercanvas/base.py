@@ -2,12 +2,15 @@
 The base classes.
 """
 
-__all__ = ["WrapperRenderCanvas", "BaseRenderCanvas", "BaseLoop", "BaseTimer"]
+__all__ = ["BaseLoop", "BaseRenderCanvas", "WrapperRenderCanvas"]
 
+import sys
+import weakref
 import importlib
 
 from ._events import EventEmitter, EventType  # noqa: F401
-from ._loop import Scheduler, BaseLoop, BaseTimer
+from ._loop import BaseLoop
+from ._scheduler import Scheduler
 from ._coreutils import logger, log_exception
 
 
@@ -22,11 +25,46 @@ from ._coreutils import logger, log_exception
 # * `._rc_method`: Methods that the subclass must implement.
 
 
+class BaseCanvasGroup:
+    """Represents a group of canvas objects from the same class, that share a loop."""
+
+    def __init__(self, default_loop):
+        self._canvases = weakref.WeakSet()
+        self._loop = None
+        self.select_loop(default_loop)
+
+    def _register_canvas(self, canvas, task):
+        """Used by the canvas to register itself."""
+        self._canvases.add(canvas)
+        loop = self.get_loop()
+        if loop is not None:
+            loop._register_canvas_group(self)
+            loop.add_task(task, name="scheduler-task")
+
+    def select_loop(self, loop):
+        """Select the loop to use for this group of canvases."""
+        if not (loop is None or isinstance(loop, BaseLoop)):
+            raise TypeError("select_loop() requires a loop instance or None.")
+        elif len(self._canvases):
+            raise RuntimeError("Cannot select_loop() when live canvases exist.")
+        elif loop is self._loop:
+            pass
+        else:
+            if self._loop is not None:
+                self._loop._unregister_canvas_group(self)
+            self._loop = loop
+
+    def get_loop(self):
+        """Get the currently associated loop (can be None for canvases that don't run a scheduler)."""
+        return self._loop
+
+    def get_canvases(self):
+        """Get a list of currently active (not-closed) canvases for this group."""
+        return [canvas for canvas in self._canvases if not canvas.get_closed()]
+
+
 class BaseRenderCanvas:
     """The base canvas class.
-
-    Each backends provides its own canvas subclass by implementing a predefined
-    set of private methods.
 
     This base class defines a uniform canvas API so render systems can use code
     that is portable accross multiple GUI libraries and canvas targets. The
@@ -48,6 +86,23 @@ class BaseRenderCanvas:
             Can be set to e.g. 'screen' or 'bitmap'. Default None (auto-select).
 
     """
+
+    _rc_canvas_group = None
+    """Class attribute that refers to the ``CanvasGroup`` instance to use for canvases of this class.
+    It specifies what loop is used, and enables users to changing the used loop.
+    """
+
+    @classmethod
+    def select_loop(cls, loop):
+        """Select the loop to run newly created canvases with.
+        Can only be called when there are no live canvases of this class.
+        """
+        group = cls._rc_canvas_group
+        if group is None:
+            raise NotImplementedError(
+                "The {cls.__name__} does not have a canvas group, thus no loop."
+            )
+        group.select_loop(loop)
 
     def __init__(
         self,
@@ -77,21 +132,28 @@ class BaseRenderCanvas:
             "raw": "",
             "fps": "?",
             "backend": self.__class__.__name__,
+            "loop": self._rc_canvas_group.get_loop().__class__.__name__
+            if (self._rc_canvas_group and self._rc_canvas_group.get_loop())
+            else "no-loop",
         }
 
         # Events and scheduler
         self._events = EventEmitter()
         self.__scheduler = None
-        loop = self._rc_get_loop()
-        if loop is not None:
+        if self._rc_canvas_group is None:
+            pass  # No scheduling, not even grouping
+        elif self._rc_canvas_group.get_loop() is None:
+            # Group, but no loop: no scheduling
+            self._rc_canvas_group._register_canvas(self, None)
+        else:
             self.__scheduler = Scheduler(
                 self,
                 self._events,
-                self._rc_get_loop(),
                 min_fps=min_fps,
                 max_fps=max_fps,
                 mode=update_mode,
             )
+            self._rc_canvas_group._register_canvas(self, self.__scheduler.get_task())
 
         # We cannot initialize the size and title now, because the subclass may not have done
         # the initialization to support this. So we require the subclass to call _final_canvas_init.
@@ -229,11 +291,10 @@ class BaseRenderCanvas:
 
     # %% Scheduling and drawing
 
-    def _process_events(self):
-        """Process events and animations.
+    async def _process_events(self):
+        """Process events and animations (async).
 
         Called from the scheduler.
-        Subclasses *may* call this if the time between ``_rc_request_draw`` and the actual draw is relatively long.
         """
 
         # We don't want this to be called too often, because we want the
@@ -241,13 +302,11 @@ class BaseRenderCanvas:
         # when there are no draws (in ondemand and manual mode).
 
         # Get events from the GUI into our event mechanism.
-        loop = self._rc_get_loop()
-        if loop:
-            loop._rc_gui_poll()
+        self._rc_gui_poll()
 
         # Flush our events, so downstream code can update stuff.
         # Maybe that downstream code request a new draw.
-        self._events.flush()
+        await self._events.flush()
 
         # TODO: implement later (this is a start but is not tested)
         # Schedule animation events until the lag is gone
@@ -333,7 +392,6 @@ class BaseRenderCanvas:
             # Process special events
             # Note that we must not process normal events here, since these can do stuff
             # with the canvas (resize/close/etc) and most GUI systems don't like that.
-            self._events.emit({"event_type": "before_draw"})
 
             # Notify the scheduler
             if self.__scheduler is not None:
@@ -405,7 +463,11 @@ class BaseRenderCanvas:
         self._rc_set_logical_size(width, height)
 
     def set_title(self, title):
-        """Set the window title."""
+        """Set the window title.
+
+        The words "$backend", "$loop", and "$fps" can be used as variables that
+        are filled in with the corresponding values.
+        """
         self.__title_info["raw"] = title
         for k, v in self.__title_info.items():
             title = title.replace("$" + k, v)
@@ -413,13 +475,9 @@ class BaseRenderCanvas:
 
     # %% Methods for the subclass to implement
 
-    def _rc_get_loop(self):
-        """Get the loop instance for this backend.
-
-        Must return the global loop instance (a BaseLoop subclass) for the canvas subclass,
-        or None for a canvas without scheduled draws.
-        """
-        return None
+    def _rc_gui_poll(self):
+        """Process native events."""
+        pass
 
     def _rc_get_present_methods(self):
         """Get info on the present methods supported by this canvas.
@@ -455,11 +513,6 @@ class BaseRenderCanvas:
         by calling ``_draw_frame_and_present()``. It's the responsibility
         for the canvas subclass to make sure that a draw is made as
         soon as possible.
-
-        Canvases that have a limit on how fast they can 'consume' frames, like
-        remote frame buffers, do good to call self._process_events() when the
-        draw had to wait a little. That way the user interaction will lag as
-        little as possible.
 
         The default implementation does nothing, which is equivalent to waiting
         for a forced draw or a draw invoked by the GUI system.
@@ -503,8 +556,16 @@ class BaseRenderCanvas:
     def _rc_close(self):
         """Close the canvas.
 
-        Note that ``BaseRenderCanvas`` implements the ``close()`` method, which
-        is a rather common name; it may be necessary to re-implement that too.
+        Note that ``BaseRenderCanvas`` implements the ``close()`` method, which is a
+        rather common name; it may be necessary to re-implement that too.
+
+        Backends should probably not mark the canvas as closed yet, but wait until the
+        underlying system really closes the canvas. Otherwise the loop may end before a
+        canvas gets properly cleaned up.
+
+        Backends can emit a closed event, either in this method, or when the real close
+        happens, but this is optional, since the loop detects canvases getting closed
+        and sends the close event if this has not happened yet.
         """
         pass
 
@@ -527,6 +588,13 @@ class WrapperRenderCanvas(BaseRenderCanvas):
     Subclasses should not implement any of the ``_rc_`` methods. Subclasses must instantiate the
     wrapped canvas and set it as ``_subwidget``.
     """
+
+    _rc_canvas_group = None  # No grouping for these wrappers
+
+    @classmethod
+    def select_loop(cls, loop):
+        m = sys.modules[cls.__module__]
+        return m.RenderWidget.select_loop(loop)
 
     def add_event_handler(self, *args, **kwargs):
         return self._subwidget._events.add_handler(*args, **kwargs)

@@ -8,7 +8,7 @@ datas = []
 binaries = []
 
 # Add modules that are safe to add, i.e. don't pull in dependencies that we don't want.
-hiddenimports += ["rendercanvas.offscreen"]
+hiddenimports += ["asyncio", "rendercanvas.async", "rendercanvas.offscreen"]
 
 # Since glfw does not have a hook like this, it does not include the glfw binary
 # when freezing. We can solve this with the code below. Makes the binary a bit

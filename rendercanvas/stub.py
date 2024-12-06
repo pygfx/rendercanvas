@@ -4,11 +4,61 @@ A stub backend for documentation purposes.
 
 __all__ = ["RenderCanvas", "loop"]
 
-from .base import WrapperRenderCanvas, BaseRenderCanvas, BaseLoop, BaseTimer
+from .base import BaseCanvasGroup, WrapperRenderCanvas, BaseRenderCanvas, BaseLoop
+
+
+class StubLoop(BaseLoop):
+    """
+    The ``Loop`` represents the event-loop that drives the rendering and events.
+
+    Some backends will provide a corresponding loop (like qt and ws). Other backends may use
+    existing loops (like glfw and jupyter). And then there are loop-backends that only implement
+    a loop (e.g. asyncio or trio).
+
+    Backends must subclass ``BaseLoop`` and implement a set of methods prefixed with ``_rc_``.
+    """
+
+    def _rc_init(self):
+        raise NotImplementedError()
+
+    def _rc_run(self):
+        raise NotImplementedError()
+
+    async def _rc_run_async(self):
+        raise NotImplementedError()
+
+    def _rc_stop(self):
+        raise NotImplementedError()
+
+    def _rc_add_task(self, async_func, name):
+        raise NotImplementedError()
+
+    def _rc_call_later(self, delay, callback):
+        raise NotImplementedError()
+
+
+loop = StubLoop()
+
+
+class StubCanvasGroup(BaseCanvasGroup):
+    """
+    The ``CanvasGroup`` representss a group of canvas objects from the same class, that share a loop.
+
+    The initial/default loop is passed when the ``CanvasGroup`` is instantiated.
+
+    Backends can subclass ``BaseCanvasGroup`` and set an instance at their ``RenderCanvas._rc_canvas_group``.
+    It can also be omitted for canvases that don't need to run in a loop. Note that this class is only
+    for internal use, mainly to connect canvases to a loop; it is not public API.
+
+    The subclassing is only really done so the group has a distinguishable name. Though we may add ``_rc_`` methods
+    to this class in the future.
+    """
 
 
 class StubRenderCanvas(BaseRenderCanvas):
     """
+    The ``RenderCanvas`` represents the canvas to render to.
+
     Backends must subclass ``BaseRenderCanvas`` and implement a set of methods prefixed with ``_rc_``.
     This class also shows a few other private methods of the base canvas class, that a backend must be aware of.
     """
@@ -20,16 +70,18 @@ class StubRenderCanvas(BaseRenderCanvas):
     def _final_canvas_init(self):
         return super()._final_canvas_init()
 
-    def _process_events(self):
-        return super()._process_events()
+    async def _process_events(self):
+        return await super()._process_events()
 
     def _draw_frame_and_present(self):
         return super()._draw_frame_and_present()
 
     # Must be implemented by subclasses.
 
-    def _rc_get_loop(self):
-        return None
+    _rc_canvas_group = StubCanvasGroup(loop)
+
+    def _rc_gui_poll(self):
+        raise NotImplementedError()
 
     def _rc_get_present_methods(self):
         raise NotImplementedError()
@@ -76,42 +128,6 @@ class ToplevelRenderCanvas(WrapperRenderCanvas):
         super().__init__(parent)
 
         self._subwidget = StubRenderCanvas(self, **kwargs)
-
-
-class StubTimer(BaseTimer):
-    """
-    Backends must subclass ``BaseTimer`` and implement a set of methods prefixed with ``_rc__``.
-    """
-
-    def _rc_init(self):
-        pass
-
-    def _rc_start(self):
-        raise NotImplementedError()
-
-    def _rc_stop(self):
-        raise NotImplementedError()
-
-
-class StubLoop(BaseLoop):
-    """
-    Backends must subclass ``BaseLoop`` and implement a set of methods prefixed with ``_rc__``.
-    In addition to that, the class attribute ``_TimerClass`` must be set to the corresponding timer subclass.
-    """
-
-    _TimerClass = StubTimer
-
-    def _rc_run(self):
-        raise NotImplementedError()
-
-    def _rc_stop(self):
-        raise NotImplementedError()
-
-    def _rc_call_soon(self, callback, *args):
-        self.call_later(0, callback, *args)
-
-    def _rc_gui_poll(self):
-        pass
 
 
 # Make available under a common name

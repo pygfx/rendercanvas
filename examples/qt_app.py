@@ -3,8 +3,9 @@ Qt app
 ------
 
 An example demonstrating a qt app with a wgpu viz inside.
-If needed, change the PySide6 import to e.g. PyQt6, PyQt5, or PySide2.
 
+Note how the ``rendercanvas.qt.loop`` object is not even imported;
+you can simply run ``app.exec()`` the Qt way.
 """
 
 # ruff: noqa: N802, E402
@@ -12,6 +13,9 @@ If needed, change the PySide6 import to e.g. PyQt6, PyQt5, or PySide2.
 import time
 import importlib
 
+
+# Normally you'd just write e.g.
+# from PySide6 import QtWidgets
 
 # For the sake of making this example Just Work, we try multiple QT libs
 for lib in ("PySide6", "PyQt6", "PySide2", "PyQt5"):
@@ -65,5 +69,5 @@ example = ExampleWidget()
 draw_frame = setup_drawing_sync(example.canvas)
 example.canvas.request_draw(draw_frame)
 
-# Enter Qt event loop (compatible with qt5/qt6)
+# Enter Qt event-loop (compatible with qt5/qt6)
 app.exec() if hasattr(app, "exec") else app.exec_()

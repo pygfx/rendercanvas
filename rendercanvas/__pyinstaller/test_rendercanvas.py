@@ -14,10 +14,12 @@ if "is_test" in sys.argv:
         "rendercanvas.glfw",
         "rendercanvas.offscreen",
         "glfw",
+        "asyncio"
     ]
     excluded_modules = [
         "PySide6.QtGui",
         "PyQt6.QtGui",
+        "trio",
     ]
     for module_name in included_modules:
         importlib.import_module(module_name)

@@ -6,18 +6,22 @@ can be used as cell output, or embedded in an ipywidgets gui.
 __all__ = ["RenderCanvas", "loop"]
 
 import time
-import weakref
 
-from .base import BaseRenderCanvas
-from .asyncio import AsyncioLoop
+from .base import BaseCanvasGroup, BaseRenderCanvas
+from .asyncio import loop
 
 import numpy as np
 from jupyter_rfb import RemoteFrameBuffer
-from IPython.display import display
+
+
+class JupyterCanvasGroup(BaseCanvasGroup):
+    pass
 
 
 class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
     """An ipywidgets widget providing a render canvas. Needs the jupyter_rfb library."""
+
+    _rc_canvas_group = JupyterCanvasGroup(loop)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -29,9 +33,6 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
         self._is_closed = False
         self._draw_request_time = 0
 
-        # Register so this can be display'ed when run() is called
-        loop._pending_jupyter_canvases.append(weakref.ref(self))
-
         # Set size, title, etc.
         self._final_canvas_init()
 
@@ -40,21 +41,13 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
         # present_context.present(), which calls our present() method.
         # The result is either a numpy array or None, and this matches
         # with what this method is expected to return.
-
-        # When we had to wait relatively long for the drawn to be made,
-        # we do another round processing events, to minimize the perceived lag.
-        # We only do this when the delay is significant, so that under good
-        # circumstances, the scheduling behaves the same as for other canvases.
-        if time.perf_counter() - self._draw_request_time > 0.02:
-            self._process_events()
-
         self._draw_frame_and_present()
         return self._last_image
 
     # %% Methods to implement RenderCanvas
 
-    def _rc_get_loop(self):
-        return loop
+    def _rc_gui_poll(self):
+        pass
 
     def _rc_get_present_methods(self):
         # We stick to the two common formats, because these can be easily converted to png
@@ -126,25 +119,5 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
 
 # Make available under a name that is the same for all backends
 RenderCanvas = JupyterRenderCanvas
-
-
-class JupyterAsyncioLoop(AsyncioLoop):
-    def __init__(self):
-        super().__init__()
-        self._pending_jupyter_canvases = []
-
-    def _rc_gui_poll(self):
-        pass  # Jupyter is running in a separate process :)
-
-    def run(self):
-        # Show all widgets that have been created so far.
-        # No need to actually start an event loop, since Jupyter already runs it.
-        canvases = [r() for r in self._pending_jupyter_canvases]
-        self._pending_jupyter_canvases.clear()
-        for w in canvases:
-            if w and not w.get_closed():
-                display(w)
-
-
-loop = JupyterAsyncioLoop()
+loop = loop
 run = loop.run

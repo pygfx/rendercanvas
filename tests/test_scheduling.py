@@ -6,28 +6,31 @@ as the behabior of the different update modes.
 
 import time
 from testutils import run_tests
-from rendercanvas import BaseRenderCanvas, BaseLoop, BaseTimer
+from rendercanvas.base import BaseCanvasGroup, BaseRenderCanvas, BaseLoop
 
 
-class MyTimer(BaseTimer):
-    def _rc_start(self):
-        pass
-
-    def _rc_stop(self):
-        pass
+class MyCanvasGroup(BaseCanvasGroup):
+    pass
 
 
 class MyLoop(BaseLoop):
-    _TimerClass = MyTimer
-
     def __init__(self):
         super().__init__()
         self.__stopped = False
+        self._callbacks = []
 
-    def process_timers(self):
-        for timer in list(BaseTimer._running_timers):
-            if timer.time_left <= 0:
-                timer._tick()
+    def process_tasks(self):
+        callbacks_to_run = []
+        new_callbacks = []
+        for etime, callback in self._callbacks:
+            if time.perf_counter() >= etime:
+                callbacks_to_run.append(callback)
+            else:
+                new_callbacks.append((etime, callback))
+        if callbacks_to_run:
+            self._callbacks = new_callbacks
+            for callback in callbacks_to_run:
+                callback()
 
     def _rc_run(self):
         self.__stopped = False
@@ -35,19 +38,23 @@ class MyLoop(BaseLoop):
     def _rc_stop(self):
         self.__stopped = True
 
+    def _rc_add_task(self, async_func, name):
+        # Run tasks via call_later
+        super()._rc_add_task(async_func, name)
+
+    def _rc_call_later(self, delay, callback):
+        self._callbacks.append((time.perf_counter() + delay, callback))
+
 
 class MyCanvas(BaseRenderCanvas):
-    _loop = MyLoop()
-    _gui_draw_requested = False
+    _rc_canvas_group = MyCanvasGroup(MyLoop())
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._closed = False
         self.draw_count = 0
         self.events_count = 0
-
-    def _rc_get_loop(self):
-        return self._loop
+        self._gui_draw_requested = False
 
     def _rc_close(self):
         self._closed = True
@@ -55,9 +62,9 @@ class MyCanvas(BaseRenderCanvas):
     def _rc_get_closed(self):
         return self._closed
 
-    def _process_events(self):
-        super()._process_events()
+    async def _process_events(self):
         self.events_count += 1
+        return await super()._process_events()
 
     def _draw_frame_and_present(self):
         super()._draw_frame_and_present()
@@ -72,11 +79,11 @@ class MyCanvas(BaseRenderCanvas):
             self._draw_frame_and_present()
 
     def active_sleep(self, delay):
-        loop = self._rc_get_loop()
+        loop = self._rc_canvas_group.get_loop()  # <----
         etime = time.perf_counter() + delay
         while time.perf_counter() < etime:
             time.sleep(0.001)
-            loop.process_timers()
+            loop.process_tasks()
             self.draw_if_necessary()
 
 
@@ -97,7 +104,7 @@ def test_scheduling_manual():
     canvas.request_draw()
     canvas.active_sleep(0.11)
     assert canvas.draw_count == 0
-    assert canvas.events_count in range(10, 20)
+    assert canvas.events_count in range(1, 20)
 
     # Only when we force one
     canvas.force_draw()

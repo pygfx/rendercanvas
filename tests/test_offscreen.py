@@ -4,6 +4,7 @@ Test the offscreen canvas and some related mechanics.
 
 import os
 import gc
+import time
 import weakref
 
 from testutils import is_pypy, run_tests
@@ -67,21 +68,30 @@ def test_offscreen_selection_using_legacyt_env_var():
 
 
 def test_offscreen_event_loop():
-    """Check that the event loop handles queued tasks and then returns."""
+    """Check that the event-loop handles queued tasks and then returns."""
     # Note: if this test fails, it may run forever, so it's a good idea to have a timeout on the CI job or something
 
     from rendercanvas.offscreen import loop
 
-    ran = False
+    ran = set()
 
-    def check():
-        nonlocal ran
-        ran = True
+    def check(arg):
+        ran.add(arg)
 
-    loop.call_later(0, check)
+    loop.call_soon(check, 1)
+    loop.call_later(0, check, 2)
+    loop.call_later(0.001, check, 3)
     loop.run()
+    assert 1 in ran  # call_soon
+    assert 2 in ran  # call_later with zero
+    assert 3 not in ran
 
-    assert ran
+    # When run is called, the task is started, so the delay kicks in from
+    # that moment, so we need to wait here for the 3d to resolve
+    # The delay starts from
+    time.sleep(0.01)
+    loop.run()
+    assert 3 in ran  # call_later nonzero
 
 
 def test_offscreen_canvas_del():

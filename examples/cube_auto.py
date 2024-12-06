@@ -7,10 +7,8 @@ Run a wgpu example on an automatically selected backend.
 
 # run_example = true
 
-from rendercanvas.auto import RenderCanvas, run
-
+from rendercanvas.auto import RenderCanvas, loop
 from rendercanvas.utils.cube import setup_drawing_sync
-
 
 canvas = RenderCanvas(
     title="The wgpu cube example on $backend", update_mode="continuous"
@@ -20,4 +18,4 @@ canvas.request_draw(draw_frame)
 
 
 if __name__ == "__main__":
-    run()
+    loop.run()
