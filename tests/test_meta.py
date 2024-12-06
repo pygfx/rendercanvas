@@ -7,6 +7,7 @@ import subprocess
 from testutils import run_tests
 
 import rendercanvas
+import pytest
 
 
 CODE = """
@@ -72,15 +73,14 @@ def test_namespace():
     assert "Scheduler" not in dir(rendercanvas)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="Need py310+")
 def test_deps_plain_import():
     modules = get_loaded_modules("rendercanvas", 1)
     assert modules == {"rendercanvas", "sniffio"}
 
 
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="Need py310+")
 def test_deps_asyncio():
-    if sys.version_info < (3, 10):
-        return  # skip because stdlib_module_names is not available
-
     # I like it that asyncio is only imported when actually being used.
     # Since its the default loop for some backends, it must lazy-import.
     # We can do this safely because asyncio is std.
@@ -92,6 +92,7 @@ def test_deps_asyncio():
     assert "asyncio" in modules
 
 
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="Need py310+")
 def test_deps_trio():
     # For trio, I like that if the trio module is loaded, trio is imported, fail early.
     modules = get_loaded_modules("rendercanvas.trio", 1)
