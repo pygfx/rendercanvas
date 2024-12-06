@@ -68,7 +68,7 @@ def test_offscreen_selection_using_legacyt_env_var():
 
 
 def test_offscreen_event_loop():
-    """Check that the event loop handles queued tasks and then returns."""
+    """Check that the event-loop handles queued tasks and then returns."""
     # Note: if this test fails, it may run forever, so it's a good idea to have a timeout on the CI job or something
 
     from rendercanvas.offscreen import loop

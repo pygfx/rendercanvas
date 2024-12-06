@@ -3,7 +3,7 @@ The event system.
 """
 
 import time
-from inspect import iscoroutinefunction  # note: is not asyncio-specific
+from inspect import iscoroutinefunction
 from collections import defaultdict, deque
 
 from ._coreutils import log_exception, BaseEnum

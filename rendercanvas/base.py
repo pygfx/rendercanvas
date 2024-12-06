@@ -457,7 +457,11 @@ class BaseRenderCanvas:
         self._rc_set_logical_size(width, height)
 
     def set_title(self, title):
-        """Set the window title."""
+        """Set the window title.
+
+        The words "$backend", "$loop", and "$fps" can be used as variables that
+        are filled in with the corresponding values.
+        """
         self.__title_info["raw"] = title
         for k, v in self.__title_info.items():
             title = title.replace("$" + k, v)

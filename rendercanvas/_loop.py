@@ -242,7 +242,7 @@ class BaseLoop:
         await self._rc_run_async()
 
     def stop(self):
-        """Close all windows and stop the currently running event loop.
+        """Close all windows and stop the currently running event-loop.
 
         If the loop is active but not running via our ``run()`` method, the loop
         moves back to its "off" state, but the underlying loop is not stopped.
@@ -310,7 +310,7 @@ class BaseLoop:
     def _rc_run(self):
         """Start running the event-loop.
 
-        * Start the event loop.
+        * Start the event-loop.
         * The loop object must also work when the native loop is started
           in the GUI-native way (i.e. this method may not be called).
         * If the backend is in interactive mode (i.e. there already is
@@ -322,7 +322,7 @@ class BaseLoop:
         """Clean up the loop, going to the off-state.
 
         * Cancel any remaining tasks.
-        * Stop the running event loop, if applicable.
+        * Stop the running event-loop, if applicable.
         * Be ready for another call to ``_rc_init()`` in case the loop is reused.
         * Return None.
         """

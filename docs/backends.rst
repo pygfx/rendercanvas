@@ -6,7 +6,7 @@ The auto backend
 
 Generally the best approach for examples and small applications is to use the
 automatically selected backend. This ensures that the code is portable
-across different machines and environments. Importinf from ``rendercanvas.auto`` selects a
+across different machines and environments. Importing from ``rendercanvas.auto`` selects a
 suitable backend depending on the environment and more. See
 :ref:`interactive_use` for details.
 
@@ -37,7 +37,7 @@ but you can replace ``from rendercanvas.auto`` with ``from rendercanvas.glfw`` t
     loop.run()
 
 
-By default, the ``glfw`` backend uses an event loop based on asyncio. But you can also select e.g. trio:
+By default, the ``glfw`` backend uses an event-loop based on asyncio. But you can also select e.g. trio:
 
 .. code-block:: py
 
@@ -227,7 +227,7 @@ making it (about) impossible to tell that we cannot actually use
 ipywidgets. So it will try to use ``jupyter_rfb``, but cannot render anything.
 It's therefore advised to either use ``%gui qt`` or set the ``RENDERCANVAS_BACKEND`` env var
 to "glfw". The latter option works well, because these kernels *do* have a
-running asyncio event loop!
+running asyncio event-loop!
 
 On other environments that have a running ``asyncio`` loop, the glfw backend is
 preferred. E.g on ``ptpython --asyncio``.

@@ -1,5 +1,5 @@
 """
-Implements a trio event loop for backends that don't have an event loop by themselves, like glfw.
+Implements a trio event-loop for backends that don't have an event-loop by themselves, like glfw.
 Also supports a trio-friendly way to run or wait for the loop using ``run_async()``.
 """
 

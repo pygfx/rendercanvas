@@ -1,5 +1,5 @@
 """
-Implements an asyncio event loop for backends that don't have an event loop by themselves, like glfw.
+Implements an asyncio event-loop for backends that don't have an event-loop by themselves, like glfw.
 Also supports a asyncio-friendly way to run or wait for the loop using ``run_async()``.
 """
 

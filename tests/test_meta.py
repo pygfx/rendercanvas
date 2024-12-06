@@ -78,6 +78,9 @@ def test_deps_plain_import():
 
 
 def test_deps_asyncio():
+    if sys.version_info < (3, 10):
+        return  # skip because stdlib_module_names is not available
+
     # I like it that asyncio is only imported when actually being used.
     # Since its the default loop for some backends, it must lazy-import.
     # We can do this safely because asyncio is std.

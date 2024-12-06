@@ -7,9 +7,41 @@ __all__ = ["RenderCanvas", "loop"]
 from .base import BaseCanvasGroup, WrapperRenderCanvas, BaseRenderCanvas, BaseLoop
 
 
+class StubLoop(BaseLoop):
+    """
+    The ``Loop`` represents the event-loop that drives the rendering and events.
+
+    Some backends will provide a corresponding loop (like qt and ws). Other backends may use
+    existing loops (like glfw and jupyter). And then there are loop-backends that only implement
+    a loop (e.g. asyncio or trio).
+
+    Backends must subclass ``BaseLoop`` and implement a set of methods prefixed with ``_rc_``.
+    """
+
+    def _rc_init(self):
+        raise NotImplementedError()
+
+    def _rc_run(self):
+        raise NotImplementedError()
+
+    async def _rc_run_async(self):
+        raise NotImplementedError()
+
+    def _rc_stop(self):
+        raise NotImplementedError()
+
+    def _rc_add_task(self, async_func, name):
+        raise NotImplementedError()
+
+    def _rc_call_later(self, delay, callback):
+        raise NotImplementedError()
+
+
 class StubCanvasGroup(BaseCanvasGroup):
     """
     The ``CanvasGroup`` representss a group of canvas objects from the same class, that share a loop.
+
+    The initial/default loop is passed when the ``CanvasGroup`` is instantiated.
 
     Backends can subclass ``BaseCanvasGroup`` and set an instance at their ``RenderCanvas._rc_canvas_group``.
     It can also be omitted for canvases that don't need to run in a loop. Note that this class is only
@@ -93,36 +125,6 @@ class ToplevelRenderCanvas(WrapperRenderCanvas):
         super().__init__(parent)
 
         self._subwidget = StubRenderCanvas(self, **kwargs)
-
-
-class StubLoop(BaseLoop):
-    """
-    The ``Loop`` represents the event loop that drives the rendering and events.
-
-    Some backends will provide a corresponding loop (like qt and ws). Other backends may use
-    existing loops (like glfw and jupyter). And then there are loop-backends that only implement
-    a loop (e.g. asyncio or trio).
-
-    Backends must subclass ``BaseLoop`` and implement a set of methods prefixed with ``_rc__``.
-    """
-
-    def _rc_init(self):
-        raise NotImplementedError()
-
-    def _rc_run(self):
-        raise NotImplementedError()
-
-    async def _rc_run_async(self):
-        raise NotImplementedError()
-
-    def _rc_stop(self):
-        raise NotImplementedError()
-
-    def _rc_add_task(self, async_func, name):
-        raise NotImplementedError()
-
-    def _rc_call_later(self, delay, callback):
-        raise NotImplementedError()
 
 
 # Make available under a common name

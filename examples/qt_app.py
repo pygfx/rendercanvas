@@ -69,5 +69,5 @@ example = ExampleWidget()
 draw_frame = setup_drawing_sync(example.canvas)
 example.canvas.request_draw(draw_frame)
 
-# Enter Qt event loop (compatible with qt5/qt6)
+# Enter Qt event-loop (compatible with qt5/qt6)
 app.exec() if hasattr(app, "exec") else app.exec_()

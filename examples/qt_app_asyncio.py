@@ -27,7 +27,7 @@ from rendercanvas.utils.cube import setup_drawing_sync
 def async_connect(signal, async_function):
     # Unfortunately, the signal.connect() methods don't detect
     # coroutine functions, so we have to wrap it in a function that creates
-    # a Future for the coroutine (which will then run in the current event loop).
+    # a Future for the coroutine (which will then run in the current event-loop).
     #
     # The docs on QtAsyncio do something like
     #
@@ -85,5 +85,5 @@ example = ExampleWidget()
 draw_frame = setup_drawing_sync(example.canvas)
 example.canvas.request_draw(draw_frame)
 
-# Enter Qt event loop the asyncio-compatible way
+# Enter Qt event-loop the asyncio-compatible way
 QtAsyncio.run()
