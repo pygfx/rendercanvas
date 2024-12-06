@@ -6,7 +6,11 @@ __all__ = ["RenderCanvas", "loop"]
 
 import time
 
-from .base import BaseRenderCanvas, BaseLoop
+from .base import BaseCanvasGroup, BaseRenderCanvas, BaseLoop
+
+
+class OffscreenCanvasGroup(BaseCanvasGroup):
+    pass
 
 
 class ManualOffscreenRenderCanvas(BaseRenderCanvas):
@@ -15,7 +19,7 @@ class ManualOffscreenRenderCanvas(BaseRenderCanvas):
     Call the ``.draw()`` method to perform a draw and get the result.
     """
 
-    _rc_canvas_group = None  # unmanaged, no loop
+    _rc_canvas_group = OffscreenCanvasGroup(None)  # no loop, no scheduling
 
     def __init__(self, *args, pixel_ratio=1.0, **kwargs):
         super().__init__(*args, **kwargs)

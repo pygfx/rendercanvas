@@ -11,6 +11,12 @@ Also see https://github.com/pygfx/rendercanvas/blob/main/rendercanvas/stub.py.
     with each version without warning.
 
 
+.. autoclass:: rendercanvas.stub.StubLoop
+    :members:
+    :private-members:
+    :member-order: bysource
+
+
 .. autoclass:: rendercanvas.stub.StubCanvasGroup
     :members:
     :private-members:
@@ -24,9 +30,3 @@ Also see https://github.com/pygfx/rendercanvas/blob/main/rendercanvas/stub.py.
 
 
 .. autoclass:: rendercanvas.base.WrapperRenderCanvas
-
-
-.. autoclass:: rendercanvas.stub.StubLoop
-    :members:
-    :private-members:
-    :member-order: bysource

@@ -37,6 +37,9 @@ class StubLoop(BaseLoop):
         raise NotImplementedError()
 
 
+loop = StubLoop()
+
+
 class StubCanvasGroup(BaseCanvasGroup):
     """
     The ``CanvasGroup`` representss a group of canvas objects from the same class, that share a loop.
@@ -75,7 +78,7 @@ class StubRenderCanvas(BaseRenderCanvas):
 
     # Must be implemented by subclasses.
 
-    _rc_canvas_group = None
+    _rc_canvas_group = StubCanvasGroup(loop)
 
     def _rc_gui_poll(self):
         raise NotImplementedError()

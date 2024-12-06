@@ -30,30 +30,32 @@ class BaseCanvasGroup:
 
     def __init__(self, default_loop):
         self._canvases = weakref.WeakSet()
-        self._loop = default_loop
+        self._loop = None
         self.select_loop(default_loop)
 
     def _register_canvas(self, canvas, task):
         """Used by the canvas to register itself."""
         self._canvases.add(canvas)
         loop = self.get_loop()
-        loop._register_canvas_group(self)
-        loop.add_task(task, name="scheduler-task")
+        if loop is not None:
+            loop._register_canvas_group(self)
+            loop.add_task(task, name="scheduler-task")
 
     def select_loop(self, loop):
         """Select the loop to use for this group of canvases."""
-        if not isinstance(loop, BaseLoop):
-            raise TypeError("select_loop() requires a loop instance.")
+        if not (loop is None or isinstance(loop, BaseLoop)):
+            raise TypeError("select_loop() requires a loop instance or None.")
         elif len(self._canvases):
             raise RuntimeError("Cannot select_loop() when live canvases exist.")
         elif loop is self._loop:
             pass
         else:
-            self._loop._unregister_canvas_group(self)
+            if self._loop is not None:
+                self._loop._unregister_canvas_group(self)
             self._loop = loop
 
     def get_loop(self):
-        """Get the currently associated loop."""
+        """Get the currently associated loop (can be None for canvases that don't run a scheduler)."""
         return self._loop
 
     def get_canvases(self):
@@ -88,7 +90,6 @@ class BaseRenderCanvas:
     _rc_canvas_group = None
     """Class attribute that refers to the ``CanvasGroup`` instance to use for canvases of this class.
     It specifies what loop is used, and enables users to changing the used loop.
-    Set to None to not use a loop.
     """
 
     @classmethod
@@ -132,14 +133,19 @@ class BaseRenderCanvas:
             "fps": "?",
             "backend": self.__class__.__name__,
             "loop": self._rc_canvas_group.get_loop().__class__.__name__
-            if self._rc_canvas_group
+            if (self._rc_canvas_group and self._rc_canvas_group.get_loop())
             else "no-loop",
         }
 
         # Events and scheduler
         self._events = EventEmitter()
         self.__scheduler = None
-        if self._rc_canvas_group is not None:
+        if self._rc_canvas_group is None:
+            pass  # No scheduling, not even grouping
+        elif self._rc_canvas_group.get_loop() is None:
+            # Group, but no loop: no scheduling
+            self._rc_canvas_group._register_canvas(self, None)
+        else:
             self.__scheduler = Scheduler(
                 self,
                 self._events,
@@ -582,6 +588,8 @@ class WrapperRenderCanvas(BaseRenderCanvas):
     Subclasses should not implement any of the ``_rc_`` methods. Subclasses must instantiate the
     wrapped canvas and set it as ``_subwidget``.
     """
+
+    _rc_canvas_group = None  # No grouping for these wrappers
 
     @classmethod
     def select_loop(cls, loop):
