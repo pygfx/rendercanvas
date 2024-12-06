@@ -335,7 +335,8 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         if not glfw._rc_alive:
             # May not always be able to close the proper way on system exit
             self._window = None
-        elif self._window is not None:
+            return
+        if self._window is not None:
             glfw.destroy_window(self._window)  # not just glfw.hide_window
             self._window = None
             self.submit_event({"event_type": "close"})
