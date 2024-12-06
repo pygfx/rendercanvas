@@ -119,7 +119,9 @@ class BaseLoop:
                     # Stop when there are no more canvases
                     break
                 elif self.__should_stop >= 2:
-                    # force a stop without waiting for the canvases to close
+                    # Force a stop without waiting for the canvases to close.
+                    # We could call event.close() for the remaining canvases, but technically they have not closed.
+                    # Since this case is considered a failure, better be honest than consistent, I think.
                     break
                 elif self.__should_stop:
                     # Close all remaining canvases. Loop will stop in a next iteration.

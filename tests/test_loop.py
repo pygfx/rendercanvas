@@ -24,10 +24,18 @@ class CanvasGroup(BaseCanvasGroup):
     pass
 
 
+class FakeEventEmitter:
+    is_closed = False
+
+    async def close(self):
+        self.is_closed = True
+
+
 class FakeCanvas:
     def __init__(self, refuse_close=False):
         self.refuse_close = refuse_close
         self.is_closed = False
+        self._events = FakeEventEmitter()
 
     def _rc_gui_poll(self):
         pass
@@ -156,8 +164,11 @@ def test_run_loop_and_close_canvases():
     print(et)
     assert 0.25 < et < 0.45
 
+    assert canvas1._events.is_closed
+    assert canvas2._events.is_closed
 
-def test_run_loop_and_close_with_method():
+
+def test_run_loop_and_close_by_loop_stop():
     # Close, then wait at most one tick to close canvases, and another to conform close.
     loop = AsyncioLoop()
     group = CanvasGroup(loop)
@@ -177,6 +188,9 @@ def test_run_loop_and_close_with_method():
     print(et)
     assert 0.25 < et < 0.55
 
+    assert canvas1._events.is_closed
+    assert canvas2._events.is_closed
+
 
 def test_run_loop_and_close_by_deletion():
     # Make the canvases be deleted by the gc.
@@ -185,6 +199,8 @@ def test_run_loop_and_close_by_deletion():
     group = CanvasGroup(loop)
 
     canvases = [FakeCanvas() for _ in range(2)]
+    events1 = canvases[0]._events
+    events2 = canvases[1]._events
     for canvas in canvases:
         group._register_canvas(canvas, fake_task)
         del canvas
@@ -198,6 +214,9 @@ def test_run_loop_and_close_by_deletion():
 
     print(et)
     assert 0.25 < et < 0.55
+
+    assert events1.is_closed
+    assert events2.is_closed
 
 
 def test_run_loop_and_close_by_deletion_real():
@@ -246,6 +265,9 @@ def test_run_loop_and_interrupt():
     print(et)
     assert 0.25 < et < 0.55
 
+    assert canvas1._events.is_closed
+    assert canvas2._events.is_closed
+
 
 def test_run_loop_and_interrupt_harder():
     # In the next tick after the second interupt, it stops the loop without closing the canvases
@@ -277,9 +299,13 @@ def test_run_loop_and_interrupt_harder():
     print(et)
     assert 0.6 < et < 0.75
 
+    # Now the close event is not send!
+    assert not canvas1._events.is_closed
+    assert not canvas2._events.is_closed
+
 
 def test_loop_threaded():
-    t = threading.Thread(target=test_run_loop_and_close_with_method)
+    t = threading.Thread(target=test_run_loop_and_close_by_loop_stop)
     t.start()
     t.join()
 
