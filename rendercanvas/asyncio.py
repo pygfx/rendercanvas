@@ -34,6 +34,9 @@ class AsyncioLoop(BaseLoop):
     def _rc_run(self):
         import asyncio
 
+        if self._interactive_loop is not None:
+            return
+
         asyncio.run(self._rc_run_async())
 
     async def _rc_run_async(self):

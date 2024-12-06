@@ -166,6 +166,8 @@ class QtLoop(BaseLoop):
             app = QtWidgets.QApplication.instance()
             if app is None:
                 self._app = QtWidgets.QApplication([])
+        if already_had_app_on_import:
+            self._mark_as_interactive()
 
     def _rc_run(self):
         # Note: we could detect if asyncio is running (interactive session) and wheter
@@ -178,7 +180,7 @@ class QtLoop(BaseLoop):
         # or not.
 
         if already_had_app_on_import:
-            return  # Likely in an interactive session or larger application that will start the Qt app.
+            return
 
         self._we_run_the_loop = True
         try:

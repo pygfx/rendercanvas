@@ -28,7 +28,8 @@ class BaseLoop:
     * off (0): the initial state, the subclass should probably not even import dependencies yet.
     * ready (1): the first canvas is created, ``_rc_init()`` is called to get the loop ready for running.
     * active (2): the loop is active, but not running via our entrypoints.
-    * running (3): the loop is running via ``_rc_run()`` or ``_rc_run_async()``.
+    * active (3): the loop is inter-active in e.g. an IDE.
+    * running (4): the loop is running via ``_rc_run()`` or ``_rc_run_async()``.
 
     Notes:
 
@@ -44,17 +45,21 @@ class BaseLoop:
     def __init__(self):
         self.__tasks = set()
         self.__canvas_groups = set()
-        self.__state = 0  # 0: idle, 1: ready, 2: active, 3: running via our entrypoint
         self.__should_stop = 0
+        self.__state = (
+            0  # 0: off, 1: ready, 2: detected-active, 3: inter-active, 4: running
+        )
 
     def __repr__(self):
-        state = ["off", "ready", "active", "running"][self.__state]
-        return f"<{self.__class__.__module__}.{self.__class__.__name__} '{state}' at {hex(id(self))}>"
+        full_class_name = f"{self.__class__.__module__}.{self.__class__.__name__}"
+        state = self.__state
+        state_str = ["off", "ready", "active", "active", "running"][state]
+        return f"<{full_class_name} '{state_str}' ({state}) at {hex(id(self))}>"
 
     def _mark_as_interactive(self):
         """For subclasses to set active from ``_rc_init()``"""
-        if self.__state == 1:
-            self.__state = 2
+        if self.__state in (1, 2):
+            self.__state = 3
 
     def _register_canvas_group(self, canvas_group):
         # A CanvasGroup will call this every time that a new canvas is created for this loop.
@@ -201,7 +206,10 @@ class BaseLoop:
             # Yes we can
             pass
         elif self.__state == 2:
-            # No, already active (interactive mode)
+            # We look active, but have not been marked interactive
+            pass
+        elif self.__state == 3:
+            # No, already marked active (interactive mode)
             return
         else:
             # No, what are you doing??
@@ -245,7 +253,7 @@ class BaseLoop:
         """Close all windows and stop the currently running event-loop.
 
         If the loop is active but not running via our ``run()`` method, the loop
-        moves back to its "off" state, but the underlying loop is not stopped.
+        moves back to its off-state, but the underlying loop is not stopped.
         """
         # Only take action when we're inside the run() method
         self.__should_stop += 1
@@ -254,7 +262,7 @@ class BaseLoop:
             self._stop()
 
     def _stop(self):
-        """Move to our off state."""
+        """Move to the off-state."""
         # If we used the async adapter, cancel any tasks
         while self.__tasks:
             task = self.__tasks.pop()

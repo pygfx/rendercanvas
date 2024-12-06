@@ -144,10 +144,10 @@ class WxLoop(BaseLoop):
 
     def _rc_init(self):
         if self._app is None:
-            app = wx.App.GetInstance()
-            if app is None:
+            self._app = wx.App.GetInstance()
+            if self._app is None:
                 self._app = wx.App()
-                wx.App.SetInstance(app)
+                wx.App.SetInstance(self._app)
 
     def _rc_run(self):
         self._app.MainLoop()
@@ -166,7 +166,15 @@ class WxLoop(BaseLoop):
         return super()._rc_add_task(async_func, name)
 
     def _rc_call_later(self, delay, callback):
-        raise NotImplementedError()  # todo: wx.CallSoon(callback, args)
+        wx.CallLater(int(delay * 1000), callback)
+
+    def process_wx_events(self):
+        old_loop = wx.GUIEventLoop.GetActive()
+        event_loop = wx.GUIEventLoop()
+        wx.EventLoop.SetActive(event_loop)
+        while event_loop.Pending():
+            event_loop.Dispatch()
+        wx.EventLoop.SetActive(old_loop)
 
 
 loop = WxLoop()
@@ -257,13 +265,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         if isinstance(self._rc_canvas_group.get_loop(), WxLoop):
             pass  # all is well
         else:
-            old_loop = wx.EventLoop.GetActive()
-            event_loop = wx.EventLoop()
-            wx.EventLoop.SetActive(event_loop)
-            while event_loop.Pending():
-                event_loop.Dispatch()
-            self.app.ProcessIdle()
-            wx.EventLoop.SetActive(old_loop)
+            loop.process_wx_events()
 
     def _rc_get_present_methods(self):
         if self._surface_ids is None:
@@ -509,6 +511,15 @@ class WxRenderCanvas(WrapperRenderCanvas, wx.Frame):
     def Destroy(self):  # noqa: N802 - this is a wx method
         self._subwidget._is_closed = True
         super().Destroy()
+
+        # wx stops running its loop as soon as the last canvas closes.
+        # So when that happens, we manually run the loop for a short while
+        # so that we can clean up properly
+        if not self._subwidget._rc_canvas_group.get_canvases():
+            etime = time.perf_counter() + 0.15
+            while time.perf_counter() < etime:
+                time.sleep(0.01)
+                loop.process_wx_events()
 
 
 # Make available under a name that is the same for all gui backends
