@@ -7,7 +7,7 @@ from inspect import iscoroutinefunction
 
 from ._coreutils import logger, log_exception
 from .utils.asyncs import sleep
-from ._async_adapter import Task as AsyncAdapterTask
+from .utils import asyncadapter
 
 
 HANDLED_SIGNALS = (
@@ -338,7 +338,7 @@ class BaseLoop:
         * The subclass is responsible for cancelling remaining tasks in _rc_stop.
         * Return None.
         """
-        task = AsyncAdapterTask(self, async_func(), name)
+        task = asyncadapter.Task(self._rc_call_later, async_func(), name)
         self.__tasks.add(task)
         task.add_done_callback(self.__tasks.discard)
 

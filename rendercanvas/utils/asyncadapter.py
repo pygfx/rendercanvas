@@ -7,7 +7,7 @@ import logging
 from sniffio import thread_local as sniffio_thread_local
 
 
-logger = logging.getLogger("rendercanvas")
+logger = logging.getLogger("asyncadapter")
 
 
 class Sleeper:
@@ -62,12 +62,12 @@ class CancelledError(BaseException):
 class Task:
     """Representation of task, exectuting a co-routine."""
 
-    def __init__(self, loop, coro, name):
-        self.loop = loop
+    def __init__(self, call_later_func, coro, name):
+        self._call_later = call_later_func
+        self._done_callbacks = []
         self.coro = coro
         self.name = name
         self.cancelled = False
-        self._done_callbacks = []
         self.call_step_later(0)
 
     def add_done_callback(self, callback):
@@ -81,9 +81,10 @@ class Task:
                 callback(self)
             except Exception:
                 pass
+        self._done_callbacks.clear()
 
     def call_step_later(self, delay):
-        self.loop._rc_call_later(delay, self.step)
+        self._call_later(delay, self.step)
 
     def cancel(self):
         self.cancelled = True

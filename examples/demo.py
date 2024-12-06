@@ -16,7 +16,7 @@ A nice demo, and very convenient to test the different backends.
 
 import time
 
-from rendercanvas.glfw import RenderCanvas, loop
+from rendercanvas.auto import RenderCanvas, loop
 from rendercanvas.utils.cube import setup_drawing_sync
 from rendercanvas.utils.asyncs import sleep
 
