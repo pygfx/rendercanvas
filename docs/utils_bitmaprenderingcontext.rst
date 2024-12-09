@@ -1,5 +1,5 @@
-Bitmap rendering context
-========================
+``utils.bitmaprenderingcontext``
+================================
 
 .. automodule:: rendercanvas.utils.bitmaprenderingcontext
     :members:

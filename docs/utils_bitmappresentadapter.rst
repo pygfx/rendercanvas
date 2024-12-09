@@ -1,5 +1,5 @@
-Bitmap present adapter
-======================
+``utils.bitmappresentadapter``
+==============================
 
 .. automodule:: rendercanvas.utils.bitmappresentadapter
     :members:

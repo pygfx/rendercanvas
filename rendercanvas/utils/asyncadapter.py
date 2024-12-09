@@ -1,5 +1,6 @@
 """
-A micro async framework that only support sleep() and Event. Behaves well with sniffio.
+A micro async framework that only support ``sleep()`` and ``Event``. Behaves well with ``sniffio``.
+Intended for internal use, but is fully standalone.
 """
 
 import logging
@@ -11,8 +12,6 @@ logger = logging.getLogger("asyncadapter")
 
 
 class Sleeper:
-    """Awaitable to implement sleep."""
-
     def __init__(self, delay):
         self.delay = delay
 

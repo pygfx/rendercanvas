@@ -106,6 +106,12 @@ main = Main()
 app.exec()
 ```
 
+## Async or not async
+
+We support both; a render canvas can be used in a fully async setting using e.g. Asyncio or Trio, or in an event-drived framework like Qt.
+If you like callbacks, ``loop.call_later()`` always works. If you like async, use ``loop.add_task()``. Event handlers can always be async.
+See the [docs on async](https://rendercanvas.readthedocs.io/stable/start.html#async) for details.
+
 
 ## License
 
