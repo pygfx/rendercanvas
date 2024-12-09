@@ -5,7 +5,7 @@ Events
 A simple example to demonstrate events.
 """
 
-from rendercanvas.auto import RenderCanvas, run
+from rendercanvas.auto import RenderCanvas, loop
 
 
 canvas = RenderCanvas(title="RenderCanvas events")
@@ -18,4 +18,4 @@ def process_event(event):
 
 
 if __name__ == "__main__":
-    run()
+    loop.run()

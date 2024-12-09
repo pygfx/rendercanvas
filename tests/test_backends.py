@@ -114,7 +114,6 @@ class Module:
 
     def get_loop_class(self):
         assert "loop" in self.names
-        assert "run" in self.names
 
         loop_statement = self.names["loop"]
         assert isinstance(loop_statement, ast.Assign)
@@ -188,7 +187,6 @@ def test_auto_module():
     m = Module("auto")
     assert "RenderCanvas" in m.names
     assert "loop" in m.names
-    assert "run" in m.names
 
 
 # %% Test modules that only provide a loop

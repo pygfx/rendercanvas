@@ -140,4 +140,3 @@ class StubLoop(BaseLoop):
 
 
 loop = StubLoop()
-run = loop.run

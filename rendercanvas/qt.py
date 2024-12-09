@@ -585,4 +585,3 @@ class QRenderCanvas(WrapperRenderCanvas, QtWidgets.QWidget):
 # Make available under a name that is the same for all gui backends
 RenderWidget = QRenderWidget
 RenderCanvas = QRenderCanvas
-run = loop.run  # backwards compat

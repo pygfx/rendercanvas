@@ -241,4 +241,4 @@ glfw if asyncio is enabled or Qt if a qt app is running.
 On an interactive session without GUI support, one must call ``loop.run()`` to make
 the canvases interactive. This enters the main loop, which prevents entering new
 code. Once all canvases are closed, the loop returns. If you make new canvases
-afterwards, you can call ``run()`` again. This is similar to ``plt.show()`` in Matplotlib.
+afterwards, you can call ``loop.run()`` again. This is similar to ``plt.show()`` in Matplotlib.

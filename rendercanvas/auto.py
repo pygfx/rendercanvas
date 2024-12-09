@@ -203,4 +203,3 @@ def backends_by_trying_in_order():
 module = select_backend()
 RenderCanvas = module.RenderCanvas
 loop = module.loop
-run = loop.run  # backwards compat
