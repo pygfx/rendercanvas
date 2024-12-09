@@ -1,7 +1,7 @@
 import numpy as np
 from rendercanvas.utils.bitmappresentadapter import BitmapPresentAdapter
 from rendercanvas.utils.bitmaprenderingcontext import BitmapRenderingContext
-from rendercanvas.offscreen import ManualOffscreenRenderCanvas
+from rendercanvas.offscreen import OffscreenRenderCanvas as ManualOffscreenRenderCanvas
 
 from testutils import can_use_wgpu_lib, run_tests
 import pytest

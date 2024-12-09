@@ -2,7 +2,7 @@
 A stub backend for documentation purposes.
 """
 
-__all__ = ["RenderCanvas", "loop"]
+__all__ = ["RenderCanvas", "StubLoop", "StubRenderCanvas", "loop"]
 
 from .base import BaseCanvasGroup, WrapperRenderCanvas, BaseRenderCanvas, BaseLoop
 
