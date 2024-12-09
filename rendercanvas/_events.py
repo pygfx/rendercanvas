@@ -3,6 +3,7 @@ The event system.
 """
 
 import time
+from inspect import iscoroutinefunction
 from collections import defaultdict, deque
 
 from ._coreutils import log_exception, BaseEnum
@@ -65,11 +66,17 @@ class EventEmitter:
         self._event_handlers = defaultdict(list)
         self._closed = False
 
+    def _set_closed(self):
+        self._closed = True
+        self._pending_events.clear()
+        self._event_handlers.clear()
+
     def add_handler(self, *args, order: float = 0):
         """Register an event handler to receive events.
 
         Arguments:
             callback (callable): The event handler. Must accept a single event argument.
+                Can be a plain function or a coroutine function.
             *types (list of strings): A list of event types.
             order (float): Set callback priority order. Callbacks with lower priorities
                 are called first. Default is 0.
@@ -79,6 +86,11 @@ class EventEmitter:
 
         When an event is emitted, callbacks with the same priority are called in
         the order that they were added.
+
+        If you use async callbacks and want to keep your code portable accross
+        different canvas backends, we recommend using ``sleep``  and ``Event`` from
+        ``rendercanvas.utils.asyncs``. If you know your code always runs on e.g. the
+        asyncio loop, you can fully make use of ``asyncio``.
 
         The callback is stored, so it can be a lambda or closure. This also
         means that if a method is given, a reference to the object is held,
@@ -131,6 +143,8 @@ class EventEmitter:
         return decorator(callback)
 
     def _add_handler(self, callback, order, *types):
+        if self._closed:
+            return
         self.remove_handler(callback, *types)
         for type in types:
             self._event_handlers[type].append((order, callback))
@@ -155,11 +169,11 @@ class EventEmitter:
 
         Events are emitted later by the scheduler.
         """
+        if self._closed:
+            return
         event_type = event["event_type"]
         if event_type not in EventType:
             raise ValueError(f"Submitting with invalid event_type: '{event_type}'")
-        if event_type == "close":
-            self._closed = True
 
         event.setdefault("time_stamp", time.perf_counter())
         event_merge_info = self._EVENTS_THAT_MERGE.get(event_type, None)
@@ -182,7 +196,7 @@ class EventEmitter:
 
         self._pending_events.append(event)
 
-    def flush(self):
+    async def flush(self):
         """Dispatch all pending events.
 
         This should generally be left to the scheduler.
@@ -192,9 +206,9 @@ class EventEmitter:
                 event = self._pending_events.popleft()
             except IndexError:
                 break
-            self.emit(event)
+            await self.emit(event)
 
-    def emit(self, event):
+    async def emit(self, event):
         """Directly emit the given event.
 
         In most cases events should be submitted, so that they are flushed
@@ -208,11 +222,21 @@ class EventEmitter:
             if event.get("stop_propagation", False):
                 break
             with log_exception(f"Error during handling {event_type} event"):
-                callback(event)
+                if iscoroutinefunction(callback):
+                    await callback(event)
+                else:
+                    callback(event)
+        # Close?
+        if event_type == "close":
+            self._set_closed()
 
-    def _rc_close(self):
-        """Wrap up when the scheduler detects the canvas is closed/dead."""
+    async def close(self):
+        """Close the event handler.
+
+        Drops all pending events, send the close event, and disables the emitter.
+        """
         # This is a little feature because detecting a widget from closing can be tricky.
         if not self._closed:
+            self._pending_events.clear()
             self.submit({"event_type": "close"})
-        self.flush()
+            await self.flush()

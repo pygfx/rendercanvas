@@ -67,10 +67,11 @@ def test_glfw_canvas_basics():
 def test_glfw_canvas_del():
     from rendercanvas.glfw import RenderCanvas, loop
 
+    aio_loop = asyncio.new_event_loop()
+    loop_task = aio_loop.create_task(loop.run_async())
+
     def run_briefly():
-        asyncio_loop = loop._loop
-        asyncio_loop.run_until_complete(asyncio.sleep(0.5))
-        # poll_glfw_briefly()
+        aio_loop.run_until_complete(asyncio.sleep(0.5))
 
     canvas = RenderCanvas()
     ref = weakref.ref(canvas)
@@ -82,6 +83,11 @@ def test_glfw_canvas_del():
     if is_pypy:
         gc.collect()  # force garbage collection for pypy
     assert ref() is None
+
+    # Loop shuts down
+    assert not loop_task.done()
+    run_briefly()
+    assert loop_task.done()
 
 
 shader_source = """
@@ -103,13 +109,14 @@ def test_glfw_canvas_render():
     """Render an orange square ... in a glfw window."""
 
     import wgpu
-    import glfw
-    from rendercanvas.glfw import RenderCanvas, loop
+    from rendercanvas.glfw import RenderCanvas
+    from rendercanvas.asyncio import loop
+
+    aio_loop = asyncio.new_event_loop()
+    loop_task = aio_loop.create_task(loop.run_async())
 
     def run_briefly():
-        asyncio_loop = loop._loop
-        asyncio_loop.run_until_complete(asyncio.sleep(0.5))
-        # poll_glfw_briefly()
+        aio_loop.run_until_complete(asyncio.sleep(0.5))
 
     canvas = RenderCanvas(max_fps=9999, update_mode="ondemand")
 
@@ -145,8 +152,12 @@ def test_glfw_canvas_render():
     run_briefly()
     assert frame_counter == 3
 
-    # canvas.close()
-    glfw.poll_events()
+    # Stopping
+    assert not loop_task.done()
+    canvas.close()
+    assert not loop_task.done()
+    run_briefly()
+    assert loop_task.done()
 
 
 def _get_draw_function(device, canvas):

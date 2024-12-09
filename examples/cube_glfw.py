@@ -2,11 +2,10 @@
 Cube glfw
 ---------
 
-Run a wgpu example on the glfw backend.
+Run a wgpu example on the glfw backend (with the default asyncio loop).
 """
 
-from rendercanvas.glfw import RenderCanvas, run
-
+from rendercanvas.glfw import RenderCanvas, loop
 from rendercanvas.utils.cube import setup_drawing_sync
 
 
@@ -18,4 +17,4 @@ canvas.request_draw(draw_frame)
 
 
 if __name__ == "__main__":
-    run()
+    loop.run()

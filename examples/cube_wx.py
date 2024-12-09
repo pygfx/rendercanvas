@@ -5,7 +5,7 @@ Cube wx
 Run a wgpu example on the wx backend.
 """
 
-from rendercanvas.wx import RenderCanvas, run
+from rendercanvas.wx import RenderCanvas, loop
 
 from rendercanvas.utils.cube import setup_drawing_sync
 
@@ -18,4 +18,4 @@ canvas.request_draw(draw_frame)
 
 
 if __name__ == "__main__":
-    run()
+    loop.run()

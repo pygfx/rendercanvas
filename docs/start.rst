@@ -4,7 +4,7 @@ Getting started
 Installation
 ------------
 
-You can install ``rendercanvas`` via pip or similar.
+You can install ``rendercanvas`` via pip (or most other Python package managers).
 Python 3.9 or higher is required. Pypy is supported.
 
 .. code-block:: bash
@@ -12,14 +12,13 @@ Python 3.9 or higher is required. Pypy is supported.
     pip install rendercanvas
 
 
-Since most users will want to render something to screen, we recommend installing GLFW as well:
+Multiple backends are supported, including multiple GUI libraries, but none of these are installed by default. See :doc:`backends` for details.
+
+We recommend also installing `GLFW <https://github.com/FlorianRhiem/pyGLFW>`_, so that you have a lightweight backend available from the start:
 
 .. code-block:: bash
 
     pip install rendercanvas glfw
-
-
-Multiple backends are supported, including multiple GUI libraries, but none of these are installed by default. See :doc:`backends` for details.
 
 
 Creating a canvas
@@ -44,7 +43,7 @@ Rendering to the canvas
 The above just shows a grey window. We want to render to it by using wgpu or by generating images.
 
 Depending on the tool you'll use to render to the canvas, you need a different context.
-The purpose of the context to present the rendered result to the canvas.
+The purpose of the context is to present the rendered result to the canvas.
 There are currently two types of contexts.
 
 Rendering using bitmaps:

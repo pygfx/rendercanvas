@@ -4,7 +4,13 @@ Offscreen canvas. No scheduling.
 
 __all__ = ["RenderCanvas", "loop"]
 
-from .base import BaseRenderCanvas, BaseLoop, BaseTimer
+import time
+
+from .base import BaseCanvasGroup, BaseRenderCanvas, BaseLoop
+
+
+class OffscreenCanvasGroup(BaseCanvasGroup):
+    pass
 
 
 class ManualOffscreenRenderCanvas(BaseRenderCanvas):
@@ -12,6 +18,8 @@ class ManualOffscreenRenderCanvas(BaseRenderCanvas):
 
     Call the ``.draw()`` method to perform a draw and get the result.
     """
+
+    _rc_canvas_group = OffscreenCanvasGroup(None)  # no loop, no scheduling
 
     def __init__(self, *args, pixel_ratio=1.0, **kwargs):
         super().__init__(*args, **kwargs)
@@ -22,8 +30,8 @@ class ManualOffscreenRenderCanvas(BaseRenderCanvas):
 
     # %% Methods to implement RenderCanvas
 
-    def _rc_get_loop(self):
-        return None  # No scheduling
+    def _rc_gui_poll(self):
+        pass
 
     def _rc_get_present_methods(self):
         return {
@@ -77,7 +85,7 @@ class ManualOffscreenRenderCanvas(BaseRenderCanvas):
         This object can be converted to a numpy array (without copying data)
         using ``np.asarray(arr)``.
         """
-        loop._process_timers()  # Little trick to keep the event loop going
+        loop.process_tasks()  # Little trick to keep the event loop going
         self._draw_frame_and_present()
         return self._last_image
 
@@ -85,18 +93,9 @@ class ManualOffscreenRenderCanvas(BaseRenderCanvas):
 RenderCanvas = ManualOffscreenRenderCanvas
 
 
-class StubTimer(BaseTimer):
-    def _rc_init(self):
-        pass
-
-    def _rc_start(self):
-        pass
-
-    def _rc_stop(self):
-        pass
-
-
 class StubLoop(BaseLoop):
+    # Note: we can move this into its own module if it turns out we need this in more places.
+    #
     # If we consider the use-cases for using this offscreen canvas:
     #
     # * Using rendercanvas.auto in test-mode: in this case run() should not hang,
@@ -110,25 +109,34 @@ class StubLoop(BaseLoop):
     # In summary, we provide a call_later() and run() that behave pretty
     # well for the first case.
 
-    _TimerClass = StubTimer  # subclases must set this
+    def __init__(self):
+        super().__init__()
+        self._callbacks = []
 
-    def _process_timers(self):
-        # Running this loop processes any timers
-        for timer in list(BaseTimer._running_timers):
-            if timer.time_left <= 0:
-                timer._tick()
+    def process_tasks(self):
+        callbacks_to_run = []
+        new_callbacks = []
+        for etime, callback in self._callbacks:
+            if time.perf_counter() >= etime:
+                callbacks_to_run.append(callback)
+            else:
+                new_callbacks.append((etime, callback))
+        if callbacks_to_run:
+            self._callbacks = new_callbacks
+            for callback in callbacks_to_run:
+                callback()
 
     def _rc_run(self):
-        self._process_timers()
+        self.process_tasks()
 
     def _rc_stop(self):
-        pass
+        self._callbacks = []
 
-    def _rc_call_soon(self, callback):
-        super()._rc_call_soon(callback)
+    def _rc_add_task(self, async_func, name):
+        super()._rc_add_task(async_func, name)
 
-    def _rc_gui_poll(self):
-        pass
+    def _rc_call_later(self, delay, callback):
+        self._callbacks.append((time.perf_counter() + delay, callback))
 
 
 loop = StubLoop()
