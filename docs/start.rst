@@ -86,6 +86,9 @@ We recommend importing these from :doc:`rendercanvas.utils.asyncs <utils_asyncs>
 
 On the other hand, if you know your code always runs on the asyncio loop, you can fully make use of ``asyncio``. Dito for Trio.
 
+If you use Qt and get nervous from async code, no worries, when running on Qt, ``asyncio`` is not even imported. You can regard most async functions
+as syntactic sugar for pieces of code chained with ``call_later``. That's more or less how our async adapter works :)
+
 
 Freezing apps
 -------------
