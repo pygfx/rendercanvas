@@ -143,6 +143,7 @@ class BaseLoop:
         """Run an async function in the event-loop.
 
         All tasks are stopped when the loop stops.
+        See :ref:`async` for the limitations of async code in rendercanvas.
         """
         if not (callable(async_func) and iscoroutinefunction(async_func)):
             raise TypeError("add_task() expects an async function.")

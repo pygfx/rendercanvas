@@ -70,6 +70,23 @@ Rendering with wgpu:
         # ... wgpu code
 
 
+
+.. _async:
+
+Async
+-----
+
+A render canvas can be used in a fully async setting using e.g. Asyncio or Trio, or in an event-drived framework like Qt.
+If you like callbacks, ``loop.call_later()`` always works. If you like async, use ``loop.add_task()``. Event handlers can always be async.
+
+If you make use of async functions (co-routines), and want to keep your code portable accross
+different canvas backends, restrict your use of async features to ``sleep``  and ``Event``;
+these are the only features currently implemened in our async adapter utility.
+We recommend importing these from :doc:`rendercanvas.utils.asyncs <utils_asyncs>` or use ``sniffio`` to detect the library that they can be imported from.
+
+On the other hand, if you know your code always runs on the asyncio loop, you can fully make use of ``asyncio``. Dito for Trio.
+
+
 Freezing apps
 -------------
 
