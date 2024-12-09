@@ -21,7 +21,7 @@ for lib in ("PySide6", "PyQt6", "PySide2", "PyQt5"):
         pass
 
 
-from rendercanvas.qt import RenderCanvas, run
+from rendercanvas.qt import RenderCanvas, loop
 from rendercanvas.utils.cube import setup_drawing_sync
 
 
@@ -31,4 +31,4 @@ canvas.request_draw(draw_frame)
 
 
 if __name__ == "__main__":
-    run()
+    loop.run()

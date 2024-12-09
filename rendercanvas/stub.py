@@ -133,4 +133,3 @@ class ToplevelRenderCanvas(WrapperRenderCanvas):
 # Make available under a common name
 RenderCanvas = StubRenderCanvas
 loop = StubLoop()
-run = loop.run

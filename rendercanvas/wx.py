@@ -525,4 +525,3 @@ class WxRenderCanvas(WrapperRenderCanvas, wx.Frame):
 # Make available under a name that is the same for all gui backends
 RenderWidget = WxRenderWidget
 RenderCanvas = WxRenderCanvas
-run = loop.run  # backwards compat

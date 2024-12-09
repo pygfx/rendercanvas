@@ -120,4 +120,3 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
 # Make available under a name that is the same for all backends
 RenderCanvas = JupyterRenderCanvas
 loop = loop
-run = loop.run
