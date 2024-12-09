@@ -251,7 +251,7 @@ def test_offscreen_module():
 
     canvas_class = m.get_canvas_class()
     m.check_canvas(canvas_class)
-    assert canvas_class.name == "ManualOffscreenRenderCanvas"
+    assert canvas_class.name == "OffscreenRenderCanvas"
 
 
 def test_qt_module():

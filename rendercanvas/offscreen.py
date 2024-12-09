@@ -2,7 +2,7 @@
 Offscreen canvas. No scheduling.
 """
 
-__all__ = ["RenderCanvas", "loop"]
+__all__ = ["OffscreenRenderCanvas", "RenderCanvas", "loop"]
 
 import time
 
@@ -13,7 +13,7 @@ class OffscreenCanvasGroup(BaseCanvasGroup):
     pass
 
 
-class ManualOffscreenRenderCanvas(BaseRenderCanvas):
+class OffscreenRenderCanvas(BaseRenderCanvas):
     """An offscreen canvas intended for manual use.
 
     Call the ``.draw()`` method to perform a draw and get the result.
@@ -90,7 +90,7 @@ class ManualOffscreenRenderCanvas(BaseRenderCanvas):
         return self._last_image
 
 
-RenderCanvas = ManualOffscreenRenderCanvas
+RenderCanvas = OffscreenRenderCanvas
 
 
 class StubLoop(BaseLoop):

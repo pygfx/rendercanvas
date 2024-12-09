@@ -11,7 +11,7 @@ from testutils import is_pypy, run_tests
 
 
 def test_offscreen_selection_using_env_var():
-    from rendercanvas.offscreen import ManualOffscreenRenderCanvas
+    from rendercanvas.offscreen import OffscreenRenderCanvas
 
     ori = os.getenv("RENDERCANVAS_FORCE_OFFSCREEN")
     os.environ["RENDERCANVAS_FORCE_OFFSCREEN"] = "1"
@@ -24,12 +24,12 @@ def test_offscreen_selection_using_env_var():
             for value in ["", "0", "false", "False", "wut"]:
                 os.environ["RENDERCANVAS_FORCE_OFFSCREEN"] = value
                 module = select_backend()
-                assert module.RenderCanvas is not ManualOffscreenRenderCanvas
+                assert module.RenderCanvas is not OffscreenRenderCanvas
 
         for value in ["1", "true", "True"]:
             os.environ["RENDERCANVAS_FORCE_OFFSCREEN"] = value
             module = select_backend()
-            assert module.RenderCanvas is ManualOffscreenRenderCanvas
+            assert module.RenderCanvas is OffscreenRenderCanvas
 
     finally:
         if ori is not None:
@@ -37,7 +37,7 @@ def test_offscreen_selection_using_env_var():
 
 
 def test_offscreen_selection_using_legacyt_env_var():
-    from rendercanvas.offscreen import ManualOffscreenRenderCanvas
+    from rendercanvas.offscreen import OffscreenRenderCanvas
 
     ori1 = os.getenv("RENDERCANVAS_FORCE_OFFSCREEN")
     ori2 = os.getenv("WGPU_FORCE_OFFSCREEN")
@@ -53,12 +53,12 @@ def test_offscreen_selection_using_legacyt_env_var():
             for value in ["", "0", "false", "False", "wut"]:
                 os.environ["WGPU_FORCE_OFFSCREEN"] = value
                 module = select_backend()
-                assert module.RenderCanvas is not ManualOffscreenRenderCanvas
+                assert module.RenderCanvas is not OffscreenRenderCanvas
 
         for value in ["1", "true", "True"]:
             os.environ["WGPU_FORCE_OFFSCREEN"] = value
             module = select_backend()
-            assert module.RenderCanvas is ManualOffscreenRenderCanvas
+            assert module.RenderCanvas is OffscreenRenderCanvas
 
     finally:
         if ori1 is not None:

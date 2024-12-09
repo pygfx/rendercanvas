@@ -3,7 +3,7 @@ Support for rendering in a wxPython window. Provides a widget that
 can be used as a standalone window or in a larger GUI.
 """
 
-__all__ = ["RenderCanvas", "RenderWidget", "WxRenderWidget", "loop"]
+__all__ = ["RenderCanvas", "WxLoop", "WxRenderCanvas", "WxRenderWidget", "loop"]
 
 import sys
 import time

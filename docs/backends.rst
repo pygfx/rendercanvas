@@ -1,6 +1,70 @@
 Backends
 ========
 
+Overview
+--------
+
+The table below gives an overview of the names in the different ``rendercanvas`` backend modules.
+
+.. list-table::
+
+    *   - **backend module**
+        - **names**
+        - **purpose**
+    *   - ``auto``
+        - | ``RenderCanvas``
+          | ``loop``
+        - | Select a backend automatically.
+    *   - ``glfw``
+        - | ``GlfwRenderCanvas``
+          | ``RenderCanvas`` (alias)
+          | ``loop`` (an ``AsyncioLoop``)
+        - | A lightweight backend.
+    *   - ``jupyter``
+        - | ``JupyterRenderCanvas``
+          | ``RenderCanvas`` (alias)
+          | ``loop`` (an ``AsyncioLoop``)
+        - | Integrate in Jupyter notebook / lab.
+    *   - ``offscreen``
+        - | ``OffscreenRenderCanvas``
+          | ``RenderCanvas`` (alias)
+          | ``loop`` (a ``StubLoop``)
+        - | For offscreen rendering.
+    *   - ``qt``
+        - | ``QRenderCanvas`` (toplevel)
+          | ``RenderCanvas`` (alias)
+          | ``QRenderWidget`` (subwidget)
+          | ``QtLoop``
+          | ``loop``
+        - | Create a standalone canvas using Qt, or
+          | integrate a render canvas in a Qt application.
+    *   - ``wx``
+        - | ``WxRenderCanvas`` (toplevel)
+          | ``RenderCanvas`` (alias)
+          | ``WxRenderWidget`` (subwidget)
+          | ``WxLoop``
+          | ``loop``
+        - | Create a standalone canvas using wx, or
+          | integrate a render canvas in a wx application.
+
+
+There are also two loop-backends. These are mainly intended for use with the glfw backend:
+
+.. list-table::
+
+    *   - **backend module**
+        - **names**
+        - **purpose**
+    *   - ``asyncio``
+        - | ``AsyncoLoop``
+          | ``loop``
+        - | Provide a generic loop based on Asyncio.
+    *   - ``trio``
+        - | ``TrioLoop``
+          | ``loop``
+        - | Provide a loop based on Trio.
+
+
 The auto backend
 -----------------
 

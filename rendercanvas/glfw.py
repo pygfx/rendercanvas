@@ -7,7 +7,7 @@ On Linux, install the glfw lib using ``sudo apt install libglfw3``,
 or ``sudo apt install libglfw3-wayland`` when using Wayland.
 """
 
-__all__ = ["RenderCanvas", "loop"]
+__all__ = ["GlfwRenderCanvas", "RenderCanvas", "loop"]
 
 import sys
 import time

@@ -3,7 +3,7 @@ Support for rendering in a Jupyter widget. Provides a widget subclass that
 can be used as cell output, or embedded in an ipywidgets gui.
 """
 
-__all__ = ["RenderCanvas", "loop"]
+__all__ = ["JupyterRenderCanvas", "RenderCanvas", "loop"]
 
 import time
 
