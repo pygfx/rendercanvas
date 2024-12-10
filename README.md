@@ -22,6 +22,8 @@ See how the two windows above look the same? That's the idea; they also look the
 same to the code that renders to them. Yet, the GUI systems are very different
 (Qt vs glfw in this case). Now that's a powerful abstraction!
 
+Coming from `wgpu.gui`? Check [from_wgpu_canvas.md](from_wgpu_canvas.md).
+
 
 ## Purpose
 
