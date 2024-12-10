@@ -8,7 +8,7 @@ Simple example that uses the bitmap-context to show images of noise.
 # run_example = true
 
 import numpy as np
-from rendercanvas.pyside6 import RenderCanvas, loop
+from rendercanvas.auto import RenderCanvas, loop
 
 
 canvas = RenderCanvas(update_mode="continuous")
