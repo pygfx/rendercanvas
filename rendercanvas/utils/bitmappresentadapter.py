@@ -36,7 +36,8 @@ class BitmapPresentAdapter:
         self._texture_helper.set_texture_data(bitmap)
 
         if not self._context_is_configured:
-            self._context.configure(device=self._device, format="rgba8unorm")
+            format = self._context.get_preferred_format(self._device.adapter)
+            self._context.configure(device=self._device, format=format)
 
         target = self._context.get_current_texture().create_view()
         command_encoder = self._device.create_command_encoder()
