@@ -1,4 +1,4 @@
-Code for wgpu cube example
+``utils.cube``
 ==========================
 
 .. automodule:: rendercanvas.utils.cube

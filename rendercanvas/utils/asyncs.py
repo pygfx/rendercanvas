@@ -1,6 +1,14 @@
 """
-This module implements all async functionality that one can use in any backend.
-This uses sniffio to detect the async framework in use.
+This module implements all async functionality that one can use in any ``rendercanvas`` backend.
+This uses ``sniffio`` to detect the async framework in use.
+
+To give an idea how to use ``sniffio`` to get a generic async sleep function:
+
+.. code-block:: py
+
+    libname = sniffio.current_async_library()
+    sleep = sys.modules[libname].sleep
+
 """
 
 import sys
