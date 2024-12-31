@@ -92,6 +92,7 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
         return self._pixel_ratio
 
     def _rc_set_logical_size(self, width, height):
+        self._logical_size = width, height
         self.css_width = f"{width}px"
         self.css_height = f"{height}px"
 
