@@ -29,7 +29,7 @@ import rendercanvas.utils.bitmappresentadapter  # noqa: E402
 # -- Project information -----------------------------------------------------
 
 project = "rendercanvas"
-copyright = "2020-2024, Almar Klein, Korijn van Golen"
+copyright = "2020-2025, Almar Klein, Korijn van Golen"
 author = "Almar Klein, Korijn van Golen"
 release = rendercanvas.__version__
 
