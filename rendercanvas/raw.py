@@ -42,10 +42,6 @@ class RawLoop(BaseLoop):
 
     def _rc_run(self):
         while True:
-            # todo: how to stop
-            # todo: log error context
-            # todo: how to make sure all pending tasks are done without forgetting other tasks?
-
             self._event.clear()
 
             # Get wrapper for callback that is first to be called
