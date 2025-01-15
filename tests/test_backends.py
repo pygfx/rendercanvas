@@ -146,9 +146,9 @@ def test_meta():
             continue
         module_name = fname.split(".")[0]
         test_func_name = f"test_{module_name}_module"
-        assert (
-            test_func_name in all_test_names
-        ), f"Test missing for {module_name} module"
+        assert test_func_name in all_test_names, (
+            f"Test missing for {module_name} module"
+        )
 
 
 def test_ref_rc_methods():

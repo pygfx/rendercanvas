@@ -2,7 +2,7 @@
 Cube trio
 ---------
 
-Run a wgpu example on the glfw backend, and the trio loop
+Run a wgpu example on the glfw backend, and the trio loop.
 """
 
 import trio

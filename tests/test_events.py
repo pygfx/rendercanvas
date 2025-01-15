@@ -352,7 +352,7 @@ def test_mini_benchmark():
         ee.sync_flush()
     t2 = time.perf_counter() - t0
 
-    print(f"add_handler: {1000*t1:0.0f} ms, emit: {1000*t2:0.0f} ms")
+    print(f"add_handler: {1000 * t1:0.0f} ms, emit: {1000 * t2:0.0f} ms")
 
 
 if __name__ == "__main__":
