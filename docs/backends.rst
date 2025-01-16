@@ -55,10 +55,14 @@ There are also two loop-backends. These are mainly intended for use with the glf
     *   - **backend module**
         - **names**
         - **purpose**
+    *   - ``raw``
+        - | ``RawLoop``
+          | ``loop``
+        - | Provide a pure Python event loop.
     *   - ``asyncio``
         - | ``AsyncoLoop``
           | ``loop``
-        - | Provide a generic loop based on Asyncio.
+        - | Provide a generic loop based on Asyncio. Recommended.
     *   - ``trio``
         - | ``TrioLoop``
           | ``loop``
