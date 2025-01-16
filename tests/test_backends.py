@@ -192,6 +192,16 @@ def test_auto_module():
 # %% Test modules that only provide a loop
 
 
+def test_raw_module():
+    m = Module("raw")
+
+    assert "loop" in m.names
+    assert m.names["loop"]
+    loop_class = m.names["RawLoop"]
+    m.check_loop(loop_class)
+    assert loop_class.name == "RawLoop"
+
+
 def test_asyncio_module():
     m = Module("asyncio")
 
