@@ -2,6 +2,8 @@
 Some tests for the base loop and asyncio loop.
 """
 
+# ruff: noqa: N803
+
 import time
 import signal
 import asyncio
@@ -10,6 +12,7 @@ import threading
 from rendercanvas.base import BaseCanvasGroup, BaseRenderCanvas
 from rendercanvas.asyncio import AsyncioLoop
 from rendercanvas.trio import TrioLoop
+from rendercanvas.raw import RawLoop
 from rendercanvas.utils.asyncs import sleep as async_sleep
 from testutils import run_tests
 import trio
@@ -71,17 +74,19 @@ class RealRenderCanvas(BaseRenderCanvas):
         loop.call_soon(self._draw_frame_and_present)
 
 
-def test_run_loop_and_close_bc_no_canvases():
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
+def test_run_loop_and_close_bc_no_canvases(SomeLoop):
     # Run the loop without canvas; closes immediately
-    loop = AsyncioLoop()
+    loop = SomeLoop()
     loop.call_later(0.1, print, "hi from loop!")
     loop.run()
 
 
-def test_loop_detects_canvases():
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
+def test_loop_detects_canvases(SomeLoop):
     # After all canvases are closed, it can take one tick before its detected.
 
-    loop = AsyncioLoop()
+    loop = SomeLoop()
 
     group1 = CanvasGroup(loop)
     group2 = CanvasGroup(loop)
@@ -104,10 +109,11 @@ def test_loop_detects_canvases():
     assert len(loop.get_canvases()) == 3
 
 
-def test_run_loop_without_canvases():
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
+def test_run_loop_without_canvases(SomeLoop):
     # After all canvases are closed, it can take one tick before its detected.
 
-    loop = AsyncioLoop()
+    loop = SomeLoop()
     group = CanvasGroup(loop)
 
     # The loop is in its stopped state, but it fires up briefly to do one tick
@@ -147,10 +153,11 @@ def test_run_loop_without_canvases():
     assert 0.0 <= et < 0.15
 
 
-def test_run_loop_and_close_canvases():
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
+def test_run_loop_and_close_canvases(SomeLoop):
     # After all canvases are closed, it can take one tick before its detected.
 
-    loop = AsyncioLoop()
+    loop = SomeLoop()
     group = CanvasGroup(loop)
 
     canvas1 = FakeCanvas()
@@ -173,9 +180,10 @@ def test_run_loop_and_close_canvases():
     assert canvas2._events.is_closed
 
 
-def test_run_loop_and_close_by_loop_stop():
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
+def test_run_loop_and_close_by_loop_stop(SomeLoop):
     # Close, then wait at most one tick to close canvases, and another to conform close.
-    loop = AsyncioLoop()
+    loop = SomeLoop()
     group = CanvasGroup(loop)
 
     canvas1 = FakeCanvas()
@@ -197,9 +205,10 @@ def test_run_loop_and_close_by_loop_stop():
     assert canvas2._events.is_closed
 
 
-def test_run_loop_and_close_by_loop_stop_via_async():
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
+def test_run_loop_and_close_by_loop_stop_via_async(SomeLoop):
     # Close using a coro
-    loop = AsyncioLoop()
+    loop = SomeLoop()
     group = CanvasGroup(loop)
 
     canvas1 = FakeCanvas()
@@ -252,10 +261,11 @@ def test_run_loop_and_close_via_async_event():
     assert 0.35 < et < 0.65
 
 
-def test_run_loop_and_close_by_deletion():
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
+def test_run_loop_and_close_by_deletion(SomeLoop):
     # Make the canvases be deleted by the gc.
 
-    loop = AsyncioLoop()
+    loop = SomeLoop()
     group = CanvasGroup(loop)
 
     canvases = [FakeCanvas() for _ in range(2)]
@@ -297,10 +307,11 @@ def test_run_loop_and_close_by_deletion_real():
     assert 0.25 < et < 0.55
 
 
-def test_run_loop_and_interrupt():
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
+def test_run_loop_and_interrupt(SomeLoop):
     # Interrupt, calls close, can take one tick to close canvases, and anoter to conform close.
 
-    loop = AsyncioLoop()
+    loop = SomeLoop()
     group = CanvasGroup(loop)
 
     canvas1 = FakeCanvas()
@@ -329,10 +340,11 @@ def test_run_loop_and_interrupt():
     assert canvas2._events.is_closed
 
 
-def test_run_loop_and_interrupt_harder():
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
+def test_run_loop_and_interrupt_harder(SomeLoop):
     # In the next tick after the second interupt, it stops the loop without closing the canvases
 
-    loop = AsyncioLoop()
+    loop = SomeLoop()
     group = CanvasGroup(loop)
 
     canvas1 = FakeCanvas(refuse_close=True)
@@ -364,8 +376,9 @@ def test_run_loop_and_interrupt_harder():
     assert not canvas2._events.is_closed
 
 
-def test_loop_threaded():
-    t = threading.Thread(target=test_run_loop_and_close_by_loop_stop)
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
+def test_loop_threaded(SomeLoop):
+    t = threading.Thread(target=test_run_loop_and_close_by_loop_stop, args=(SomeLoop,))
     t.start()
     t.join()
 

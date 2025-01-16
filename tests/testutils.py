@@ -35,11 +35,20 @@ def run_tests(scope):
     caplog = LogCaptureHandler()
     for func in list(scope.values()):
         if callable(func) and func.__name__.startswith("test_"):
+            params = [
+                mark.args
+                for mark in getattr(func, "pytestmark", [])
+                if mark.name == "parametrize"
+            ]
             nargs = func.__code__.co_argcount
             argnames = [func.__code__.co_varnames[i] for i in range(nargs)]
             if not argnames:
                 print(f"Running {func.__name__} ...")
                 func()
+            elif nargs == 1 and len(params) == 1:
+                for arg in params[0][1]:
+                    print(f"Running {func.__name__} with {arg}...")
+                    func(arg)
             elif argnames == ["caplog"]:
                 print(f"Running {func.__name__} ...")
                 logging.root.addHandler(caplog)

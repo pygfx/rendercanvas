@@ -35,13 +35,18 @@ class CallAtWrapper:
 
 
 class RawLoop(BaseLoop):
-    def _rc_init(self):
+    def __init__(self):
+        super().__init__()
         self._queue = []  # prioriry queue
         self._should_stop = False
         self._event = threading.Event()
 
+    def _rc_init(self):
+        # This gets called when the first canvas is created (possibly after having run and stopped before).
+        pass
+
     def _rc_run(self):
-        while True:
+        while not self._should_stop:
             self._event.clear()
 
             # Get wrapper for callback that is first to be called
@@ -51,8 +56,8 @@ class RawLoop(BaseLoop):
                 wrapper = None
 
             if wrapper is None:
-                # Empty queue, wait a little
-                self._event.wait(0.1)
+                # Empty queue, exit
+                break
             else:
                 # Wait until its time for it to be called
                 wait_time = wrapper.time - time.perf_counter()
