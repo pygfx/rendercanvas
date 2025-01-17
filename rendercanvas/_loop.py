@@ -137,7 +137,7 @@ class BaseLoop:
                         del canvas
 
         finally:
-            self._stop()
+            self.__stop()
 
     def add_task(self, async_func, *args, name="unnamed"):
         """Run an async function in the event-loop.
@@ -260,9 +260,9 @@ class BaseLoop:
         self.__should_stop += 1
         if self.__should_stop >= 4:
             # If for some reason the tick method is no longer being called, but the loop is still running, we can still stop it by spamming stop() :)
-            self._stop()
+            self.__stop()
 
-    def _stop(self):
+    def __stop(self):
         """Move to the off-state."""
         # If we used the async adapter, cancel any tasks
         while self.__tasks:

@@ -22,7 +22,7 @@ from rendercanvas.utils.asyncs import sleep
 
 canvas = RenderCanvas(
     size=(640, 480),
-    title="Canvas events with $backend - $fps fps",
+    title="Canvas events with $backend on $loop - $fps fps",
     max_fps=10,
     update_mode="continuous",
     present_method="",
