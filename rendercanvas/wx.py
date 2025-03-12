@@ -257,7 +257,8 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
                     "display": int(get_alt_x11_display()),
                 }
         else:
-            raise RuntimeError(f"Cannot get wx surface info on {sys.platform}.")
+            logger.warning(f"Cannot get wx surface info on {sys.platform}.")
+            return None
 
     # %% Methods to implement RenderCanvas
 
@@ -268,17 +269,20 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
             loop.process_wx_events()
 
     def _rc_get_present_methods(self):
-        if self._surface_ids is None:
+        global _show_image_method_warning
+
+        if self._present_to_screen and self._surface_ids is None:
             # On wx it can take a little while for the handle to be available,
             # causing GetHandle() to be initially 0, so getting a surface will fail.
             etime = time.perf_counter() + 1
             while self.GetHandle() == 0 and time.perf_counter() < etime:
                 loop.process_wx_events()
             self._surface_ids = self._get_surface_ids()
-        global _show_image_method_warning
+            if self._surface_ids is None:
+                self._present_to_screen = False
 
         methods = {}
-        if self._present_to_screen and self._surface_ids:
+        if self._present_to_screen:
             methods["screen"] = self._surface_ids
         else:
             if _show_image_method_warning:

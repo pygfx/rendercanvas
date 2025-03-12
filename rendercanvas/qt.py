@@ -272,7 +272,8 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
                     "display": int(get_alt_x11_display()),
                 }
         else:
-            raise RuntimeError(f"Cannot get Qt surface info on {sys.platform}.")
+            logger.warning(f"Cannot get Qt surface info on {sys.platform}.")
+            return None
 
     # %% Qt methods
 
@@ -304,8 +305,11 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
 
     def _rc_get_present_methods(self):
         global _show_image_method_warning
-        if self._surface_ids is None:
+
+        if self._present_to_screen and self._surface_ids is None:
             self._surface_ids = self._get_surface_ids()
+            if self._surface_ids is None:
+                self._present_to_screen = False
 
         methods = {}
         if self._present_to_screen:
