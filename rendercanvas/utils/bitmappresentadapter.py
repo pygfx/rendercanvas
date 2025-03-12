@@ -10,7 +10,7 @@ class BitmapPresentAdapter:
     """An adapter to present a bitmap to a canvas using wgpu.
 
     This adapter can be used by context objects that want to present a bitmap, when the
-    canvas only supoorts presenting to screen.
+    canvas only supports presenting to screen.
     """
 
     def __init__(self, canvas, present_methods):
@@ -37,6 +37,10 @@ class BitmapPresentAdapter:
 
         if not self._context_is_configured:
             format = self._context.get_preferred_format(self._device.adapter)
+            # We don't want an srgb texture, because we assume the input bitmap is already srgb.
+            # AFAIK contexts always support both the regular and the srgb texture format variants
+            if format.endswith("-srgb"):
+                format = format[:-5]
             self._context.configure(device=self._device, format=format)
 
         target = self._context.get_current_texture().create_view()
