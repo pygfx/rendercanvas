@@ -242,7 +242,6 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
 
         self._is_closed = False
 
-        self.setAttribute(WA_PaintOnScreen, self._present_to_screen)
         self.setAutoFillBackground(False)
         self.setAttribute(WA_DeleteOnClose, True)
         self.setAttribute(WA_InputMethodEnabled, True)
@@ -272,7 +271,8 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
                     "display": int(get_alt_x11_display()),
                 }
         else:
-            raise RuntimeError(f"Cannot get Qt surface info on {sys.platform}.")
+            logger.warning(f"Cannot get Qt surface info on {sys.platform}.")
+            return None
 
     # %% Qt methods
 
@@ -304,12 +304,17 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
 
     def _rc_get_present_methods(self):
         global _show_image_method_warning
-        if self._surface_ids is None:
+
+        if self._present_to_screen and self._surface_ids is None:
             self._surface_ids = self._get_surface_ids()
+            if self._surface_ids is None:
+                self._present_to_screen = False
 
         methods = {}
         if self._present_to_screen:
             methods["screen"] = self._surface_ids
+            # Now is a good time to set WA_PaintOnScreen. Note that it implies WA_NativeWindow.
+            self.setAttribute(WA_PaintOnScreen, self._present_to_screen)
         else:
             if _show_image_method_warning:
                 logger.warning(_show_image_method_warning)
