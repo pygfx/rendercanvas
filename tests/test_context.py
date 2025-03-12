@@ -210,7 +210,7 @@ def test_bitmap_context():
 
 
 @pytest.mark.skipif(not can_use_wgpu_lib, reason="Needs wgpu lib")
-def test_bitmap_to_screen_adapter():
+def test_bitmap_present_adapter():
     # Create canvas and attach our special adapter canvas
     canvas = ManualOffscreenRenderCanvas()
     context = canvas.get_context(__name__ + ":SpecialContextWithWgpuAdapter")
