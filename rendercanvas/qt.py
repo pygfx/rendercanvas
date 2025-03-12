@@ -26,6 +26,7 @@ if libname:
     QtCore = importlib.import_module(".QtCore", libname)
     QtGui = importlib.import_module(".QtGui", libname)
     QtWidgets = importlib.import_module(".QtWidgets", libname)
+    WinIdChange = QtCore.QEvent.WinIdChange
     try:
         WA_PaintOnScreen = QtCore.Qt.WidgetAttribute.WA_PaintOnScreen
         WA_DeleteOnClose = QtCore.Qt.WidgetAttribute.WA_DeleteOnClose
@@ -223,6 +224,7 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         super().__init__(*args, **kwargs)
 
         # Determine present method
+        self._last_winid = None
         self._surface_ids = None
         if not present_method:
             self._present_to_screen = True
@@ -250,6 +252,15 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
 
         # Set size, title, etc.
         self._final_canvas_init()
+
+    def event(self, event):
+        if self._present_to_screen:
+            if event.type() == WinIdChange and self._last_winid is not None:
+                winid = int(self.winId())
+                if winid != self._last_winid:
+                    logger.warning(f"WinId changed from {self._last_winid} {winid}.")
+                    self._last_winid = winid
+        return super().event(event)
 
     def _get_surface_ids(self):
         if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
