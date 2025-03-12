@@ -242,7 +242,6 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
 
         self._is_closed = False
 
-        self.setAttribute(WA_PaintOnScreen, self._present_to_screen)
         self.setAutoFillBackground(False)
         self.setAttribute(WA_DeleteOnClose, True)
         self.setAttribute(WA_InputMethodEnabled, True)
@@ -314,6 +313,8 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         methods = {}
         if self._present_to_screen:
             methods["screen"] = self._surface_ids
+            # Now is a good time to set WA_PaintOnScreen. Note that it implies WA_NativeWindow.
+            self.setAttribute(WA_PaintOnScreen, self._present_to_screen)
         else:
             if _show_image_method_warning:
                 logger.warning(_show_image_method_warning)
