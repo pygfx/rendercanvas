@@ -238,6 +238,9 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         elif present_method == "screen":
             self._present_to_screen = True
         elif present_method == "bitmap":
+            global _show_image_method_warning
+
+            _show_image_method_warning = None
             self._present_to_screen = False
         else:
             raise ValueError(f"Invalid present_method {present_method}")
