@@ -181,8 +181,13 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         glfw.window_hint(glfw.CLIENT_API, glfw.NO_API)
         glfw.window_hint(glfw.RESIZABLE, True)
 
+        if "size" in kwargs.keys():
+            w, h = kwargs["size"]
+        else:
+            w, h = 640, 480
+
         # Create the window (the initial size may not be in logical pixels)
-        self._window = glfw.create_window(640, 480, "", None, None)
+        self._window = glfw.create_window(w, h, "", None, None)
 
         # Other internal variables
         self._changing_pixel_ratio = False
