@@ -417,7 +417,7 @@ class BaseRenderCanvas:
                     if method in ("skip", "screen"):
                         pass  # nothing we need to do
                     elif method == "fail":
-                        raise RuntimeError(method.get("message", "") or "present error")
+                        raise RuntimeError(result.get("message", "") or "present error")
                     else:
                         # Pass the result to the literal present method
                         func = getattr(self, f"_rc_present_{method}")
