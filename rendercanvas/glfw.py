@@ -147,7 +147,7 @@ def get_physical_size(window):
 
 
 def enable_glfw():
-    glfw.init()
+    glfw.init()  # this also resets all window hints
     glfw._rc_alive = True
 
 
@@ -180,6 +180,7 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         # Set window hints
         glfw.window_hint(glfw.CLIENT_API, glfw.NO_API)
         glfw.window_hint(glfw.RESIZABLE, True)
+        glfw.window_hint(glfw.VISIBLE, False)  # start hidden
 
         # Create the window (the initial size may not be in logical pixels)
         self._window = glfw.create_window(640, 480, "", None, None)
@@ -187,6 +188,7 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         # Other internal variables
         self._changing_pixel_ratio = False
         self._is_minimized = False
+        self._is_in_poll_events = False
 
         # Register callbacks. We may get notified too often, but that's
         # ok, they'll result in a single draw.
@@ -217,6 +219,9 @@ class GlfwRenderCanvas(BaseRenderCanvas):
 
         # Set size, title, etc.
         self._final_canvas_init()
+
+        # Now show the window
+        glfw.show_window(self._window)
 
     def _on_window_dirty(self, *args):
         self.request_draw()
@@ -297,7 +302,11 @@ class GlfwRenderCanvas(BaseRenderCanvas):
 
     def _rc_gui_poll(self):
         glfw.post_empty_event()  # Awake the event loop, if it's in wait-mode
-        glfw.poll_events()
+        try:
+            self._is_in_poll_events = True
+            glfw.poll_events()  # Note: this blocks when the window is being resized
+        finally:
+            self._is_in_poll_events = False
         self._maybe_close()
 
     def _rc_get_present_methods(self):
@@ -368,6 +377,15 @@ class GlfwRenderCanvas(BaseRenderCanvas):
     def _on_size_change(self, *args):
         self._determine_size()
         self.request_draw()
+        # During a resize, the glfw.poll_events() function blocks, so
+        # our event-loop is on pause. However, glfw still sends resize
+        # events, and we can use these to draw, to get a smoother
+        # experience. Note that if the user holds the mouse still while
+        # resizing, there are no draws. Also note that any animations
+        # that rely on the event-loop are paused (only animations
+        # updated in the draw callback are alive).
+        if self._is_in_poll_events and not self._is_minimized:
+            self._draw_frame_and_present()
 
     def _on_mouse_button(self, window, but, action, mods):
         # Map button being changed, which we use to update self._pointer_buttons.
