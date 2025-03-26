@@ -26,8 +26,8 @@ if libname:
     QtCore = importlib.import_module(".QtCore", libname)
     QtGui = importlib.import_module(".QtGui", libname)
     QtWidgets = importlib.import_module(".QtWidgets", libname)
-    WinIdChange = QtCore.QEvent.WinIdChange
     try:
+        # pyqt6
         WA_PaintOnScreen = QtCore.Qt.WidgetAttribute.WA_PaintOnScreen
         WA_DeleteOnClose = QtCore.Qt.WidgetAttribute.WA_DeleteOnClose
         WA_InputMethodEnabled = QtCore.Qt.WidgetAttribute.WA_InputMethodEnabled
@@ -35,7 +35,9 @@ if libname:
         KeyboardModifiers = QtCore.Qt.KeyboardModifier
         FocusPolicy = QtCore.Qt.FocusPolicy
         Keys = QtCore.Qt.Key
+        WinIdChange = QtCore.QEvent.Type.WinIdChange
     except AttributeError:
+        # pyside6
         WA_PaintOnScreen = QtCore.Qt.WA_PaintOnScreen
         WA_DeleteOnClose = QtCore.Qt.WA_DeleteOnClose
         WA_InputMethodEnabled = QtCore.Qt.WA_InputMethodEnabled
@@ -43,6 +45,7 @@ if libname:
         KeyboardModifiers = QtCore.Qt
         FocusPolicy = QtCore.Qt
         Keys = QtCore.Qt
+        WinIdChange = QtCore.QEvent.WinIdChange
 else:
     raise ImportError(
         "Before importing rendercanvas.qt, import one of PySide6/PySide2/PyQt6/PyQt5 to select a Qt toolkit."
