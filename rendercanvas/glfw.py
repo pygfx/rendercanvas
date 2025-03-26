@@ -174,7 +174,7 @@ class GlfwRenderCanvas(BaseRenderCanvas):
 
         if present_method == "bitmap":
             logger.warning(
-                "Ignoreing present_method 'bitmap'; glfw can only render to screen"
+                "Ignoring present_method 'bitmap'; glfw can only render to screen"
             )
 
         # Set window hints
