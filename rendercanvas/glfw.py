@@ -164,7 +164,10 @@ class GlfwCanvasGroup(BaseCanvasGroup):
             self.glfw.terminate()
         except Exception:
             pass
-        super().__del__()
+        try:
+            super().__del__()
+        except Exception:
+            pass  # object has no __del__
 
 
 class GlfwRenderCanvas(BaseRenderCanvas):
