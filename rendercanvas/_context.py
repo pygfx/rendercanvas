@@ -76,3 +76,7 @@ class ContextInterface:
 
         # This is a stub
         return {"method": "skip"}
+
+    def _release(self):
+        """Release resources. Called by the canvas when it's closed."""
+        pass

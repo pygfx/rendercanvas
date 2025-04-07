@@ -133,7 +133,7 @@ class BaseLoop:
                     for canvas in self.get_canvases():
                         if not getattr(canvas, "_rc_closed_by_loop", False):
                             canvas._rc_closed_by_loop = True
-                            canvas._rc_close()
+                            canvas.close()
                         del canvas
 
         finally:
