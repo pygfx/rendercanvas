@@ -66,7 +66,7 @@ class EventEmitter:
         self._event_handlers = defaultdict(list)
         self._closed = False
 
-    def _set_closed(self):
+    def _release(self):
         self._closed = True
         self._pending_events.clear()
         self._event_handlers.clear()
@@ -222,7 +222,7 @@ class EventEmitter:
                     callback(event)
         # Close?
         if event_type == "close":
-            self._set_closed()
+            self._release()
 
     async def close(self):
         """Close the event handler.

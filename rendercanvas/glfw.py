@@ -11,7 +11,6 @@ __all__ = ["GlfwRenderCanvas", "RenderCanvas", "loop"]
 
 import sys
 import time
-import atexit
 
 import glfw
 
@@ -151,14 +150,21 @@ def enable_glfw():
     glfw._rc_alive = True
 
 
-@atexit.register
-def terminate_glfw():
-    glfw.terminate()
-    glfw._rc_alive = False
-
-
 class GlfwCanvasGroup(BaseCanvasGroup):
-    pass
+    glfw = glfw  # make sure we can access the glfw module in the __del__
+
+    def __del__(self):
+        # Because this object is used as a class attribute (on the canvas), this
+        # __del__ method gets called later than a function registed to atexit.
+        # This is important when used in combination with wgpu, where the release of the surface
+        # should happen before the termination of glfw. On some systems this can otherwiser
+        # result in a segfault, see https://github.com/pygfx/pygfx/issues/642
+        try:
+            self.glfw._rc_alive = False
+            self.glfw.terminate()
+        except Exception:
+            pass
+        super().__del__()
 
 
 class GlfwRenderCanvas(BaseRenderCanvas):
@@ -260,7 +266,7 @@ class GlfwRenderCanvas(BaseRenderCanvas):
     def _maybe_close(self):
         if self._window is not None:
             if glfw.window_should_close(self._window):
-                self._rc_close()
+                self.close()
 
     def _set_logical_size(self, new_logical_size):
         if self._window is None:
@@ -341,10 +347,6 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         self._set_logical_size((float(width), float(height)))
 
     def _rc_close(self):
-        if not glfw._rc_alive:
-            # May not always be able to close the proper way on system exit
-            self._window = None
-            return
         if self._window is not None:
             glfw.destroy_window(self._window)  # not just glfw.hide_window
             self._window = None
@@ -353,14 +355,13 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         # But on some systems glfw needs a bit of time to properly close the window.
         if not self._rc_canvas_group.get_canvases():
             poll_glfw_briefly(0.05)
-            # Could also terminate glfw, but we don't know if the application is using glfw in other places.
-            # terminate_glfw()
 
     def _rc_get_closed(self):
         return self._window is None
 
     def _rc_set_title(self, title):
-        glfw.set_window_title(self._window, title)
+        if self._window is not None:
+            glfw.set_window_title(self._window, title)
 
     # %% Turn glfw events into rendercanvas events
 
@@ -565,14 +566,13 @@ class GlfwRenderCanvas(BaseRenderCanvas):
 
 def poll_glfw_briefly(poll_time=0.1):
     """Briefly poll glfw for a set amount of time.
-
     Intended to work around the bug that destroyed windows sometimes hang
     around if the mainloop exits: https://github.com/glfw/glfw/issues/1766
-
     I found that 10ms is enough, but make it 100ms just in case. You should
     only run this right after your mainloop stops.
-
     """
+    if not glfw._rc_alive:
+        return
     end_time = time.perf_counter() + poll_time
     while time.perf_counter() < end_time:
         glfw.wait_events_timeout(end_time - time.perf_counter())

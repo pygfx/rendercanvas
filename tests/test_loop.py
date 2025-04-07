@@ -44,7 +44,7 @@ class FakeCanvas:
     def _rc_gui_poll(self):
         pass
 
-    def _rc_close(self):
+    def close(self):
         # Called by the loop to close a canvas
         if not self.refuse_close:
             self.is_closed = True

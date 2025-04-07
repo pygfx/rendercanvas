@@ -180,7 +180,7 @@ class BaseRenderCanvas:
     def __del__(self):
         # On delete, we call the custom destroy method.
         try:
-            self._rc_close()
+            self.close()
         except Exception:
             pass
         # Since this is sometimes used in a multiple inheritance, the
@@ -438,6 +438,19 @@ class BaseRenderCanvas:
 
     def close(self):
         """Close the canvas."""
+        # Clear the draw-function, to avoid it holding onto e.g. wgpu objects.
+        self._draw_frame = None
+        # Clear the canvas context too.
+        if hasattr(self._canvas_context, "_release"):
+            # ContextInterface (and GPUCanvasContext) has _release()
+            try:
+                self._canvas_context._release()
+            except Exception:
+                pass
+        self._canvas_context = None
+        # Clean events. Should already have happened in loop, but the loop may not be running.
+        self._events._release()
+        # Let the subclass clean up.
         self._rc_close()
 
     def get_closed(self):
