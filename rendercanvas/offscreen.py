@@ -36,7 +36,7 @@ class OffscreenRenderCanvas(BaseRenderCanvas):
     def _rc_get_present_methods(self):
         return {
             "bitmap": {
-                "formats": ["rgba-u8"],
+                "formats": ["rgba-u8", "rgba-f16", "rgba-f32", "rgba-u16"],
             }
         }
 
