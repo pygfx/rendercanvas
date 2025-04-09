@@ -12,7 +12,9 @@ import numpy as np
 # %% Entrypoints (sync and async)
 
 
-def setup_drawing_sync(canvas, power_preference="high-performance", limits=None, format=None):
+def setup_drawing_sync(
+    canvas, power_preference="high-performance", limits=None, format=None
+):
     """Setup to draw a rotating cube on the given canvas.
 
     The given canvas must implement WgpuCanvasInterface, but nothing more.
@@ -23,7 +25,9 @@ def setup_drawing_sync(canvas, power_preference="high-performance", limits=None,
     device = adapter.request_device_sync(required_limits=limits)
 
     pipeline_layout, uniform_buffer, bind_groups = create_pipeline_layout(device)
-    pipeline_kwargs = get_render_pipeline_kwargs(canvas, device, pipeline_layout, format)
+    pipeline_kwargs = get_render_pipeline_kwargs(
+        canvas, device, pipeline_layout, format
+    )
 
     render_pipeline = device.create_render_pipeline(**pipeline_kwargs)
 
@@ -43,7 +47,9 @@ async def setup_drawing_async(canvas, limits=None, format=None):
     device = await adapter.request_device_async(required_limits=limits)
 
     pipeline_layout, uniform_buffer, bind_groups = create_pipeline_layout(device)
-    pipeline_kwargs = get_render_pipeline_kwargs(canvas, device, pipeline_layout, format)
+    pipeline_kwargs = get_render_pipeline_kwargs(
+        canvas, device, pipeline_layout, format
+    )
 
     render_pipeline = await device.create_render_pipeline_async(**pipeline_kwargs)
 
