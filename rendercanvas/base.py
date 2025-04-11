@@ -423,6 +423,10 @@ class BaseRenderCanvas:
                         func = getattr(self, f"_rc_present_{method}")
                         func(**result)
 
+        except GeneratorExit:
+            # This exception (which inherits from BaseException) allows a render system
+            # to silently cancel a draw, e.g. because the canvas is in a bad state.
+            pass
         finally:
             self.__is_drawing = False
 
