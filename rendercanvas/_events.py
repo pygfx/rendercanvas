@@ -22,8 +22,10 @@ class EventType(BaseEnum):
     resize = None  #: The canvas has changed size. Has 'width' and 'height' in logical pixels, 'pixel_ratio'.
     close = None  #: The canvas is closed. No additional fields.
     pointer_down = None  #: The pointing device is pressed down. Has 'x', 'y', 'button', 'butons', 'modifiers', 'ntouches', 'touches'.
-    pointer_up = None  #: The pointing device is released. Same fields as pointer_down.
-    pointer_move = None  #: The  pointing device is moved. Same fields as pointer_down.
+    pointer_up = None  #: The pointing device is released. Same fields as pointer_down. Can occur outside of the canvas.
+    pointer_move = None  #: The pointing device is moved. Same fields as pointer_down. Can occur outside of the canvas if the pointer is currently down.
+    pointer_enter = None  #: The pointing device is moved into the canvas.
+    pointer_leave = None  #: The pointing device is moved outside of the canvas (regardless of a button currently being pressed).
     double_click = None  #: A double-click / long-tap. This event looks like a pointer event, but without the touches.
     wheel = None  #: The mouse-wheel is used (scrolling), or the touchpad/touchscreen is scrolled/pinched. Has 'dx', 'dy', 'x', 'y', 'modifiers'.
     key_down = None  #: A key is pressed down. Has 'key', 'modifiers'.

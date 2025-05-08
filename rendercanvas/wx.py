@@ -166,7 +166,7 @@ class WxLoop(BaseLoop):
         return super()._rc_add_task(async_func, name)
 
     def _rc_call_later(self, delay, callback):
-        wx.CallLater(int(delay * 1000), callback)
+        wx.CallLater(max(int(delay * 1000), 1), callback)
 
     def process_wx_events(self):
         old_loop = wx.GUIEventLoop.GetActive()
@@ -225,6 +225,8 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
 
         self.Bind(wx.EVT_MOUSE_EVENTS, self._on_mouse_events)
         self.Bind(wx.EVT_MOTION, self._on_mouse_move)
+        self.Bind(wx.EVT_ENTER_WINDOW, self._on_mouse_enter)
+        self.Bind(wx.EVT_LEAVE_WINDOW, self._on_mouse_leave)
 
         self.Show()
         self._final_canvas_init()
@@ -475,11 +477,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
 
             ev.update({"dx": -dx, "dy": -dy})
 
-            self.submit_event(ev)
-        elif event_type == "pointer_move":
-            self.submit_event(ev)
-        else:
-            self.submit_event(ev)
+        self.submit_event(ev)
 
     def _on_mouse_events(self, event: wx.MouseEvent):
         event_type = event.GetEventType()
@@ -491,7 +489,16 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         self._mouse_event(event_type_name, event)
 
     def _on_mouse_move(self, event: wx.MouseEvent):
+        # On MacOS this event does not happen unless a button is pressed (i.e. dragging)
         self._mouse_event("pointer_move", event)
+
+    def _on_mouse_enter(self, event: wx.MouseEvent):
+        ev = {"event_type": "pointer_enter"}
+        self.submit_event(ev)
+
+    def _on_mouse_leave(self, event: wx.MouseEvent):
+        ev = {"event_type": "pointer_leave"}
+        self.submit_event(ev)
 
 
 class WxRenderCanvas(WrapperRenderCanvas, wx.Frame):

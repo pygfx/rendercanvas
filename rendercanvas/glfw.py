@@ -215,9 +215,11 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         self._key_modifiers = ()
         self._pointer_buttons = ()
         self._pointer_pos = 0, 0
+        self._pointer_inside = None
         self._double_click_state = {"clicks": 0}
         glfw.set_mouse_button_callback(self._window, weakbind(self._on_mouse_button))
         glfw.set_cursor_pos_callback(self._window, weakbind(self._on_cursor_pos))
+        glfw.set_cursor_enter_callback(self._window, weakbind(self._on_cursor_enter))
         glfw.set_scroll_callback(self._window, weakbind(self._on_scroll))
         glfw.set_key_callback(self._window, weakbind(self._on_key))
         glfw.set_char_callback(self._window, weakbind(self._on_char))
@@ -485,6 +487,15 @@ class GlfwRenderCanvas(BaseRenderCanvas):
             self.submit_event(ev)
 
     def _on_cursor_pos(self, window, x, y):
+        # Maybe trigger initial enter
+        if self._pointer_inside is None:
+            if glfw.get_window_attrib(window, glfw.HOVERED):
+                self._on_cursor_enter(window, True)
+
+        # Only process move events if inside or if drag-tracking
+        if not (self._pointer_inside or self._pointer_buttons):
+            return
+
         # Store pointer position in logical coordinates
         if self._screen_size_is_logical:
             self._pointer_pos = x, y
@@ -502,6 +513,11 @@ class GlfwRenderCanvas(BaseRenderCanvas):
             "touches": {},
         }
 
+        self.submit_event(ev)
+
+    def _on_cursor_enter(self, window, entered):
+        self._pointer_inside = bool(entered)
+        ev = {"event_type": "pointer_enter" if entered else "pointer_leave"}
         self.submit_event(ev)
 
     def _on_scroll(self, window, dx, dy):
