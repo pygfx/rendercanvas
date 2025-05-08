@@ -216,6 +216,7 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         self._pointer_buttons = ()
         self._pointer_pos = 0, 0
         self._pointer_inside = None
+        self._pointer_lock = False
         self._double_click_state = {"clicks": 0}
         glfw.set_mouse_button_callback(self._window, weakbind(self._on_mouse_button))
         glfw.set_cursor_pos_callback(self._window, weakbind(self._on_cursor_pos))
@@ -407,6 +408,16 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         }
         button = button_map.get(but, 0)
 
+        # Handler pointer locking
+        if self._pointer_lock:
+            if action == glfw.RELEASE:
+                self._pointer_lock = False
+            return
+        elif not self._pointer_inside:
+            # This press is to select the window (regaining focus)
+            self._pointer_lock = True
+            return
+
         if action == glfw.PRESS:
             event_type = "pointer_down"
             buttons = set(self._pointer_buttons)
@@ -440,6 +451,9 @@ class GlfwRenderCanvas(BaseRenderCanvas):
     def _follow_double_click(self, action, button):
         # If a sequence of down-up-down-up is made in nearly the same
         # spot, and within a short time, we emit the double-click event.
+
+        if self._pointer_lock:
+            return
 
         x, y = self._pointer_pos[0], self._pointer_pos[1]
         state = self._double_click_state
@@ -487,6 +501,9 @@ class GlfwRenderCanvas(BaseRenderCanvas):
             self.submit_event(ev)
 
     def _on_cursor_pos(self, window, x, y):
+        if self._pointer_lock:
+            return
+
         # Maybe trigger initial enter
         if self._pointer_inside is None:
             if glfw.get_window_attrib(window, glfw.HOVERED):

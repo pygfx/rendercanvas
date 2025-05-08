@@ -210,6 +210,8 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
             raise ValueError(f"Invalid present_method {present_method}")
 
         self._is_closed = False
+        self._pointer_inside = None
+        self._is_pointer_inside_according_to_wx = False
 
         # We keep a timer to prevent draws during a resize. This prevents
         # issues with mismatching present sizes during resizing (on Linux).
@@ -225,8 +227,10 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
 
         self.Bind(wx.EVT_MOUSE_EVENTS, self._on_mouse_events)
         self.Bind(wx.EVT_MOTION, self._on_mouse_move)
-        self.Bind(wx.EVT_ENTER_WINDOW, self._on_mouse_enter)
-        self.Bind(wx.EVT_LEAVE_WINDOW, self._on_mouse_leave)
+        self.Bind(wx.EVT_ENTER_WINDOW, self._on_window_enter)
+        self.Bind(wx.EVT_LEAVE_WINDOW, self._on_window_enter)
+        self.Bind(wx.EVT_SET_FOCUS, self._on_focus)
+        self.Bind(wx.EVT_KILL_FOCUS, self._on_focus)
 
         self.Show()
         self._final_canvas_init()
@@ -492,13 +496,34 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         # On MacOS this event does not happen unless a button is pressed (i.e. dragging)
         self._mouse_event("pointer_move", event)
 
-    def _on_mouse_enter(self, event: wx.MouseEvent):
-        ev = {"event_type": "pointer_enter"}
-        self.submit_event(ev)
+    def _on_window_enter(self, event: wx.MouseEvent):
+        if event.GetEventType() == wx.wxEVT_ENTER_WINDOW:
+            pointer_inside = True
+            ev = {"event_type": "pointer_enter"}
+        else:  # event.GetEventType() == wx.wxEVT_LEAVE_WINDOW
+            pointer_inside = False
+            ev = {"event_type": "pointer_leave"}
 
-    def _on_mouse_leave(self, event: wx.MouseEvent):
-        ev = {"event_type": "pointer_leave"}
-        self.submit_event(ev)
+        # Track the state of wx
+        self._is_pointer_inside_according_to_wx = pointer_inside
+
+        # Update our state only if we have focus
+        if self.HasFocus() and pointer_inside != self._pointer_inside:
+            self._pointer_inside = pointer_inside
+            self.submit_event(ev)
+
+    def _on_focus(self, event: wx.FocusEvent):
+        if event.GetEventType() == wx.wxEVT_SET_FOCUS:
+            if self._is_pointer_inside_according_to_wx:
+                if not self._pointer_inside:
+                    ev = {"event_type": "pointer_enter"}
+                    self._pointer_inside = True
+                    self.submit_event(ev)
+        else:  # event.GetEventType() == wx.wxEVT_KILL_FOCUS
+            if self._pointer_inside:
+                ev = {"event_type": "pointer_leave"}
+                self._pointer_inside = False
+                self.submit_event(ev)
 
 
 class WxRenderCanvas(WrapperRenderCanvas, wx.Frame):
