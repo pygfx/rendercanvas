@@ -8,6 +8,7 @@ __all__ = ["JupyterRenderCanvas", "RenderCanvas", "loop"]
 import time
 
 from .base import BaseCanvasGroup, BaseRenderCanvas
+from ._events import EventType
 from .asyncio import loop
 
 import numpy as np
@@ -32,6 +33,7 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
         self._logical_size = 0, 0
         self._is_closed = False
         self._draw_request_time = 0
+        self._rendercanvas_event_types = set(EventType)
 
         # Set size, title, etc.
         self._final_canvas_init()
@@ -115,7 +117,10 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
             self._pixel_ratio = event["pixel_ratio"]
             self._logical_size = event["width"], event["height"]
 
-        self.submit_event(event)
+        # Only submit events that rendercanvas known. Otherwise, if new events are added
+        # to jupyter_rfb that rendercanvas does not (yet) know, rendercanvas will complain.
+        if event_type in self._rendercanvas_event_types:
+            self.submit_event(event)
 
 
 # Make available under a name that is the same for all backends
