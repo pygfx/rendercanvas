@@ -103,6 +103,21 @@ KEY_MAP_MOD = {
     glfw.KEY_RIGHT_SUPER: "Meta",
 }
 
+CURSOR_MAP = {
+    "default": None,
+    # "arrow": glfw.ARROW_CURSOR,  # CSS only has 'default', not 'arrow'
+    "text": glfw.IBEAM_CURSOR,
+    "crosshair": glfw.CROSSHAIR_CURSOR,
+    "pointer": glfw.POINTING_HAND_CURSOR,
+    "ew-resize": glfw.RESIZE_EW_CURSOR,
+    "ns-resize": glfw.RESIZE_NS_CURSOR,
+    "nesw-resize": glfw.RESIZE_NESW_CURSOR,
+    "nwse-resize": glfw.RESIZE_NWSE_CURSOR,
+    # "": glfw.RESIZE_ALL_CURSOR,  # Looks like 'grabbing' in CSS
+    "not-allowed": glfw.NOT_ALLOWED_CURSOR,
+    "none": None,  # handled in method
+}
+
 
 def get_glfw_present_methods(window):
     if sys.platform.startswith("win"):
@@ -198,6 +213,7 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         self._changing_pixel_ratio = False
         self._is_minimized = False
         self._is_in_poll_events = False
+        self._cursor_object = None
 
         # Register callbacks. We may get notified too often, but that's
         # ok, they'll result in a single draw.
@@ -368,6 +384,26 @@ class GlfwRenderCanvas(BaseRenderCanvas):
     def _rc_set_title(self, title):
         if self._window is not None:
             glfw.set_window_title(self._window, title)
+
+    def _rc_set_cursor(self, cursor):
+        if self._cursor_object is not None:
+            glfw.destroy_cursor(self._cursor_object)
+            self._cursor_object = None
+
+        cursor_flag = CURSOR_MAP.get(cursor)
+        if cursor == "none":
+            # Create a custom cursor that's simply empty
+            image = memoryview(bytearray(8 * 8 * 4))
+            image = image.cast("B", shape=(8, 8, 4))
+            image_for_glfw_wrapper = image.shape[1], image.shape[0], image.tolist()
+            self._cursor_object = glfw.create_cursor(image_for_glfw_wrapper, 0, 0)
+        elif cursor_flag is None:
+            # The default (arrow)
+            self._cursor_object = None
+        else:
+            self._cursor_object = glfw.create_standard_cursor(cursor_flag)
+
+        glfw.set_cursor(self._window, self._cursor_object)
 
     # %% Turn glfw events into rendercanvas events
 

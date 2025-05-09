@@ -116,6 +116,9 @@ class StubRenderCanvas(BaseRenderCanvas):
     def _rc_set_title(self, title):
         pass
 
+    def _rc_set_cursor(self, cursor):
+        pass
+
 
 class ToplevelRenderCanvas(WrapperRenderCanvas):
     """

@@ -7,10 +7,6 @@ RenderCanvas: one canvas API, multiple backends.
 from ._version import __version__, version_info
 from . import _coreutils
 from ._events import EventType
-from .base import BaseRenderCanvas, BaseLoop
+from .base import BaseRenderCanvas, BaseLoop, CursorShape
 
-__all__ = [
-    "BaseLoop",
-    "BaseRenderCanvas",
-    "EventType",
-]
+__all__ = ["BaseLoop", "BaseRenderCanvas", "CursorShape", "EventType"]
