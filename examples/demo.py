@@ -19,6 +19,8 @@ import time
 from rendercanvas.auto import RenderCanvas, loop
 from rendercanvas.utils.cube import setup_drawing_sync
 from rendercanvas.utils.asyncs import sleep
+import rendercanvas
+
 
 canvas = RenderCanvas(
     size=(640, 480),
@@ -31,6 +33,9 @@ canvas = RenderCanvas(
 
 draw_frame = setup_drawing_sync(canvas)
 canvas.request_draw(draw_frame)
+
+# Note: in this demo we listen to all events (using '*'). In general
+# you want to select one or more specific events to handle.
 
 
 @canvas.add_event_handler("*")
@@ -54,6 +59,15 @@ async def process_event(event):
             print("Async sleep ... zzzz")
             await sleep(2)
             print("waking up")
+        elif event["key"] == "c":
+            # Swap cursor
+            shapes = list(rendercanvas.CursorShape)
+            canvas.cursor_index = getattr(canvas, "cursor_index", -1) + 1
+            if canvas.cursor_index >= len(shapes):
+                canvas.cursor_index = 0
+            cursor = shapes[canvas.cursor_index]
+            canvas.set_cursor(cursor)
+            print(f"Cursor: {cursor!r}")
     elif event["event_type"] == "close":
         # Should see this exactly once, either when pressing escape, or
         # when pressing the window close button.
