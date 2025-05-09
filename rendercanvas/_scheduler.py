@@ -10,7 +10,7 @@ from .utils.asyncs import sleep, Event
 
 
 class UpdateMode(BaseEnum):
-    """The different modes to schedule draws for the canvas."""
+    """The UpdateMode enum specifies the different modes to schedule draws for the canvas."""
 
     manual = None  #: Draw events are never scheduled. Draws only happen when you ``canvas.force_draw()``, and maybe when the GUI system issues them (e.g. when resizing).
     ondemand = None  #: Draws are only scheduled when ``canvas.request_draw()`` is called when an update is needed. Safes your laptop battery. Honours ``min_fps`` and ``max_fps``.
@@ -48,7 +48,9 @@ class Scheduler:
     # Note that any extra draws, e.g. via force_draw() or due to window resizes,
     # don't affect the scheduling loop; they are just extra draws.
 
-    def __init__(self, canvas, events, *, mode="ondemand", min_fps=1, max_fps=30):
+    def __init__(
+        self, canvas, events, *, update_mode="ondemand", min_fps=0, max_fps=30
+    ):
         self.name = f"{canvas.__class__.__name__} scheduler"
 
         # We don't keep a ref to the canvas to help gc. This scheduler object can be
@@ -58,13 +60,7 @@ class Scheduler:
         # ... = canvas.get_context() -> No, context creation should be lazy!
 
         # Scheduling variables
-        if mode not in UpdateMode:
-            raise ValueError(
-                f"Invalid update_mode '{mode}', must be in {set(UpdateMode)}."
-            )
-        self._mode = mode
-        self._min_fps = float(min_fps)
-        self._max_fps = float(max_fps)
+        self.set_update_mode(update_mode, min_fps=min_fps, max_fps=max_fps)
         self._draw_requested = True  # Start with a draw in ondemand mode
         self._async_draw_event = None
 
@@ -85,6 +81,20 @@ class Scheduler:
             return None
         else:
             return canvas
+
+    def set_update_mode(self, update_mode, *, min_fps=None, max_fps=None):
+        update_mode = str(update_mode)
+        if update_mode not in UpdateMode:
+            raise ValueError(
+                f"Invalid update_mode '{update_mode}', must be in {set(UpdateMode)}."
+            )
+        self._mode = update_mode
+
+        if min_fps is not None:
+            self._min_fps = max(0.0, float(min_fps))
+
+        if max_fps is not None:
+            self._max_fps = max(1, float(max_fps))
 
     def request_draw(self):
         """Request a new draw to be done. Only affects the 'ondemand' mode."""

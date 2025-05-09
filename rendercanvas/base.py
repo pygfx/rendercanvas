@@ -7,10 +7,11 @@ __all__ = ["BaseLoop", "BaseRenderCanvas", "WrapperRenderCanvas"]
 import sys
 import weakref
 import importlib
+from typing import Optional, Tuple
 
 from ._events import EventEmitter, EventType  # noqa: F401
 from ._loop import BaseLoop
-from ._scheduler import Scheduler
+from ._scheduler import Scheduler, UpdateMode
 from ._coreutils import logger, log_exception
 
 
@@ -75,9 +76,8 @@ class BaseRenderCanvas:
         size (tuple): the logical size (width, height) of the canvas.
         title (str): The title of the canvas. Can use '$backend' to show the RenderCanvas class name,
             and '$fps' to show the fps.
-        update_mode (EventType): The mode for scheduling draws and events. Default 'ondemand'.
-        min_fps (float): A minimal frames-per-second to use when the ``update_mode`` is 'ondemand'.
-            The default is 1: even without draws requested, it still draws every second.
+        update_mode (UpdateMode): The mode for scheduling draws and events. Default 'ondemand'.
+        min_fps (float): A minimal frames-per-second to use when the ``update_mode`` is 'ondemand'. The default is 0:
         max_fps (float): A maximal frames-per-second to use when the ``update_mode`` is 'ondemand'
             or 'continuous'. The default is 30, which is usually enough.
         vsync (bool): Whether to sync the draw with the monitor update. Helps
@@ -107,13 +107,13 @@ class BaseRenderCanvas:
     def __init__(
         self,
         *args,
-        size=(640, 480),
-        title="$backend",
-        update_mode="ondemand",
-        min_fps=1.0,
-        max_fps=30.0,
-        vsync=True,
-        present_method=None,
+        size: Tuple[int] = (640, 480),
+        title: str = "$backend",
+        update_mode: UpdateMode = "ondemand",
+        min_fps: float = 0.0,
+        max_fps: float = 30.0,
+        vsync: bool = True,
+        present_method: Optional[str] = None,
         **kwargs,
     ):
         # Initialize superclass. Note that super() can be e.g. a QWidget, RemoteFrameBuffer, or object.
@@ -151,7 +151,7 @@ class BaseRenderCanvas:
                 self._events,
                 min_fps=min_fps,
                 max_fps=max_fps,
-                mode=update_mode,
+                update_mode=update_mode,
             )
             self._rc_canvas_group._register_canvas(self, self.__scheduler.get_task())
 
@@ -334,6 +334,17 @@ class BaseRenderCanvas:
         Cen be overriden by subclassing, or by passing a callable to request_draw().
         """
         pass
+
+    def set_update_mode(self, update_mode, *, min_fps=None, max_fps=None):
+        """Set the update mode for scheduling draws.
+
+        Arguments:
+            update_mode (update_mode): See :obj:`rendercanvas.UpdateMode`:
+            min_fps (float): The minimum fps with update mode 'ondemand'.
+            max_fps (float): The maximum fps with update mode 'ondemand' and 'continuous'.
+
+        """
+        self.__scheduler.set_update_mode(update_mode, min_fps=min_fps, max_fps=max_fps)
 
     def request_draw(self, draw_function=None):
         """Schedule a new draw event.
