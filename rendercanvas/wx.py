@@ -109,6 +109,19 @@ KEY_MAP = {
     wx.WXK_TAB: "Tab",
 }
 
+CURSOR_MAP = {
+    "default": None,
+    "text": wx.CURSOR_IBEAM,
+    "crosshair": wx.CURSOR_CROSS,
+    "pointer": wx.CURSOR_HAND,
+    "ew-resize": wx.CURSOR_SIZEWE,
+    "ns-resize": wx.CURSOR_SIZENS,
+    "nesw-resize": wx.CURSOR_SIZENESW,
+    "nwse-resize": wx.CURSOR_SIZENWSE,
+    "not-allowed": wx.CURSOR_NO_ENTRY,
+    "none": wx.CURSOR_BLANK,
+}
+
 
 def enable_hidpi():
     """Enable high-res displays."""
@@ -355,6 +368,14 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         parent = self.Parent
         if isinstance(parent, WxRenderCanvas):
             parent.SetTitle(title)
+
+    def _rc_set_cursor(self, cursor):
+        cursor_flag = CURSOR_MAP.get(cursor)
+        if cursor_flag is None:
+            self.SetCursor(wx.NullCursor)  # System default
+        else:
+            cursor_object = wx.Cursor(cursor_flag)
+            self.SetCursor(cursor_object)
 
     # %% Turn Qt events into rendercanvas events
 

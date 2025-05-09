@@ -105,6 +105,9 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
     def _rc_set_title(self, title):
         pass  # not supported yet
 
+    def _rc_set_cursor(self, cursor):
+        self.cursor = cursor
+
     # %% Turn jupyter_rfb events into rendercanvas events
 
     def handle_event(self, event):
