@@ -22,8 +22,10 @@ class EventType(BaseEnum):
     resize = None  #: The canvas has changed size. Has 'width' and 'height' in logical pixels, 'pixel_ratio'.
     close = None  #: The canvas is closed. No additional fields.
     pointer_down = None  #: The pointing device is pressed down. Has 'x', 'y', 'button', 'butons', 'modifiers', 'ntouches', 'touches'.
-    pointer_up = None  #: The pointing device is released. Same fields as pointer_down.
-    pointer_move = None  #: The  pointing device is moved. Same fields as pointer_down.
+    pointer_up = None  #: The pointing device is released. Same fields as pointer_down. Can occur outside of the canvas.
+    pointer_move = None  #: The pointing device is moved. Same fields as pointer_down. Can occur outside of the canvas if the pointer is currently down.
+    pointer_enter = None  #: The pointing device is moved into the canvas.
+    pointer_leave = None  #: The pointing device is moved outside of the canvas (regardless of a button currently being pressed).
     double_click = None  #: A double-click / long-tap. This event looks like a pointer event, but without the touches.
     wheel = None  #: The mouse-wheel is used (scrolling), or the touchpad/touchscreen is scrolled/pinched. Has 'dx', 'dy', 'x', 'y', 'modifiers'.
     key_down = None  #: A key is pressed down. Has 'key', 'modifiers'.
@@ -38,6 +40,9 @@ class EventType(BaseEnum):
         None  #: Event emitted right before a draw is performed. Has no extra fields.
     )
     animate = None  #: Animation event. Has 'step' representing the step size in seconds. This is stable, except when the 'catch_up' field is nonzero.
+
+
+valid_event_types = set(EventType)
 
 
 class EventEmitter:
@@ -125,7 +130,7 @@ class EventEmitter:
         for type in types:
             if not isinstance(type, str):
                 raise TypeError(f"Event types must be str, but got {type}")
-            if not (type == "*" or type in EventType):
+            if not (type == "*" or type in valid_event_types):
                 raise ValueError(f"Adding handler with invalid event_type: '{type}'")
 
         def decorator(_callback):
@@ -166,7 +171,7 @@ class EventEmitter:
         if self._closed:
             return
         event_type = event["event_type"]
-        if event_type not in EventType:
+        if event_type not in valid_event_types:
             raise ValueError(f"Submitting with invalid event_type: '{event_type}'")
 
         event.setdefault("time_stamp", time.perf_counter())

@@ -34,6 +34,7 @@ if libname:
         PreciseTimer = QtCore.Qt.TimerType.PreciseTimer
         KeyboardModifiers = QtCore.Qt.KeyboardModifier
         FocusPolicy = QtCore.Qt.FocusPolicy
+        CursorShape = QtCore.Qt.CursorShape
         Keys = QtCore.Qt.Key
         WinIdChange = QtCore.QEvent.Type.WinIdChange
     except AttributeError:
@@ -44,6 +45,7 @@ if libname:
         PreciseTimer = QtCore.Qt.PreciseTimer
         KeyboardModifiers = QtCore.Qt
         FocusPolicy = QtCore.Qt
+        CursorShape = QtCore.Qt
         Keys = QtCore.Qt
         WinIdChange = QtCore.QEvent.WinIdChange
 else:
@@ -124,6 +126,20 @@ KEY_MAP = {
     int(Keys.Key_ScrollLock): "ScrollLock",
     int(Keys.Key_Tab): "Tab",
 }
+
+CURSOR_MAP = {
+    "default": CursorShape.ArrowCursor,
+    "text": CursorShape.IBeamCursor,
+    "crosshair": CursorShape.CrossCursor,
+    "pointer": CursorShape.PointingHandCursor,
+    "ew-resize": CursorShape.SizeHorCursor,
+    "ns-resize": CursorShape.SizeVerCursor,
+    "nesw-resize": CursorShape.SizeBDiagCursor,
+    "nwse-resize": CursorShape.SizeFDiagCursor,
+    "not-allowed": CursorShape.ForbiddenCursor,
+    "none": CursorShape.BlankCursor,
+}
+
 
 BITMAP_FORMAT_MAP = {
     "rgba-u8": QtGui.QImage.Format.Format_RGBA8888,
@@ -441,6 +457,13 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         if isinstance(parent, QRenderCanvas):
             parent.setWindowTitle(title)
 
+    def _rc_set_cursor(self, cursor):
+        cursor_flag = CURSOR_MAP.get(cursor)
+        if cursor_flag is None:
+            self.unsetCursor()
+        else:
+            self.setCursor(cursor_flag)
+
     # %% Turn Qt events into rendercanvas events
 
     def _key_event(self, event_type, event):
@@ -518,6 +541,14 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
 
     def mouseReleaseEvent(self, event):  # noqa: N802
         self._mouse_event("pointer_up", event)
+
+    def enterEvent(self, event):  # noqa: N802
+        ev = {"event_type": "pointer_enter"}
+        self.submit_event(ev)
+
+    def leaveEvent(self, event):  # noqa: N802
+        ev = {"event_type": "pointer_leave"}
+        self.submit_event(ev)
 
     def mouseDoubleClickEvent(self, event):  # noqa: N802
         super().mouseDoubleClickEvent(event)

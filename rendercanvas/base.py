@@ -12,7 +12,7 @@ from typing import Optional, Tuple
 from ._events import EventEmitter, EventType  # noqa: F401
 from ._loop import BaseLoop
 from ._scheduler import Scheduler, UpdateMode
-from ._coreutils import logger, log_exception
+from ._coreutils import logger, log_exception, BaseEnum
 
 
 # Notes on naming and prefixes:
@@ -24,6 +24,25 @@ from ._coreutils import logger, log_exception
 # * `._private_method`: Private methods for scheduler and subclasses.
 # * `.__private_attr`: Private to exactly this class.
 # * `._rc_method`: Methods that the subclass must implement.
+
+
+class CursorShape(BaseEnum):
+    """The CursorShape enum specifies the suppported cursor shapes, following CSS cursor names."""
+
+    default = None  #: The platform-dependent default cursor, typically an arrow.
+    text = None  #: The text input I-beam cursor shape.
+    crosshair = None  #:
+    pointer = None  #: The pointing hand cursor shape.
+    ew_resize = "ew-resize"  #: The horizontal resize/move arrow shape.
+    ns_resize = "ns-resize"  #: The vertical resize/move arrow shape.
+    nesw_resize = (
+        "nesw-resize"  #: The top-left to bottom-right diagonal resize/move arrow shape.
+    )
+    nwse_resize = (
+        "nwse-resize"  #: The top-right to bottom-left diagonal resize/move arrow shape.
+    )
+    not_allowed = "not-allowed"  #: The operation-not-allowed shape.
+    none = "none"  #: The cursor is hidden.
 
 
 class BaseCanvasGroup:
@@ -497,6 +516,22 @@ class BaseRenderCanvas:
             title = title.replace("$" + k, v)
         self._rc_set_title(title)
 
+    def set_cursor(self, cursor):
+        """Set the cursor shape for the mouse pointer.
+
+        See :obj:`rendercanvas.CursorShape`:
+        """
+        if cursor is None:
+            cursor = "default"
+        if not isinstance(cursor, str):
+            raise TypeError("Canvas cursor must be str.")
+        cursor = cursor.lower().replace("_", "-")
+        if cursor not in CursorShape:
+            raise ValueError(
+                f"Canvas cursor {cursor!r} not known, must be one of {CursorShape}"
+            )
+        self._rc_set_cursor(cursor)
+
     # %% Methods for the subclass to implement
 
     def _rc_gui_poll(self):
@@ -604,6 +639,13 @@ class BaseRenderCanvas:
         """
         pass
 
+    def _rc_set_cursor(self, cursor):
+        """Set the cursor shape. May be ignored.
+
+        The default implementation does nothing.
+        """
+        pass
+
 
 class WrapperRenderCanvas(BaseRenderCanvas):
     """A base render canvas for top-level windows that wrap a widget, as used in e.g. Qt and wx.
@@ -652,6 +694,9 @@ class WrapperRenderCanvas(BaseRenderCanvas):
 
     def set_title(self, *args):
         self._subwidget.set_title(*args)
+
+    def set_cursor(self, *args):
+        self._subwidget.set_cursor(*args)
 
     def close(self):
         self._subwidget.close()

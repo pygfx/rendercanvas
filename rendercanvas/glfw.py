@@ -103,6 +103,21 @@ KEY_MAP_MOD = {
     glfw.KEY_RIGHT_SUPER: "Meta",
 }
 
+CURSOR_MAP = {
+    "default": None,
+    # "arrow": glfw.ARROW_CURSOR,  # CSS only has 'default', not 'arrow'
+    "text": glfw.IBEAM_CURSOR,
+    "crosshair": glfw.CROSSHAIR_CURSOR,
+    "pointer": glfw.POINTING_HAND_CURSOR,
+    "ew-resize": glfw.RESIZE_EW_CURSOR,
+    "ns-resize": glfw.RESIZE_NS_CURSOR,
+    "nesw-resize": glfw.RESIZE_NESW_CURSOR,
+    "nwse-resize": glfw.RESIZE_NWSE_CURSOR,
+    # "": glfw.RESIZE_ALL_CURSOR,  # Looks like 'grabbing' in CSS
+    "not-allowed": glfw.NOT_ALLOWED_CURSOR,
+    "none": None,  # handled in method
+}
+
 
 def get_glfw_present_methods(window):
     if sys.platform.startswith("win"):
@@ -198,6 +213,7 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         self._changing_pixel_ratio = False
         self._is_minimized = False
         self._is_in_poll_events = False
+        self._cursor_object = None
 
         # Register callbacks. We may get notified too often, but that's
         # ok, they'll result in a single draw.
@@ -215,9 +231,12 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         self._key_modifiers = ()
         self._pointer_buttons = ()
         self._pointer_pos = 0, 0
+        self._pointer_inside = None
+        self._pointer_lock = False
         self._double_click_state = {"clicks": 0}
         glfw.set_mouse_button_callback(self._window, weakbind(self._on_mouse_button))
         glfw.set_cursor_pos_callback(self._window, weakbind(self._on_cursor_pos))
+        glfw.set_cursor_enter_callback(self._window, weakbind(self._on_cursor_enter))
         glfw.set_scroll_callback(self._window, weakbind(self._on_scroll))
         glfw.set_key_callback(self._window, weakbind(self._on_key))
         glfw.set_char_callback(self._window, weakbind(self._on_char))
@@ -366,6 +385,26 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         if self._window is not None:
             glfw.set_window_title(self._window, title)
 
+    def _rc_set_cursor(self, cursor):
+        if self._cursor_object is not None:
+            glfw.destroy_cursor(self._cursor_object)
+            self._cursor_object = None
+
+        cursor_flag = CURSOR_MAP.get(cursor)
+        if cursor == "none":
+            # Create a custom cursor that's simply empty
+            image = memoryview(bytearray(8 * 8 * 4))
+            image = image.cast("B", shape=(8, 8, 4))
+            image_for_glfw_wrapper = image.shape[1], image.shape[0], image.tolist()
+            self._cursor_object = glfw.create_cursor(image_for_glfw_wrapper, 0, 0)
+        elif cursor_flag is None:
+            # The default (arrow)
+            self._cursor_object = None
+        else:
+            self._cursor_object = glfw.create_standard_cursor(cursor_flag)
+
+        glfw.set_cursor(self._window, self._cursor_object)
+
     # %% Turn glfw events into rendercanvas events
 
     def _on_pixelratio_change(self, *args):
@@ -405,6 +444,16 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         }
         button = button_map.get(but, 0)
 
+        # Handler pointer locking
+        if self._pointer_lock:
+            if action == glfw.RELEASE:
+                self._pointer_lock = False
+            return
+        elif not self._pointer_inside:
+            # This press is to select the window (regaining focus)
+            self._pointer_lock = True
+            return
+
         if action == glfw.PRESS:
             event_type = "pointer_down"
             buttons = set(self._pointer_buttons)
@@ -438,6 +487,9 @@ class GlfwRenderCanvas(BaseRenderCanvas):
     def _follow_double_click(self, action, button):
         # If a sequence of down-up-down-up is made in nearly the same
         # spot, and within a short time, we emit the double-click event.
+
+        if self._pointer_lock:
+            return
 
         x, y = self._pointer_pos[0], self._pointer_pos[1]
         state = self._double_click_state
@@ -485,6 +537,18 @@ class GlfwRenderCanvas(BaseRenderCanvas):
             self.submit_event(ev)
 
     def _on_cursor_pos(self, window, x, y):
+        if self._pointer_lock:
+            return
+
+        # Maybe trigger initial enter
+        if self._pointer_inside is None:
+            if glfw.get_window_attrib(window, glfw.HOVERED):
+                self._on_cursor_enter(window, True)
+
+        # Only process move events if inside or if drag-tracking
+        if not (self._pointer_inside or self._pointer_buttons):
+            return
+
         # Store pointer position in logical coordinates
         if self._screen_size_is_logical:
             self._pointer_pos = x, y
@@ -502,6 +566,11 @@ class GlfwRenderCanvas(BaseRenderCanvas):
             "touches": {},
         }
 
+        self.submit_event(ev)
+
+    def _on_cursor_enter(self, window, entered):
+        self._pointer_inside = bool(entered)
+        ev = {"event_type": "pointer_enter" if entered else "pointer_leave"}
         self.submit_event(ev)
 
     def _on_scroll(self, window, dx, dy):

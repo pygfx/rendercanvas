@@ -74,6 +74,9 @@ class OffscreenRenderCanvas(BaseRenderCanvas):
     def _rc_set_title(self, title):
         pass
 
+    def _rc_set_cursor(self, cursor):
+        pass
+
     # %% events - there are no GUI events
 
     # %% Extra API
