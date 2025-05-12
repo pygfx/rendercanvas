@@ -2,17 +2,23 @@
 The base classes.
 """
 
-__all__ = ["BaseLoop", "BaseRenderCanvas", "WrapperRenderCanvas"]
+from __future__ import annotations
 
 import sys
 import weakref
 import importlib
-from typing import Optional, Tuple
+from typing import TYPE_CHECKING
 
 from ._events import EventEmitter, EventType  # noqa: F401
 from ._loop import BaseLoop
 from ._scheduler import Scheduler, UpdateMode
 from ._coreutils import logger, log_exception, BaseEnum
+
+if TYPE_CHECKING:
+    from typing import Callable, List, Optional, Tuple
+
+
+__all__ = ["BaseLoop", "BaseRenderCanvas", "WrapperRenderCanvas"]
 
 
 # Notes on naming and prefixes:
@@ -61,7 +67,7 @@ class BaseCanvasGroup:
             loop._register_canvas_group(self)
             loop.add_task(task, name="scheduler-task")
 
-    def select_loop(self, loop):
+    def select_loop(self, loop: BaseLoop) -> None:
         """Select the loop to use for this group of canvases."""
         if not (loop is None or isinstance(loop, BaseLoop)):
             raise TypeError("select_loop() requires a loop instance or None.")
@@ -74,11 +80,11 @@ class BaseCanvasGroup:
                 self._loop._unregister_canvas_group(self)
             self._loop = loop
 
-    def get_loop(self):
+    def get_loop(self) -> BaseLoop:
         """Get the currently associated loop (can be None for canvases that don't run a scheduler)."""
         return self._loop
 
-    def get_canvases(self):
+    def get_canvases(self) -> List[BaseRenderCanvas]:
         """Get a list of currently active (not-closed) canvases for this group."""
         return [canvas for canvas in self._canvases if not canvas.get_closed()]
 
@@ -112,7 +118,7 @@ class BaseRenderCanvas:
     """
 
     @classmethod
-    def select_loop(cls, loop):
+    def select_loop(cls, loop: BaseLoop) -> None:
         """Select the loop to run newly created canvases with.
         Can only be called when there are no live canvases of this class.
         """
@@ -213,11 +219,11 @@ class BaseRenderCanvas:
 
     _canvas_context = None  # set in get_context()
 
-    def get_physical_size(self):
+    def get_physical_size(self) -> Tuple[int]:
         """Get the physical size of the canvas in integer pixels."""
         return self._rc_get_physical_size()
 
-    def get_context(self, context_type):
+    def get_context(self, context_type: str) -> object:
         """Get a context object that can be used to render to this canvas.
 
         The context takes care of presenting the rendered result to the canvas.
@@ -292,13 +298,13 @@ class BaseRenderCanvas:
 
     # %% Events
 
-    def add_event_handler(self, *args, **kwargs):
-        return self._events.add_handler(*args, **kwargs)
+    def add_event_handler(self, *args: Callable | str, order: float = 0) -> None:
+        return self._events.add_handler(*args, order=order)
 
-    def remove_event_handler(self, *args, **kwargs):
-        return self._events.remove_handler(*args, **kwargs)
+    def remove_event_handler(self, callback: Callable, *types: str) -> None:
+        return self._events.remove_handler(callback, *types)
 
-    def submit_event(self, event):
+    def submit_event(self, event: dict) -> None:
         # Not strictly necessary for normal use-cases, but this allows
         # the ._event to be an implementation detail to subclasses, and it
         # allows users to e.g. emulate events in tests.
@@ -354,7 +360,13 @@ class BaseRenderCanvas:
         """
         pass
 
-    def set_update_mode(self, update_mode, *, min_fps=None, max_fps=None):
+    def set_update_mode(
+        self,
+        update_mode: UpdateMode,
+        *,
+        min_fps: Optional[float] = None,
+        max_fps: Optional[float] = None,
+    ) -> None:
         """Set the update mode for scheduling draws.
 
         Arguments:
@@ -365,7 +377,7 @@ class BaseRenderCanvas:
         """
         self.__scheduler.set_update_mode(update_mode, min_fps=min_fps, max_fps=max_fps)
 
-    def request_draw(self, draw_function=None):
+    def request_draw(self, draw_function: Optional[Callable] = None) -> None:
         """Schedule a new draw event.
 
         This function does not perform a draw directly, but schedules a draw at
@@ -388,7 +400,7 @@ class BaseRenderCanvas:
         #   storing it here, the gc can detect this case, and its fine. However,
         #   this fails if we'd store _draw_frame on the scheduler!
 
-    def force_draw(self):
+    def force_draw(self) -> None:
         """Perform a draw right now.
 
         In most cases you want to use ``request_draw()``. If you find yourself using
@@ -458,15 +470,15 @@ class BaseRenderCanvas:
 
     # %% Primary canvas management methods
 
-    def get_logical_size(self):
+    def get_logical_size(self) -> Tuple[float]:
         """Get the logical size (width, height) in float pixels."""
         return self._rc_get_logical_size()
 
-    def get_pixel_ratio(self):
+    def get_pixel_ratio(self) -> float:
         """Get the float ratio between logical and physical pixels."""
         return self._rc_get_pixel_ratio()
 
-    def close(self):
+    def close(self) -> None:
         """Close the canvas."""
         # Clear the draw-function, to avoid it holding onto e.g. wgpu objects.
         self._draw_frame = None
@@ -483,7 +495,7 @@ class BaseRenderCanvas:
         # Let the subclass clean up.
         self._rc_close()
 
-    def get_closed(self):
+    def get_closed(self) -> bool:
         """Get whether the window is closed."""
         return self._rc_get_closed()
 
@@ -498,14 +510,14 @@ class BaseRenderCanvas:
     # These methods provide extra control over the canvas. Subclasses should
     # implement the methods they can, but these features are likely not critical.
 
-    def set_logical_size(self, width, height):
+    def set_logical_size(self, width: float, height: float) -> None:
         """Set the window size (in logical pixels)."""
         width, height = float(width), float(height)
         if width < 0 or height < 0:
             raise ValueError("Canvas width and height must not be negative")
         self._rc_set_logical_size(width, height)
 
-    def set_title(self, title):
+    def set_title(self, title: str) -> None:
         """Set the window title.
 
         The words "$backend", "$loop", and "$fps" can be used as variables that
@@ -516,7 +528,7 @@ class BaseRenderCanvas:
             title = title.replace("$" + k, v)
         self._rc_set_title(title)
 
-    def set_cursor(self, cursor):
+    def set_cursor(self, cursor: CursorShape) -> None:
         """Set the cursor shape for the mouse pointer.
 
         See :obj:`rendercanvas.CursorShape`:
@@ -658,50 +670,50 @@ class WrapperRenderCanvas(BaseRenderCanvas):
     _rc_canvas_group = None  # No grouping for these wrappers
 
     @classmethod
-    def select_loop(cls, loop):
+    def select_loop(cls, loop: BaseLoop) -> None:
         m = sys.modules[cls.__module__]
         return m.RenderWidget.select_loop(loop)
 
-    def add_event_handler(self, *args, **kwargs):
-        return self._subwidget._events.add_handler(*args, **kwargs)
+    def add_event_handler(self, *args: Callable | str, order: float = 0) -> None:
+        return self._subwidget._events.add_handler(*args, order=order)
 
-    def remove_event_handler(self, *args, **kwargs):
-        return self._subwidget._events.remove_handler(*args, **kwargs)
+    def remove_event_handler(self, callback: Callable, *types: str) -> None:
+        return self._subwidget._events.remove_handler(callback, *types)
 
-    def submit_event(self, event):
+    def submit_event(self, event: dict) -> None:
         return self._subwidget._events.submit(event)
 
-    def get_context(self, *args, **kwargs):
-        return self._subwidget.get_context(*args, **kwargs)
+    def get_context(self, context_type: str) -> object:
+        return self._subwidget.get_context(context_type)
 
-    def request_draw(self, *args, **kwargs):
-        return self._subwidget.request_draw(*args, **kwargs)
+    def request_draw(self, draw_function: Optional[Callable] = None) -> None:
+        return self._subwidget.request_draw(draw_function)
 
-    def force_draw(self):
+    def force_draw(self) -> None:
         self._subwidget.force_draw()
 
-    def get_physical_size(self):
+    def get_physical_size(self) -> Tuple[int]:
         return self._subwidget.get_physical_size()
 
-    def get_logical_size(self):
+    def get_logical_size(self) -> Tuple[float]:
         return self._subwidget.get_logical_size()
 
-    def get_pixel_ratio(self):
+    def get_pixel_ratio(self) -> float:
         return self._subwidget.get_pixel_ratio()
 
-    def set_logical_size(self, width, height):
+    def set_logical_size(self, width: float, height: float) -> None:
         self._subwidget.set_logical_size(width, height)
 
-    def set_title(self, *args):
-        self._subwidget.set_title(*args)
+    def set_title(self, title: str) -> None:
+        self._subwidget.set_title(title)
 
-    def set_cursor(self, *args):
-        self._subwidget.set_cursor(*args)
+    def set_cursor(self, cursor: CursorShape) -> None:
+        self._subwidget.set_cursor(cursor)
 
-    def close(self):
+    def close(self) -> None:
         self._subwidget.close()
 
-    def get_closed(self):
+    def get_closed(self) -> bool:
         return self._subwidget.get_closed()
 
     def is_closed(self):

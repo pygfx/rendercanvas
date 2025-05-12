@@ -2,12 +2,19 @@
 The base loop implementation.
 """
 
+from __future__ import annotations
+
 import signal
 from inspect import iscoroutinefunction
+from typing import TYPE_CHECKING
 
 from ._coreutils import logger, log_exception
 from .utils.asyncs import sleep
 from .utils import asyncadapter
+
+if TYPE_CHECKING:
+    from typing import Any, Callable, List
+    from base import BaseRenderCanvas
 
 
 HANDLED_SIGNALS = (
@@ -74,7 +81,7 @@ class BaseLoop:
         # A CanvasGroup will call this when it selects a different loop.
         self.__canvas_groups.discard(canvas_group)
 
-    def get_canvases(self):
+    def get_canvases(self) -> List[BaseRenderCanvas]:
         """Get a list of currently active (not-closed) canvases."""
         canvases = []
         for canvas_group in self.__canvas_groups:
@@ -139,7 +146,7 @@ class BaseLoop:
         finally:
             self.__stop()
 
-    def add_task(self, async_func, *args, name="unnamed"):
+    def add_task(self, async_func: Callable, *args: Any, name: str = "unnamed") -> None:
         """Run an async function in the event-loop.
 
         All tasks are stopped when the loop stops.
@@ -154,7 +161,7 @@ class BaseLoop:
 
         self._rc_add_task(wrapper, name)
 
-    def call_soon(self, callback, *args):
+    def call_soon(self, callback: Callable, *args: Any) -> None:
         """Arrange for a callback to be called as soon as possible.
 
         The callback will be called in the next iteration of the event-loop,
@@ -171,7 +178,7 @@ class BaseLoop:
 
         self._rc_add_task(wrapper, "call_soon")
 
-    def call_later(self, delay, callback, *args):
+    def call_later(self, delay: float, callback: Callable, *args: Any) -> None:
         """Arrange for a callback to be called after the given delay (in seconds)."""
         if delay <= 0:
             return self.call_soon(callback, *args)
@@ -188,7 +195,7 @@ class BaseLoop:
 
         self._rc_add_task(wrapper, "call_later")
 
-    def run(self):
+    def run(self) -> None:
         """Enter the main loop.
 
         This provides a generic API to start the loop. When building an application (e.g. with Qt)
@@ -229,7 +236,7 @@ class BaseLoop:
             for sig, cb in prev_sig_handlers.items():
                 signal.signal(sig, cb)
 
-    async def run_async(self):
+    async def run_async(self) -> None:
         """ "Alternative to ``run()``, to enter the mainloop from a running async framework.
 
         Only supported by the asyncio and trio loops.
@@ -250,7 +257,7 @@ class BaseLoop:
 
         await self._rc_run_async()
 
-    def stop(self):
+    def stop(self) -> None:
         """Close all windows and stop the currently running event-loop.
 
         If the loop is active but not running via our ``run()`` method, the loop
