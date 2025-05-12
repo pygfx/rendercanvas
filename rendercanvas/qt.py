@@ -542,6 +542,14 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
     def mouseReleaseEvent(self, event):  # noqa: N802
         self._mouse_event("pointer_up", event)
 
+    def enterEvent(self, event):  # noqa: N802
+        ev = {"event_type": "pointer_enter"}
+        self.submit_event(ev)
+
+    def leaveEvent(self, event):  # noqa: N802
+        ev = {"event_type": "pointer_leave"}
+        self.submit_event(ev)
+
     def mouseDoubleClickEvent(self, event):  # noqa: N802
         super().mouseDoubleClickEvent(event)
         self._mouse_event("double_click", event, touches=False)
