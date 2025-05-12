@@ -358,7 +358,7 @@ class BaseRenderCanvas:
         """Set the update mode for scheduling draws.
 
         Arguments:
-            update_mode (update_mode): See :obj:`rendercanvas.UpdateMode`:
+            update_mode (UpdateMode): The mode for scheduling draws and events.
             min_fps (float): The minimum fps with update mode 'ondemand'.
             max_fps (float): The maximum fps with update mode 'ondemand' and 'continuous'.
 
