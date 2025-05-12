@@ -42,6 +42,9 @@ class EventType(BaseEnum):
     animate = None  #: Animation event. Has 'step' representing the step size in seconds. This is stable, except when the 'catch_up' field is nonzero.
 
 
+valid_event_types = set(EventType)
+
+
 class EventEmitter:
     """The EventEmitter stores event handlers, collects incoming events, and dispatched them.
 
@@ -127,7 +130,7 @@ class EventEmitter:
         for type in types:
             if not isinstance(type, str):
                 raise TypeError(f"Event types must be str, but got {type}")
-            if not (type == "*" or type in EventType):
+            if not (type == "*" or type in valid_event_types):
                 raise ValueError(f"Adding handler with invalid event_type: '{type}'")
 
         def decorator(_callback):
@@ -168,7 +171,7 @@ class EventEmitter:
         if self._closed:
             return
         event_type = event["event_type"]
-        if event_type not in EventType:
+        if event_type not in valid_event_types:
             raise ValueError(f"Submitting with invalid event_type: '{event_type}'")
 
         event.setdefault("time_stamp", time.perf_counter())
