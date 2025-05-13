@@ -7,7 +7,10 @@ __all__ = ["RenderCanvas", "loop"]
 import os
 import sys
 import importlib
+from typing import cast
+
 from ._coreutils import logger, QT_MODULE_NAMES, get_imported_qt_lib, asyncio_is_running
+from .base import BaseRenderCanvas, BaseLoop
 
 
 # Note that wx is not in here, because it does not (yet) fully implement base.BaseRenderCanvas
@@ -201,5 +204,5 @@ def backends_by_trying_in_order():
 
 # Load!
 module = select_backend()
-RenderCanvas = module.RenderCanvas
-loop = module.loop
+RenderCanvas = cast(type[BaseRenderCanvas], module.RenderCanvas)
+loop = cast(BaseLoop, module.loop)
