@@ -17,6 +17,9 @@ from ._coreutils import logger, log_exception, BaseEnum
 if TYPE_CHECKING:
     from typing import Callable, List, Optional, Tuple
 
+    EventHandlerFunction = Callable[[dict], None]
+    DrawFunction = Callable[[], None]
+
 
 __all__ = ["BaseLoop", "BaseRenderCanvas", "WrapperRenderCanvas"]
 
@@ -298,10 +301,12 @@ class BaseRenderCanvas:
 
     # %% Events
 
-    def add_event_handler(self, *args: Callable | str, order: float = 0) -> None:
+    def add_event_handler(
+        self, *args: str | EventHandlerFunction, order: float = 0
+    ) -> None:
         return self._events.add_handler(*args, order=order)
 
-    def remove_event_handler(self, callback: Callable, *types: str) -> None:
+    def remove_event_handler(self, callback: EventHandlerFunction, *types: str) -> None:
         return self._events.remove_handler(callback, *types)
 
     def submit_event(self, event: dict) -> None:
@@ -377,7 +382,7 @@ class BaseRenderCanvas:
         """
         self.__scheduler.set_update_mode(update_mode, min_fps=min_fps, max_fps=max_fps)
 
-    def request_draw(self, draw_function: Optional[Callable] = None) -> None:
+    def request_draw(self, draw_function: Optional[DrawFunction] = None) -> None:
         """Schedule a new draw event.
 
         This function does not perform a draw directly, but schedules a draw at
@@ -674,10 +679,12 @@ class WrapperRenderCanvas(BaseRenderCanvas):
         m = sys.modules[cls.__module__]
         return m.RenderWidget.select_loop(loop)
 
-    def add_event_handler(self, *args: Callable | str, order: float = 0) -> None:
+    def add_event_handler(
+        self, *args: str | EventHandlerFunction, order: float = 0
+    ) -> None:
         return self._subwidget._events.add_handler(*args, order=order)
 
-    def remove_event_handler(self, callback: Callable, *types: str) -> None:
+    def remove_event_handler(self, callback: EventHandlerFunction, *types: str) -> None:
         return self._subwidget._events.remove_handler(callback, *types)
 
     def submit_event(self, event: dict) -> None:
@@ -686,7 +693,7 @@ class WrapperRenderCanvas(BaseRenderCanvas):
     def get_context(self, context_type: str) -> object:
         return self._subwidget.get_context(context_type)
 
-    def request_draw(self, draw_function: Optional[Callable] = None) -> None:
+    def request_draw(self, draw_function: Optional[DrawFunction] = None) -> None:
         return self._subwidget.request_draw(draw_function)
 
     def force_draw(self) -> None:

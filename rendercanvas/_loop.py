@@ -13,8 +13,10 @@ from .utils.asyncs import sleep
 from .utils import asyncadapter
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, List
+    from typing import Any, Callable, Coroutine, List
     from base import BaseRenderCanvas
+
+    CallbackFunction = Callable[[], Any]
 
 
 HANDLED_SIGNALS = (
@@ -146,7 +148,12 @@ class BaseLoop:
         finally:
             self.__stop()
 
-    def add_task(self, async_func: Callable, *args: Any, name: str = "unnamed") -> None:
+    def add_task(
+        self,
+        async_func: Callable[[], Coroutine],
+        *args: Any,
+        name: str = "unnamed",
+    ) -> None:
         """Run an async function in the event-loop.
 
         All tasks are stopped when the loop stops.
@@ -161,7 +168,7 @@ class BaseLoop:
 
         self._rc_add_task(wrapper, name)
 
-    def call_soon(self, callback: Callable, *args: Any) -> None:
+    def call_soon(self, callback: CallbackFunction, *args: Any) -> None:
         """Arrange for a callback to be called as soon as possible.
 
         The callback will be called in the next iteration of the event-loop,
@@ -178,7 +185,7 @@ class BaseLoop:
 
         self._rc_add_task(wrapper, "call_soon")
 
-    def call_later(self, delay: float, callback: Callable, *args: Any) -> None:
+    def call_later(self, delay: float, callback: CallbackFunction, *args: Any) -> None:
         """Arrange for a callback to be called after the given delay (in seconds)."""
         if delay <= 0:
             return self.call_soon(callback, *args)
