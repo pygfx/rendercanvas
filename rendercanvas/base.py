@@ -693,6 +693,15 @@ class WrapperRenderCanvas(BaseRenderCanvas):
     def get_context(self, context_type: str) -> object:
         return self._subwidget.get_context(context_type)
 
+    def set_update_mode(
+        self,
+        update_mode: UpdateMode,
+        *,
+        min_fps: Optional[float] = None,
+        max_fps: Optional[float] = None,
+    ) -> None:
+        self._subwidget.set_update_mode(update_mode, min_fps=min_fps, max_fps=max_fps)
+
     def request_draw(self, draw_function: Optional[DrawFunction] = None) -> None:
         return self._subwidget.request_draw(draw_function)
 
