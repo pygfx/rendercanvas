@@ -450,9 +450,10 @@ class GlfwRenderCanvas(BaseRenderCanvas):
                 self._pointer_lock = False
             return
         elif not self._pointer_inside:
-            # This press is to select the window (regaining focus)
-            self._pointer_lock = True
-            return
+            if action == glfw.PRESS:
+                # This press is to select the window (regaining focus)
+                self._pointer_lock = True
+                return
 
         if action == glfw.PRESS:
             event_type = "pointer_down"
