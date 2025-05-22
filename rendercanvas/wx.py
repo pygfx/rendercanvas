@@ -205,6 +205,12 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
     def __init__(self, *args, present_method=None, **kwargs):
         super().__init__(*args, **kwargs)
 
+        # Wx can segfault when trying to use a Window as a toplevel widget. Let's warn.
+        if self.Parent is None:
+            logger.warning(
+                "WxRenderWidget is instantiated without a parent (but it's not meant to be toplevel)."
+            )
+
         # Determine present method
         self._surface_ids = None
         if not present_method:
