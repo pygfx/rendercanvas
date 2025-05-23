@@ -422,7 +422,9 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
             "key": KEY_MAP.get(event.GetKeyCode(), char_str),
             "modifiers": modifiers,
         }
-        self.submit_event(ev)
+
+        if not event.IsAutoRepeat():
+            self.submit_event(ev)
 
     def _char_input_event(self, char_str: Optional[str]):
         if char_str is None:

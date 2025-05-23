@@ -625,7 +625,9 @@ class GlfwRenderCanvas(BaseRenderCanvas):
             "key": keyname,
             "modifiers": tuple(self._key_modifiers),
         }
-        self.submit_event(ev)
+
+        if not action == glfw.REPEAT:
+            self.submit_event(ev)
 
     def _on_char(self, window, char):
         # Undocumented char event to make imgui work, see https://github.com/pygfx/wgpu-py/issues/530
