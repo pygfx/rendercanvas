@@ -478,7 +478,9 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
             "key": KEY_MAP.get(event.key(), event.text()),
             "modifiers": modifiers,
         }
-        self.submit_event(ev)
+
+        if not event.isAutoRepeat():
+            self.submit_event(ev)
 
     def _char_input_event(self, char_str):
         ev = {
