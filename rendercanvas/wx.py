@@ -205,12 +205,6 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
     def __init__(self, *args, present_method=None, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # Wx can segfault when trying to use a Window as a toplevel widget. Let's warn.
-        if self.Parent is None:
-            logger.warning(
-                "WxRenderWidget is instantiated without a parent (but it's not meant to be toplevel)."
-            )
-
         # Determine present method
         self._surface_ids = None
         if not present_method:
@@ -361,8 +355,13 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         parent = self.Parent
         if isinstance(parent, WxRenderCanvas):
             parent.SetSize(width, height)
-        else:
+        elif parent is not None:
             self.SetSize(width, height)
+        else:
+            # The widget has no parent, likely because its going to inserted in a GUI later.
+            # This method is likely called from _final_canvas_init and if we call self.SetSize() it will likely error/segfault.
+            # See https://github.com/pygfx/rendercanvas/issues/91
+            pass
 
     def _rc_close(self):
         self._is_closed = True
