@@ -9,7 +9,6 @@ around, e.g. runnning a glfw canvas with the Qt loop does not work so
 well.
 """
 
-# ruff: noqa: E402
 
 import trio
 from rendercanvas.pyside6 import RenderCanvas
