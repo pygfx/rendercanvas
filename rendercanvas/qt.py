@@ -121,7 +121,7 @@ KEY_MAP = {
     int(Keys.Key_Meta): "Meta",  # meta maps to control in QT on macOS, and vice-versa
     int(Keys.Key_NumLock): "NumLock",
     int(Keys.Key_PageDown): "PageDown",
-    int(Keys.Key_PageUp): "Pageup",
+    int(Keys.Key_PageUp): "PageUp",
     int(Keys.Key_Pause): "Pause",
     int(Keys.Key_ScrollLock): "ScrollLock",
     int(Keys.Key_Tab): "Tab",

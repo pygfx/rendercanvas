@@ -81,7 +81,7 @@ KEY_MAP = {
     glfw.KEY_LEFT_SUPER: "Meta",  # in glfw super means Windows or MacOS-command
     glfw.KEY_NUM_LOCK: "NumLock",
     glfw.KEY_PAGE_DOWN: "PageDown",
-    glfw.KEY_PAGE_UP: "Pageup",
+    glfw.KEY_PAGE_UP: "PageUp",
     glfw.KEY_PAUSE: "Pause",
     glfw.KEY_PRINT_SCREEN: "PrintScreen",
     glfw.KEY_RIGHT_ALT: "Alt",
