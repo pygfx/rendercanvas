@@ -48,7 +48,7 @@ The table below gives an overview of the names in the different ``rendercanvas``
           | integrate a render canvas in a wx application.
 
 
-There are also two loop-backends. These are mainly intended for use with the glfw backend:
+There are also three loop-backends. These are mainly intended for use with the glfw backend:
 
 .. list-table::
 
@@ -226,6 +226,9 @@ Support for offscreen
 You can also use a "fake" canvas to draw offscreen and get the result as a numpy array.
 Note that you can render to a texture without using any canvas
 object, but in some cases it's convenient to do so with a canvas-like API.
+
+.. autoclass:: rendercanvas.offscreen.OffscreenRenderCanvas
+    :members:
 
 .. code-block:: py
 

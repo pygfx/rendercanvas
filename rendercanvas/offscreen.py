@@ -17,15 +17,34 @@ class OffscreenRenderCanvas(BaseRenderCanvas):
     """An offscreen canvas intended for manual use.
 
     Call the ``.draw()`` method to perform a draw and get the result.
+
+    Arguments:
+        pixel_ratio (float): the ratio of logical to physical pixels.
+        format (str): the preferred format. Multiple formats are supported, but by
+            setting the preferred format here, other systems (e.g. Pygfx) will
+            automatically use that format.
     """
 
     _rc_canvas_group = OffscreenCanvasGroup(None)  # no loop, no scheduling
 
-    def __init__(self, *args, pixel_ratio=1.0, **kwargs):
+    def __init__(self, *args, pixel_ratio=1.0, format="rgba-u8", **kwargs):
         super().__init__(*args, **kwargs)
         self._pixel_ratio = pixel_ratio
         self._closed = False
         self._last_image = None
+
+        self._present_formats = ["rgba-u8", "rgba-f16", "rgba-f32", "rgba-u16"]
+        if format != self._present_formats[0]:
+            colors, _, dtype = format.partition("-")
+            if not (
+                colors in ("i", "rgb", "rgba", "bgra")
+                and dtype in ("u8", "u16", "u32", "f16", "f32")
+            ):
+                raise ValueError(f"Unexpected format: {format!r}")
+            if format in self._present_formats:
+                self._present_formats.remove(format)
+            self._present_formats.insert(0, format)
+
         self._final_canvas_init()
 
     # %% Methods to implement RenderCanvas
@@ -36,7 +55,7 @@ class OffscreenRenderCanvas(BaseRenderCanvas):
     def _rc_get_present_methods(self):
         return {
             "bitmap": {
-                "formats": ["rgba-u8", "rgba-f16", "rgba-f32", "rgba-u16"],
+                "formats": self._present_formats,
             }
         }
 
