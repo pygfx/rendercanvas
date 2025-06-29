@@ -69,12 +69,29 @@ class EventEmitter:
     def __init__(self):
         self._pending_events = deque()
         self._event_handlers = defaultdict(list)
+        self._signals = []
         self._closed = False
 
     def _release(self):
         self._closed = True
         self._pending_events.clear()
         self._event_handlers.clear()
+
+    async def for_event(self, *event_types: str):
+        from .utils.asyncs import Event as AsyncSignal  # rename to avoid confusion
+
+        for type in event_types:
+            if not (type == "*" or type in valid_event_types):
+                raise ValueError(f"Calling for_event with invalid event_type: '{type}'")
+
+        # Get signal. This is an asyncio, trio, rendercanvas.utils._async_adapter, or anything else from sniffio
+        # This is a low level asyncio construct that's actually called "Event", but let's call it signal here.
+        signal = AsyncSignal()
+        signal.event_types = set(event_types)
+        self._signals.append(signal)
+
+        await signal.wait()
+        return signal.event
 
     def add_handler(self, *args, order: float = 0):
         """Register an event handler to receive events.
@@ -225,6 +242,16 @@ class EventEmitter:
                     await callback(event)
                 else:
                     callback(event)
+        # Handle signals that ``await for_event(..)``.
+        # TODO: Use more performent data structure so we can avoid iterating over all waiting signals.
+        # TODO: maybe it makes more sense to think of the signals as tasks; each signal represents a waiting task.
+        # TODO: is there also a common construct that we can pass a value to?
+        signals_to_remove = []
+        for signal in self._signals:
+            if event_type in signal.event_types:
+                signals_to_remove.append(signal)
+                signal.event = event
+                signal.set()
         # Close?
         if event_type == "close":
             self._release()
