@@ -15,7 +15,7 @@ from ._scheduler import Scheduler, UpdateMode
 from ._coreutils import logger, log_exception, BaseEnum
 
 if TYPE_CHECKING:
-    from typing import Callable, List, Optional, Tuple
+    from typing import Callable, Coroutine, List, Optional, Tuple
 
     EventHandlerFunction = Callable[[dict], None]
     DrawFunction = Callable[[], None]
@@ -308,6 +308,12 @@ class BaseRenderCanvas:
 
     def remove_event_handler(self, callback: EventHandlerFunction, *types: str) -> None:
         return self._events.remove_handler(callback, *types)
+
+    def add_event_task(
+        self, async_func: Callable[[], Coroutine], name: str = "unnamed"
+    ):
+        loop = self._rc_canvas_group.get_loop()
+        loop.add_task(async_func, self._events)
 
     def submit_event(self, event: dict) -> None:
         # Not strictly necessary for normal use-cases, but this allows
