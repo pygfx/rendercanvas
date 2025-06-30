@@ -94,6 +94,11 @@ class Scheduler:
             self._min_fps = max(0.0, float(min_fps))
 
         if max_fps is not None:
+            # For users setting max_fps=-1 to try to disable the fps cap, as was the way to go in wgpu.gui
+            if max_fps < 1:
+                raise ValueError(
+                    "max_fps should be a >= 1. Use update_mode='fastest' to disable the fps cap. Also see ``vsync=False`` to unlock higher frame rates."
+                )
             self._max_fps = max(1, float(max_fps))
 
     def request_draw(self):
