@@ -97,7 +97,7 @@ class Scheduler:
             # For users setting max_fps=-1 to try to disable the fps cap, as was the way to go in wgpu.gui
             if max_fps < 0:
                 raise ValueError(
-                    "max_fps should be a positive number. Use update_mode='fastest' to go as fast as possible."
+                    "max_fps should be a positive number. Use update_mode='fastest' to disable the fps cap. Also see ``vsync=False`` to unlock higher frame rates."
                 )
             self._max_fps = max(1, float(max_fps))
 
