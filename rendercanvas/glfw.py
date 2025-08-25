@@ -25,12 +25,12 @@ if glfw_version_info < (1, 9):
     raise ImportError("rendercanvas requires glfw 1.9 or higher.")
 
 # Do checks to prevent pitfalls on hybrid Xorg/Wayland systems
-is_wayland = False
+api_is_wayland = False
 if sys.platform.startswith("linux") and SYSTEM_IS_WAYLAND:
     if not hasattr(glfw, "get_x11_window"):
         # Probably glfw was imported before this module, so we missed our chance
         # to set the env var to make glfw use x11.
-        is_wayland = True
+        api_is_wayland = True
         logger.warning("Using GLFW with Wayland, which is experimental.")
 
 
@@ -135,7 +135,7 @@ def get_glfw_present_methods(window):
             }
         }
     elif sys.platform.startswith("linux"):
-        if is_wayland:
+        if api_is_wayland:
             return {
                 "screen": {
                     "platform": "wayland",
@@ -262,6 +262,8 @@ class GlfwRenderCanvas(BaseRenderCanvas):
     def _determine_size(self):
         if self._window is None:
             return
+        # Note: On Wayland  glfw.get_window_content_scale() produces (1.0, 1.0) regardless of the OS settings.
+
         # Because the value of get_window_size is in physical-pixels
         # on some systems and in logical-pixels on other, we use the
         # framebuffer size and pixel ratio to derive the logical size.
@@ -305,21 +307,13 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         psize = glfw.get_framebuffer_size(self._window)
 
         # Apply
-        if is_wayland:
-            # Not sure why, but on Wayland things work differently
-            screen_ratio = ssize[0] / new_logical_size[0]
-            glfw.set_window_size(
-                self._window,
-                int(new_logical_size[0] / screen_ratio),
-                int(new_logical_size[1] / screen_ratio),
-            )
-        else:
-            screen_ratio = ssize[0] / psize[0]
-            glfw.set_window_size(
-                self._window,
-                int(new_logical_size[0] * pixel_ratio * screen_ratio),
-                int(new_logical_size[1] * pixel_ratio * screen_ratio),
-            )
+        screen_ratio = ssize[0] / psize[0]
+        glfw.set_window_size(
+            self._window,
+            int(new_logical_size[0] * pixel_ratio * screen_ratio),
+            int(new_logical_size[1] * pixel_ratio * screen_ratio),
+        )
+
         self._screen_size_is_logical = screen_ratio != 1
         # If this causes the widget size to change, then _on_size_change will
         # be called, but we may want force redetermining the size.
