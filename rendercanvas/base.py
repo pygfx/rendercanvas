@@ -476,11 +476,22 @@ class BaseRenderCanvas:
     # %% Primary canvas management methods
 
     def get_logical_size(self) -> Tuple[float]:
-        """Get the logical size (width, height) in float pixels."""
+        """Get the logical size (width, height) in float pixels.
+
+        The logical size can be smaller than the physical size, e.g. on HiDPI
+        monitors or when the user's system has the display-scale set to e.g. 125%.
+        """
         return self._rc_get_logical_size()
 
     def get_pixel_ratio(self) -> float:
-        """Get the float ratio between logical and physical pixels."""
+        """Get the float ratio between logical and physical pixels.
+
+        The pixel ratio is typically 1.0 for normal screens and 2.0 for HiDPI
+        screens, but fractional values are also possible if the system
+        display-scale is set to e.g. 125%. An HiDPI screen can be assumed if the
+        pixel ratio >= 2.0. On MacOS (with a Retina screen) the pixel ratio is
+        always 2.0.
+        """
         return self._rc_get_pixel_ratio()
 
     def close(self) -> None:
