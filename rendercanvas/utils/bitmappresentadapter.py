@@ -251,7 +251,7 @@ class FullscreenTexture:
 
         bind_groups = []
         for entries, bind_group_layout in zip(
-            bind_groups_entries, self._bind_group_layouts
+            bind_groups_entries, self._bind_group_layouts, strict=False
         ):
             bind_groups.append(
                 device.create_bind_group(layout=bind_group_layout, entries=entries)
