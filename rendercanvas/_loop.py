@@ -2,6 +2,8 @@
 The base loop implementation.
 """
 
+from __future__ import annotations
+
 import signal
 from inspect import iscoroutinefunction
 from typing import TYPE_CHECKING

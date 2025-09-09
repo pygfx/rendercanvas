@@ -2,6 +2,8 @@
 The base classes.
 """
 
+from __future__ import annotations
+
 import sys
 import weakref
 import importlib
