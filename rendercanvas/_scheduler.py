@@ -143,7 +143,7 @@ class Scheduler:
             else:
                 # Wait. Even if delay is zero, it gives control back to the loop,
                 # allowing other tasks to do work.
-                await sleep(max(0, delay))
+                await sleep(max(0, sleep_time))
 
             # Below is the "tick"
 
