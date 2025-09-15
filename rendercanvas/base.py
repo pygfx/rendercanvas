@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING
 
 from ._enums import (
     EventTypeEnum,
-    UpdateMode,
     UpdateModeEnum,
     CursorShape,
     CursorShapeEnum,
@@ -156,7 +155,6 @@ class BaseRenderCanvas:
         # Events and scheduler
         self._events = EventEmitter()
         self.__scheduler = None
-        self._rc_closed_by_loop = False
         if self._rc_canvas_group is None:
             pass  # No scheduling, not even grouping
         elif self._rc_canvas_group.get_loop() is None:
@@ -369,7 +367,10 @@ class BaseRenderCanvas:
             max_fps (float): The maximum fps with update mode 'ondemand' and 'continuous'.
 
         """
-        self.__scheduler.set_update_mode(update_mode, min_fps=min_fps, max_fps=max_fps)
+        if self.__scheduler is not None:
+            self.__scheduler.set_update_mode(
+                update_mode, min_fps=min_fps, max_fps=max_fps
+            )
 
     def request_draw(self, draw_function: Optional[DrawFunction] = None) -> None:
         """Schedule a new draw event.
@@ -542,12 +543,12 @@ class BaseRenderCanvas:
             cursor = "default"
         if not isinstance(cursor, str):
             raise TypeError("Canvas cursor must be str.")
-        cursor = cursor.lower().replace("_", "-")
-        if cursor not in CursorShape:
+        cursor_normed = cursor.lower().replace("_", "-")
+        if cursor_normed not in CursorShape:
             raise ValueError(
                 f"Canvas cursor {cursor!r} not known, must be one of {CursorShape}"
             )
-        self._rc_set_cursor(cursor)
+        self._rc_set_cursor(cursor_normed)
 
     # %% Methods for the subclass to implement
 
@@ -610,19 +611,19 @@ class BaseRenderCanvas:
         """
         raise NotImplementedError()
 
-    def _rc_get_physical_size(self):
+    def _rc_get_physical_size(self) -> Tuple[int, int]:
         """Get the physical size (with, height) in integer pixels."""
         raise NotImplementedError()
 
-    def _rc_get_logical_size(self):
+    def _rc_get_logical_size(self) -> Tuple[float, float]:
         """Get the logical size (with, height) in float pixels."""
         raise NotImplementedError()
 
-    def _rc_get_pixel_ratio(self):
+    def _rc_get_pixel_ratio(self) -> float:
         """Get ratio between physical and logical size."""
         raise NotImplementedError()
 
-    def _rc_set_logical_size(self, width, height):
+    def _rc_set_logical_size(self, width: float, height: float):
         """Set the logical size. May be ignired when it makes no sense.
 
         The default implementation does nothing.
@@ -645,18 +646,18 @@ class BaseRenderCanvas:
         """
         pass
 
-    def _rc_get_closed(self):
+    def _rc_get_closed(self) -> bool:
         """Get whether the canvas is closed."""
         return False
 
-    def _rc_set_title(self, title):
+    def _rc_set_title(self, title: str):
         """Set the canvas title. May be ignored when it makes no sense.
 
         The default implementation does nothing.
         """
         pass
 
-    def _rc_set_cursor(self, cursor):
+    def _rc_set_cursor(self, cursor: str):
         """Set the cursor shape. May be ignored.
 
         The default implementation does nothing.
@@ -681,8 +682,8 @@ class WrapperRenderCanvas(BaseRenderCanvas):
         return m.RenderWidget.select_loop(loop)
 
     def add_event_handler(
-        self, *args: str | EventHandlerFunction, order: float = 0
-    ) -> None:
+        self, *args: EventTypeEnum | EventHandlerFunction, order: float = 0
+    ) -> Callable:
         return self._subwidget._events.add_handler(*args, order=order)
 
     def remove_event_handler(self, callback: EventHandlerFunction, *types: str) -> None:
@@ -696,7 +697,7 @@ class WrapperRenderCanvas(BaseRenderCanvas):
 
     def set_update_mode(
         self,
-        update_mode: UpdateMode,
+        update_mode: UpdateModeEnum,
         *,
         min_fps: Optional[float] = None,
         max_fps: Optional[float] = None,

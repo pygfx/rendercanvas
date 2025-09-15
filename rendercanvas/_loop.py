@@ -139,9 +139,14 @@ class BaseLoop:
                     break
                 elif self.__should_stop:
                     # Close all remaining canvases. Loop will stop in a next iteration.
+                    # We store a flag on the canvas, that we only use here.
                     for canvas in self.get_canvases():
-                        if not canvas._rc_closed_by_loop:
-                            canvas._rc_closed_by_loop = True
+                        try:
+                            closed_by_loop = canvas._rc_closed_by_loop  # type: ignore
+                        except AttributeError:
+                            closed_by_loop = False
+                        if not closed_by_loop:
+                            canvas._rc_closed_by_loop = True  # type: ignore
                             canvas.close()
                         del canvas
 
