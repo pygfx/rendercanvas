@@ -9,10 +9,17 @@ import weakref
 import importlib
 from typing import TYPE_CHECKING
 
-from ._events import EventEmitter, EventType  # noqa: F401
+from ._enums import (
+    EventTypeEnum,
+    UpdateMode,
+    UpdateModeEnum,
+    CursorShape,
+    CursorShapeEnum,
+)
+from ._events import EventEmitter
 from ._loop import BaseLoop
-from ._scheduler import Scheduler, UpdateMode
-from ._coreutils import logger, log_exception, BaseEnum
+from ._scheduler import Scheduler
+from ._coreutils import logger, log_exception
 
 if TYPE_CHECKING:
     from typing import Callable, List, Optional, Tuple
@@ -33,25 +40,6 @@ __all__ = ["BaseLoop", "BaseRenderCanvas", "WrapperRenderCanvas"]
 # * `._private_method`: Private methods for scheduler and subclasses.
 # * `.__private_attr`: Private to exactly this class.
 # * `._rc_method`: Methods that the subclass must implement.
-
-
-class CursorShape(BaseEnum):
-    """The CursorShape enum specifies the suppported cursor shapes, following CSS cursor names."""
-
-    default = None  #: The platform-dependent default cursor, typically an arrow.
-    text = None  #: The text input I-beam cursor shape.
-    crosshair = None  #:
-    pointer = None  #: The pointing hand cursor shape.
-    ew_resize = "ew-resize"  #: The horizontal resize/move arrow shape.
-    ns_resize = "ns-resize"  #: The vertical resize/move arrow shape.
-    nesw_resize = (
-        "nesw-resize"  #: The top-left to bottom-right diagonal resize/move arrow shape.
-    )
-    nwse_resize = (
-        "nwse-resize"  #: The top-right to bottom-left diagonal resize/move arrow shape.
-    )
-    not_allowed = "not-allowed"  #: The operation-not-allowed shape.
-    none = "none"  #: The cursor is hidden.
 
 
 class BaseCanvasGroup:
@@ -137,7 +125,7 @@ class BaseRenderCanvas:
         *args,
         size: Tuple[int] = (640, 480),
         title: str = "$backend",
-        update_mode: UpdateMode = "ondemand",
+        update_mode: UpdateModeEnum = "ondemand",
         min_fps: float = 0.0,
         max_fps: float = 30.0,
         vsync: bool = True,
@@ -302,8 +290,8 @@ class BaseRenderCanvas:
     # %% Events
 
     def add_event_handler(
-        self, *args: str | EventHandlerFunction, order: float = 0
-    ) -> None:
+        self, *args: EventTypeEnum | EventHandlerFunction, order: float = 0
+    ) -> Callable:
         return self._events.add_handler(*args, order=order)
 
     def remove_event_handler(self, callback: EventHandlerFunction, *types: str) -> None:
@@ -367,7 +355,7 @@ class BaseRenderCanvas:
 
     def set_update_mode(
         self,
-        update_mode: UpdateMode,
+        update_mode: UpdateModeEnum,
         *,
         min_fps: Optional[float] = None,
         max_fps: Optional[float] = None,
@@ -544,7 +532,7 @@ class BaseRenderCanvas:
             title = title.replace("$" + k, v)
         self._rc_set_title(title)
 
-    def set_cursor(self, cursor: CursorShape) -> None:
+    def set_cursor(self, cursor: CursorShapeEnum) -> None:
         """Set the cursor shape for the mouse pointer.
 
         See :obj:`rendercanvas.CursorShape`:
@@ -734,7 +722,7 @@ class WrapperRenderCanvas(BaseRenderCanvas):
     def set_title(self, title: str) -> None:
         self._subwidget.set_title(title)
 
-    def set_cursor(self, cursor: CursorShape) -> None:
+    def set_cursor(self, cursor: CursorShapeEnum) -> None:
         self._subwidget.set_cursor(cursor)
 
     def close(self) -> None:
