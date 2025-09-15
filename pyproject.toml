@@ -17,7 +17,7 @@ keywords = [
     "glfw",
     "jupyter",
 ]
-requires-python = ">= 3.9"
+requires-python = ">= 3.10"
 dependencies = ["sniffio"]
 [project.optional-dependencies]
 # For users

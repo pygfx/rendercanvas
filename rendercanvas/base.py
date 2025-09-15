@@ -87,7 +87,7 @@ class BaseCanvasGroup:
         """Get the currently associated loop (can be None for canvases that don't run a scheduler)."""
         return self._loop
 
-    def get_canvases(self) -> List[BaseRenderCanvas]:
+    def get_canvases(self) -> List["BaseRenderCanvas"]:
         """Get a list of currently active (not-closed) canvases for this group."""
         return [canvas for canvas in self._canvases if not canvas.get_closed()]
 

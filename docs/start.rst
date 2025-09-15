@@ -5,7 +5,7 @@ Installation
 ------------
 
 You can install ``rendercanvas`` via pip (or most other Python package managers).
-Python 3.9 or higher is required. Pypy is supported.
+Python 3.10 or higher is required. Pypy is supported.
 
 .. code-block:: bash
 
