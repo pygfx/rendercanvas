@@ -31,7 +31,6 @@ if libname:
         WA_PaintOnScreen = QtCore.Qt.WidgetAttribute.WA_PaintOnScreen
         WA_DeleteOnClose = QtCore.Qt.WidgetAttribute.WA_DeleteOnClose
         WA_InputMethodEnabled = QtCore.Qt.WidgetAttribute.WA_InputMethodEnabled
-        PreciseTimer = QtCore.Qt.TimerType.PreciseTimer
         KeyboardModifiers = QtCore.Qt.KeyboardModifier
         FocusPolicy = QtCore.Qt.FocusPolicy
         CursorShape = QtCore.Qt.CursorShape
@@ -42,7 +41,6 @@ if libname:
         WA_PaintOnScreen = QtCore.Qt.WA_PaintOnScreen
         WA_DeleteOnClose = QtCore.Qt.WA_DeleteOnClose
         WA_InputMethodEnabled = QtCore.Qt.WA_InputMethodEnabled
-        PreciseTimer = QtCore.Qt.PreciseTimer
         KeyboardModifiers = QtCore.Qt
         FocusPolicy = QtCore.Qt
         CursorShape = QtCore.Qt

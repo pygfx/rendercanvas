@@ -372,7 +372,7 @@ class BaseLoop:
         This method is optional. A subclass must either implement ``_rc_add_task`` or ``_rc_call_later``.
 
         * If you implememt this, make ``_rc_add_task()`` call ``super()._rc_add_task()``.
-        * If delay is zero, this should behave like "call_later".
+        * If delay is zero, this should behave like "call_soon".
         * No need to catch errors from the callback; that's dealt with internally.
         * Return None.
         """

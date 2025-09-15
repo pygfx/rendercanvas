@@ -60,6 +60,7 @@ class RawLoop(BaseLoop):
                 break
             else:
                 # Wait until its time for it to be called
+                # Note that on Windows, the accuracy of the timeout is 15.6 ms
                 wait_time = wrapper.time - time.perf_counter()
                 self._event.wait(max(wait_time, 0))
 
