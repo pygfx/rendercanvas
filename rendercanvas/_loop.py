@@ -140,7 +140,7 @@ class BaseLoop:
                 elif self.__should_stop:
                     # Close all remaining canvases. Loop will stop in a next iteration.
                     for canvas in self.get_canvases():
-                        if not getattr(canvas, "_rc_closed_by_loop", False):
+                        if not canvas._rc_closed_by_loop:
                             canvas._rc_closed_by_loop = True
                             canvas.close()
                         del canvas

@@ -45,7 +45,7 @@ __all__ = ["BaseLoop", "BaseRenderCanvas", "WrapperRenderCanvas"]
 class BaseCanvasGroup:
     """Represents a group of canvas objects from the same class, that share a loop."""
 
-    def __init__(self, default_loop):
+    def __init__(self, default_loop: BaseLoop):
         self._canvases = weakref.WeakSet()
         self._loop = None
         self.select_loop(default_loop)
@@ -71,11 +71,11 @@ class BaseCanvasGroup:
                 self._loop._unregister_canvas_group(self)
             self._loop = loop
 
-    def get_loop(self) -> BaseLoop:
+    def get_loop(self) -> BaseLoop | None:
         """Get the currently associated loop (can be None for canvases that don't run a scheduler)."""
         return self._loop
 
-    def get_canvases(self) -> List["BaseRenderCanvas"]:
+    def get_canvases(self) -> List[BaseRenderCanvas]:
         """Get a list of currently active (not-closed) canvases for this group."""
         return [canvas for canvas in self._canvases if not canvas.get_closed()]
 
@@ -123,7 +123,7 @@ class BaseRenderCanvas:
     def __init__(
         self,
         *args,
-        size: Tuple[int] = (640, 480),
+        size: Tuple[int, int] = (640, 480),
         title: str = "$backend",
         update_mode: UpdateModeEnum = "ondemand",
         min_fps: float = 0.0,
@@ -156,6 +156,7 @@ class BaseRenderCanvas:
         # Events and scheduler
         self._events = EventEmitter()
         self.__scheduler = None
+        self._rc_closed_by_loop = False
         if self._rc_canvas_group is None:
             pass  # No scheduling, not even grouping
         elif self._rc_canvas_group.get_loop() is None:
@@ -190,8 +191,8 @@ class BaseRenderCanvas:
             del self.__kwargs_for_later
         # Apply
         if not isinstance(self, WrapperRenderCanvas):
-            self.set_logical_size(*kwargs["size"])
-            self.set_title(kwargs["title"])
+            self.set_logical_size(*kwargs["size"])  # type: ignore
+            self.set_title(kwargs["title"])  # type: ignore
 
     def __del__(self):
         # On delete, we call the custom destroy method.
@@ -202,7 +203,7 @@ class BaseRenderCanvas:
         # Since this is sometimes used in a multiple inheritance, the
         # superclass may (or may not) have a __del__ method.
         try:
-            super().__del__()
+            super().__del__()  # type: ignore
         except Exception:
             pass
 
@@ -210,7 +211,7 @@ class BaseRenderCanvas:
 
     _canvas_context = None  # set in get_context()
 
-    def get_physical_size(self) -> Tuple[int]:
+    def get_physical_size(self) -> Tuple[int, int]:
         """Get the physical size of the canvas in integer pixels."""
         return self._rc_get_physical_size()
 
@@ -463,7 +464,7 @@ class BaseRenderCanvas:
 
     # %% Primary canvas management methods
 
-    def get_logical_size(self) -> Tuple[float]:
+    def get_logical_size(self) -> Tuple[float, float]:
         """Get the logical size (width, height) in float pixels.
 
         The logical size can be smaller than the physical size, e.g. on HiDPI
@@ -485,12 +486,12 @@ class BaseRenderCanvas:
     def close(self) -> None:
         """Close the canvas."""
         # Clear the draw-function, to avoid it holding onto e.g. wgpu objects.
-        self._draw_frame = None
+        self._draw_frame = None  # type: ignore
         # Clear the canvas context too.
         if hasattr(self._canvas_context, "_release"):
             # ContextInterface (and GPUCanvasContext) has _release()
             try:
-                self._canvas_context._release()
+                self._canvas_context._release()  # type: ignore
             except Exception:
                 pass
         self._canvas_context = None
@@ -672,6 +673,7 @@ class WrapperRenderCanvas(BaseRenderCanvas):
     """
 
     _rc_canvas_group = None  # No grouping for these wrappers
+    _subwidget: BaseRenderCanvas
 
     @classmethod
     def select_loop(cls, loop: BaseLoop) -> None:
@@ -707,10 +709,10 @@ class WrapperRenderCanvas(BaseRenderCanvas):
     def force_draw(self) -> None:
         self._subwidget.force_draw()
 
-    def get_physical_size(self) -> Tuple[int]:
+    def get_physical_size(self) -> Tuple[int, int]:
         return self._subwidget.get_physical_size()
 
-    def get_logical_size(self) -> Tuple[float]:
+    def get_logical_size(self) -> Tuple[float, float]:
         return self._subwidget.get_logical_size()
 
     def get_pixel_ratio(self) -> float:

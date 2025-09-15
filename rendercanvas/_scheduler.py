@@ -44,7 +44,7 @@ class Scheduler:
     # don't affect the scheduling loop; they are just extra draws.
 
     def __init__(
-        self, canvas, events, *, update_mode="ondemand", min_fps=0, max_fps=30
+        self, canvas, events, *, update_mode="ondemand", min_fps=0.0, max_fps=30.0
     ):
         self.name = f"{canvas.__class__.__name__} scheduler"
 
@@ -65,7 +65,7 @@ class Scheduler:
     def get_task(self):
         """Get task. Can be called exactly once. Used by the canvas."""
         task = self.__scheduler_task
-        self.__scheduler_task = None
+        self.__scheduler_task = None  # type: ignore
         assert task is not None
         return task
 
@@ -102,7 +102,7 @@ class Scheduler:
         self._draw_requested = True
 
     async def __scheduler_task(self):
-        """The coro that reprsents the scheduling loop for a canvas."""
+        """The coro that represents the scheduling loop for a canvas."""
 
         last_draw_time = 0
         last_tick_time = 0
