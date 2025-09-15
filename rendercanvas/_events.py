@@ -6,40 +6,8 @@ import time
 from inspect import iscoroutinefunction
 from collections import defaultdict, deque
 
-from ._coreutils import log_exception, BaseEnum
-
-
-class EventType(BaseEnum):
-    """The EventType enum specifies the possible events for a RenderCanvas.
-
-    This includes the events from the jupyter_rfb event spec (see
-    https://jupyter-rfb.readthedocs.io/en/stable/events.html) plus some
-    rendercanvas-specific events.
-    """
-
-    # Jupter_rfb spec
-
-    resize = None  #: The canvas has changed size. Has 'width' and 'height' in logical pixels, 'pixel_ratio'.
-    close = None  #: The canvas is closed. No additional fields.
-    pointer_down = None  #: The pointing device is pressed down. Has 'x', 'y', 'button', 'butons', 'modifiers', 'ntouches', 'touches'.
-    pointer_up = None  #: The pointing device is released. Same fields as pointer_down. Can occur outside of the canvas.
-    pointer_move = None  #: The pointing device is moved. Same fields as pointer_down. Can occur outside of the canvas if the pointer is currently down.
-    pointer_enter = None  #: The pointing device is moved into the canvas.
-    pointer_leave = None  #: The pointing device is moved outside of the canvas (regardless of a button currently being pressed).
-    double_click = None  #: A double-click / long-tap. This event looks like a pointer event, but without the touches.
-    wheel = None  #: The mouse-wheel is used (scrolling), or the touchpad/touchscreen is scrolled/pinched. Has 'dx', 'dy', 'x', 'y', 'modifiers'.
-    key_down = None  #: A key is pressed down. Has 'key', 'modifiers'.
-    key_up = None  #: A key is released. Has 'key', 'modifiers'.
-
-    # Pending for the spec, may become part of key_down/key_up
-    char = None  #: Experimental
-
-    # Our extra events
-
-    before_draw = (
-        None  #: Event emitted right before a draw is performed. Has no extra fields.
-    )
-    animate = None  #: Animation event. Has 'step' representing the step size in seconds. This is stable, except when the 'catch_up' field is nonzero.
+from ._coreutils import log_exception
+from ._enums import EventType
 
 
 valid_event_types = set(EventType)
@@ -80,10 +48,10 @@ class EventEmitter:
         """Register an event handler to receive events.
 
         Arguments:
-            callback (callable): The event handler. Must accept a single event argument.
+            callback (callable, optional): The event handler. Must accept a single event argument.
                 Can be a plain function or a coroutine function.
                 If you use async callbacks, see :ref:`async` for the limitations.
-            *types (list of strings): A list of event types.
+            *types (list of EventType): A list of event types.
             order (float): Set callback priority order. Callbacks with lower priorities
                 are called first. Default is 0. When an event is emitted, callbacks with
                 the same priority are called in the order that they were added.

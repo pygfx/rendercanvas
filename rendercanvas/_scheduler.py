@@ -6,20 +6,11 @@ import sys
 import time
 import weakref
 
-from ._coreutils import BaseEnum
+from ._enums import UpdateMode
 from .utils.asyncs import sleep, Event
 
 
 IS_WIN = sys.platform.startswith("win")
-
-
-class UpdateMode(BaseEnum):
-    """The UpdateMode enum specifies the different modes to schedule draws for the canvas."""
-
-    manual = None  #: Draw events are never scheduled. Draws only happen when you ``canvas.force_draw()``, and maybe when the GUI system issues them (e.g. when resizing).
-    ondemand = None  #: Draws are only scheduled when ``canvas.request_draw()`` is called when an update is needed. Safes your laptop battery. Honours ``min_fps`` and ``max_fps``.
-    continuous = None  #: Continuously schedules draw events, honouring ``max_fps``. Calls to ``canvas.request_draw()`` have no effect.
-    fastest = None  #: Continuously schedules draw events as fast as possible. Gives high FPS (and drains your battery).
 
 
 class Scheduler:
