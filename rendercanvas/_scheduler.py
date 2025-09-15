@@ -2,11 +2,15 @@
 The scheduler class/loop.
 """
 
+import sys
 import time
 import weakref
 
 from ._coreutils import BaseEnum
 from .utils.asyncs import sleep, Event
+
+
+IS_WIN = sys.platform.startswith("win")
 
 
 class UpdateMode(BaseEnum):
@@ -123,14 +127,23 @@ class Scheduler:
                 delay = 1 / self._max_fps
                 delay = 0 if delay < 0 else delay  # 0 means cannot keep up
 
-            # Offset delay for time spent on processing events, etc.
-            time_since_tick_start = time.perf_counter() - last_tick_time
-            delay -= time_since_tick_start
-            delay = max(0, delay)
+            # Determine amount of sleep
+            sleep_time = delay - (time.perf_counter() - last_tick_time)
 
-            # Wait. Even if delay is zero, it gives control back to the loop,
-            # allowing other tasks to do work.
-            await sleep(delay)
+            if IS_WIN:
+                # On Windows OS-level timers have an in accuracy of 15.6 ms.
+                # This can cause sleep to take longer than intended. So we sleep
+                # less, and then do a few small sync-sleeps that have high accuracy.
+                await sleep(max(0, sleep_time - 0.0156))
+                sleep_time = delay - (time.perf_counter() - last_tick_time)
+                while sleep_time > 0:
+                    time.sleep(min(sleep_time, 0.001))  # sleep hard for at most 1ms
+                    await sleep(0)  # Allow other tasks to run but don't wait
+                    sleep_time = delay - (time.perf_counter() - last_tick_time)
+            else:
+                # Wait. Even if delay is zero, it gives control back to the loop,
+                # allowing other tasks to do work.
+                await sleep(max(0, sleep_time))
 
             # Below is the "tick"
 
