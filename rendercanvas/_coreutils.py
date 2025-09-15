@@ -41,7 +41,7 @@ def log_exception(kind):
     except Exception as err:
         # Store exc info for postmortem debugging
         exc_info = list(sys.exc_info())
-        exc_info[2] = exc_info[2].tb_next  # skip *this* function
+        exc_info[2] = exc_info[2].tb_next  # type: ignore | skip *this* function
         sys.last_type, sys.last_value, sys.last_traceback = exc_info
         # Show traceback, or a one-line summary
         msg = str(err)

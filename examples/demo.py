@@ -37,9 +37,13 @@ canvas.request_draw(draw_frame)
 # Note: in this demo we listen to all events (using '*'). In general
 # you want to select one or more specific events to handle.
 
+cursor_index = 0
+
 
 @canvas.add_event_handler("*")
 async def process_event(event):
+    global cursor_index
+
     if event["event_type"] not in ["pointer_move", "before_draw", "animate"]:
         print(event)
 
@@ -62,10 +66,10 @@ async def process_event(event):
         elif event["key"] == "c":
             # Swap cursor
             shapes = list(rendercanvas.CursorShape)
-            canvas.cursor_index = getattr(canvas, "cursor_index", -1) + 1
-            if canvas.cursor_index >= len(shapes):
-                canvas.cursor_index = 0
-            cursor = shapes[canvas.cursor_index]
+            cursor_index += 1
+            if cursor_index >= len(shapes):
+                cursor_index = 0
+            cursor = shapes[cursor_index]
             canvas.set_cursor(cursor)
             print(f"Cursor: {cursor!r}")
     elif event["event_type"] == "close":

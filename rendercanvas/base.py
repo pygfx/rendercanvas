@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING
 
 from ._enums import (
     EventTypeEnum,
-    UpdateMode,
     UpdateModeEnum,
     CursorShape,
     CursorShapeEnum,
@@ -45,7 +44,7 @@ __all__ = ["BaseLoop", "BaseRenderCanvas", "WrapperRenderCanvas"]
 class BaseCanvasGroup:
     """Represents a group of canvas objects from the same class, that share a loop."""
 
-    def __init__(self, default_loop):
+    def __init__(self, default_loop: BaseLoop):
         self._canvases = weakref.WeakSet()
         self._loop = None
         self.select_loop(default_loop)
@@ -71,11 +70,11 @@ class BaseCanvasGroup:
                 self._loop._unregister_canvas_group(self)
             self._loop = loop
 
-    def get_loop(self) -> BaseLoop:
+    def get_loop(self) -> BaseLoop | None:
         """Get the currently associated loop (can be None for canvases that don't run a scheduler)."""
         return self._loop
 
-    def get_canvases(self) -> List["BaseRenderCanvas"]:
+    def get_canvases(self) -> List[BaseRenderCanvas]:
         """Get a list of currently active (not-closed) canvases for this group."""
         return [canvas for canvas in self._canvases if not canvas.get_closed()]
 
@@ -123,7 +122,7 @@ class BaseRenderCanvas:
     def __init__(
         self,
         *args,
-        size: Tuple[int] = (640, 480),
+        size: Tuple[int, int] = (640, 480),
         title: str = "$backend",
         update_mode: UpdateModeEnum = "ondemand",
         min_fps: float = 0.0,
@@ -190,8 +189,8 @@ class BaseRenderCanvas:
             del self.__kwargs_for_later
         # Apply
         if not isinstance(self, WrapperRenderCanvas):
-            self.set_logical_size(*kwargs["size"])
-            self.set_title(kwargs["title"])
+            self.set_logical_size(*kwargs["size"])  # type: ignore
+            self.set_title(kwargs["title"])  # type: ignore
 
     def __del__(self):
         # On delete, we call the custom destroy method.
@@ -202,7 +201,7 @@ class BaseRenderCanvas:
         # Since this is sometimes used in a multiple inheritance, the
         # superclass may (or may not) have a __del__ method.
         try:
-            super().__del__()
+            super().__del__()  # type: ignore
         except Exception:
             pass
 
@@ -210,7 +209,7 @@ class BaseRenderCanvas:
 
     _canvas_context = None  # set in get_context()
 
-    def get_physical_size(self) -> Tuple[int]:
+    def get_physical_size(self) -> Tuple[int, int]:
         """Get the physical size of the canvas in integer pixels."""
         return self._rc_get_physical_size()
 
@@ -368,7 +367,10 @@ class BaseRenderCanvas:
             max_fps (float): The maximum fps with update mode 'ondemand' and 'continuous'.
 
         """
-        self.__scheduler.set_update_mode(update_mode, min_fps=min_fps, max_fps=max_fps)
+        if self.__scheduler is not None:
+            self.__scheduler.set_update_mode(
+                update_mode, min_fps=min_fps, max_fps=max_fps
+            )
 
     def request_draw(self, draw_function: Optional[DrawFunction] = None) -> None:
         """Schedule a new draw event.
@@ -463,7 +465,7 @@ class BaseRenderCanvas:
 
     # %% Primary canvas management methods
 
-    def get_logical_size(self) -> Tuple[float]:
+    def get_logical_size(self) -> Tuple[float, float]:
         """Get the logical size (width, height) in float pixels.
 
         The logical size can be smaller than the physical size, e.g. on HiDPI
@@ -485,12 +487,12 @@ class BaseRenderCanvas:
     def close(self) -> None:
         """Close the canvas."""
         # Clear the draw-function, to avoid it holding onto e.g. wgpu objects.
-        self._draw_frame = None
+        self._draw_frame = None  # type: ignore
         # Clear the canvas context too.
         if hasattr(self._canvas_context, "_release"):
             # ContextInterface (and GPUCanvasContext) has _release()
             try:
-                self._canvas_context._release()
+                self._canvas_context._release()  # type: ignore
             except Exception:
                 pass
         self._canvas_context = None
@@ -541,12 +543,12 @@ class BaseRenderCanvas:
             cursor = "default"
         if not isinstance(cursor, str):
             raise TypeError("Canvas cursor must be str.")
-        cursor = cursor.lower().replace("_", "-")
-        if cursor not in CursorShape:
+        cursor_normed = cursor.lower().replace("_", "-")
+        if cursor_normed not in CursorShape:
             raise ValueError(
                 f"Canvas cursor {cursor!r} not known, must be one of {CursorShape}"
             )
-        self._rc_set_cursor(cursor)
+        self._rc_set_cursor(cursor_normed)
 
     # %% Methods for the subclass to implement
 
@@ -609,19 +611,19 @@ class BaseRenderCanvas:
         """
         raise NotImplementedError()
 
-    def _rc_get_physical_size(self):
+    def _rc_get_physical_size(self) -> Tuple[int, int]:
         """Get the physical size (with, height) in integer pixels."""
         raise NotImplementedError()
 
-    def _rc_get_logical_size(self):
+    def _rc_get_logical_size(self) -> Tuple[float, float]:
         """Get the logical size (with, height) in float pixels."""
         raise NotImplementedError()
 
-    def _rc_get_pixel_ratio(self):
+    def _rc_get_pixel_ratio(self) -> float:
         """Get ratio between physical and logical size."""
         raise NotImplementedError()
 
-    def _rc_set_logical_size(self, width, height):
+    def _rc_set_logical_size(self, width: float, height: float):
         """Set the logical size. May be ignired when it makes no sense.
 
         The default implementation does nothing.
@@ -644,18 +646,18 @@ class BaseRenderCanvas:
         """
         pass
 
-    def _rc_get_closed(self):
+    def _rc_get_closed(self) -> bool:
         """Get whether the canvas is closed."""
         return False
 
-    def _rc_set_title(self, title):
+    def _rc_set_title(self, title: str):
         """Set the canvas title. May be ignored when it makes no sense.
 
         The default implementation does nothing.
         """
         pass
 
-    def _rc_set_cursor(self, cursor):
+    def _rc_set_cursor(self, cursor: str):
         """Set the cursor shape. May be ignored.
 
         The default implementation does nothing.
@@ -672,6 +674,7 @@ class WrapperRenderCanvas(BaseRenderCanvas):
     """
 
     _rc_canvas_group = None  # No grouping for these wrappers
+    _subwidget: BaseRenderCanvas
 
     @classmethod
     def select_loop(cls, loop: BaseLoop) -> None:
@@ -679,8 +682,8 @@ class WrapperRenderCanvas(BaseRenderCanvas):
         return m.RenderWidget.select_loop(loop)
 
     def add_event_handler(
-        self, *args: str | EventHandlerFunction, order: float = 0
-    ) -> None:
+        self, *args: EventTypeEnum | EventHandlerFunction, order: float = 0
+    ) -> Callable:
         return self._subwidget._events.add_handler(*args, order=order)
 
     def remove_event_handler(self, callback: EventHandlerFunction, *types: str) -> None:
@@ -694,7 +697,7 @@ class WrapperRenderCanvas(BaseRenderCanvas):
 
     def set_update_mode(
         self,
-        update_mode: UpdateMode,
+        update_mode: UpdateModeEnum,
         *,
         min_fps: Optional[float] = None,
         max_fps: Optional[float] = None,
@@ -707,10 +710,10 @@ class WrapperRenderCanvas(BaseRenderCanvas):
     def force_draw(self) -> None:
         self._subwidget.force_draw()
 
-    def get_physical_size(self) -> Tuple[int]:
+    def get_physical_size(self) -> Tuple[int, int]:
         return self._subwidget.get_physical_size()
 
-    def get_logical_size(self) -> Tuple[float]:
+    def get_logical_size(self) -> Tuple[float, float]:
         return self._subwidget.get_logical_size()
 
     def get_pixel_ratio(self) -> float:

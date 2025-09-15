@@ -40,6 +40,8 @@ def select_backend():
     module = None
     failed_backends = {}  # name -> error
 
+    backend_name = "none"
+    reason = "no reason"
     for backend_name, reason in backends_generator():
         if "force" in reason.lower():
             return _load_backend(backend_name)
@@ -122,7 +124,7 @@ def backends_by_env_vars():
 def backends_by_jupyter():
     """Generate backend names that are appropriate for the current Jupyter session (if any)."""
     try:
-        ip = get_ipython()
+        ip = get_ipython()  # type: ignore
     except NameError:
         return
     if not ip.has_trait("kernel"):

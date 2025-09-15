@@ -4,6 +4,7 @@ A wgpu example showing a rotating cube. Provides ``setup_drawing_sync()`` and
 """
 
 import time
+from typing import Callable
 
 import wgpu
 import numpy as np
@@ -14,7 +15,7 @@ import numpy as np
 
 def setup_drawing_sync(
     canvas, power_preference="high-performance", limits=None, format=None
-):
+) -> Callable[[], None]:
     """Setup to draw a rotating cube on the given canvas.
 
     The given canvas must implement WgpuCanvasInterface, but nothing more.
@@ -220,7 +221,7 @@ def create_pipeline_layout(device):
 
 def get_draw_function(
     canvas, device, render_pipeline, uniform_buffer, bind_groups, *, asynchronous
-):
+) -> Callable[[], None]:
     # Create vertex buffer, and upload data
     vertex_buffer = device.create_buffer_with_data(
         data=vertex_data, usage=wgpu.BufferUsage.VERTEX

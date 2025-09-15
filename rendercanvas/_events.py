@@ -5,6 +5,7 @@ The event system.
 import time
 from inspect import iscoroutinefunction
 from collections import defaultdict, deque
+from typing import Callable
 
 from ._coreutils import log_exception
 from ._enums import EventType
@@ -44,7 +45,7 @@ class EventEmitter:
         self._pending_events.clear()
         self._event_handlers.clear()
 
-    def add_handler(self, *args, order: float = 0):
+    def add_handler(self, *args, order: float = 0) -> Callable:
         """Register an event handler to receive events.
 
         Arguments:
@@ -89,9 +90,11 @@ class EventEmitter:
 
         """
         order = float(order)
-        decorating = not callable(args[0])
-        callback = None if decorating else args[0]
-        types = args if decorating else args[1:]
+        callback = None
+        types = args
+        if len(args) > 0 and callable(args[0]):
+            callback = args[0]
+            types = args[1:]
 
         if not types:
             raise TypeError("No event types are given to add_event_handler.")
@@ -101,11 +104,11 @@ class EventEmitter:
             if not (type == "*" or type in valid_event_types):
                 raise ValueError(f"Adding handler with invalid event_type: '{type}'")
 
-        def decorator(_callback):
+        def decorator(_callback: Callable):
             self._add_handler(_callback, order, *types)
             return _callback
 
-        if decorating:
+        if callback is None:
             return decorator
         return decorator(callback)
 
