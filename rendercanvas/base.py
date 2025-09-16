@@ -624,7 +624,7 @@ class BaseRenderCanvas:
         raise NotImplementedError()
 
     def _rc_set_logical_size(self, width: float, height: float):
-        """Set the logical size. May be ignired when it makes no sense.
+        """Set the logical size. May be ignored when it makes no sense.
 
         The default implementation does nothing.
         """

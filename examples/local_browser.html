@@ -2,54 +2,20 @@
 <!doctype html>
 <html>
 <head>
-    <style>
-        html, body { width: 100%; height: 100%; margin: 0; }
-        #canvas { display: block; width: 100%; height: 100%;}
-    </style>
+    RenderCanvas HTML canvas via Pyodide <br>
     <script src="https://cdn.jsdelivr.net/pyodide/v0.28.2/full/pyodide.js"></script>
 </head>
 <body>
-<canvas id="canvas" tabindex="0"></canvas>
+<canvas id="canvas" width="640" height="480"></canvas>
+some text below the canvas!
 <script type="text/javascript">
-    // ====================== Start of Python code ============================
-    pythonCode = `
-import rendercanvas
-print("rendercanvas version:", rendercanvas.__version__)
-import numpy as np
-from pyodide.ffi import run_sync
-from js import document, ImageData, Uint8ClampedArray, window
-
-# TODO: make this a proper RenderCanvas, just a poc for now
-class HTMLBitmapCanvas():  
-    def __init__(self):
-        canvas_element = document.getElementById("canvas")
-        self.canvas_element = canvas_element
-        self.context = canvas_element.getContext("bitmaprenderer")
-    
-    def _rc_get_present_methods(self):
-        return ["set_bitmap"]
-
-    def _rc_get_logical_size(self):
-        return self.canvas_element.width, self.canvas_element.height
-
-    def set_bitmap(self, bitmap):
-        h, w, _ = bitmap.shape
-        flat_bitmap = bitmap.flatten()
-        js_array = Uint8ClampedArray.new(flat_bitmap.tolist())
-        image_data = ImageData.new(js_array, w, h)
-        image_bitmap = run_sync(window.createImageBitmap(image_data))
-        self.context.transferFromImageBitmap(image_bitmap)
-
-
-canvas = HTMLBitmapCanvas()
-shape = (*canvas._rc_get_logical_size(), 4)
-bitmap = np.random.uniform(0, 255, shape).astype(np.uint8)
-canvas.set_bitmap(bitmap)
-`
-    // ====================== End of Python code ==============================
-
-
     async function main(){
+
+        // fetch the file locally for easier scripting
+        // --allow-file-access-from-files or local webserver
+        // TODO: replace the actual code here (unless you have the module)
+        pythonCode = await (await fetch("html_canvas.py")).text();
+
         // Load Pyodide
         let pyodide = await loadPyodide();
 
@@ -58,7 +24,7 @@ canvas.set_bitmap(bitmap)
         await micropip.install('numpy');
         await micropip.install('rendercanvas');
 
-        // Run the Python code
+        // Run the Python code async because some calls are async it seems.
         pyodide.runPythonAsync(pythonCode);
     }
     main();
