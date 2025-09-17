@@ -83,6 +83,10 @@ class HTMLBitmapCanvas(BaseRenderCanvas):
         self.canvas_element = canvas_element
         self.context = canvas_element.getContext("bitmaprenderer")
 
+        size = self.get_logical_size() #seemingly available during init
+        # assume 1 byte per pixel and 4 channels right here # TODO parse format bpp?
+        self._js_array = Uint8ClampedArray.new(size[0]*size[1]*4)
+
         self._final_canvas_init()
 
     def _rc_gui_poll(self):
@@ -136,16 +140,13 @@ class HTMLBitmapCanvas(BaseRenderCanvas):
         # self.canvas_element.style.height = f"{height}px"
 
     def set_bitmap(self, bitmap):
+        # method doesn't really exist? as it's part of the context? maybe we move it into the draw function...
         # TODO: improve performance https://pyodide.org/en/stable/usage/type-conversions.html#buffers
-        # TODO: avoid memory leak!!!
-        # doesn't really exist? as it's part of the context? maybe we move it into the draw function...
-        self._last_bitmap = bitmap # keep track?
-        h, w, _ = bitmap.shape
-        flat_bitmap = bitmap.flatten()
-        js_array = Uint8ClampedArray.new(flat_bitmap.tolist())
-        image_data = ImageData.new(js_array, w, h)
-        # now this is the fake async call so it should be blocking
+        self._js_array.assign(bitmap)
+        image_data = ImageData.new(self._js_array, bitmap.shape[1], bitmap.shape[0])
+        # now this is the fake async call so it should be blocking: https://blog.pyodide.org/posts/jspi/
         self._image_bitmap = run_sync(window.createImageBitmap(image_data))
+        # better yet using a 2d context: https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/putImageData ?
 
     def _rc_close(self):
         # self.canvas_element.remove() # shouldn't really be needed?
@@ -162,7 +163,8 @@ class HTMLBitmapCanvas(BaseRenderCanvas):
     # TODO: events
 
 
-canvas = HTMLBitmapCanvas(title="RenderCanvas in Pyodide", max_fps=3.0)
+canvas = HTMLBitmapCanvas(title="RenderCanvas in Pyodide", max_fps=30.0)
+
 def animate():
     # based on the noise.py example
     w, h = canvas._rc_get_logical_size()
@@ -170,5 +172,7 @@ def animate():
     bitmap = np.random.uniform(0, 255, shape).astype(np.uint8)
     canvas.set_bitmap(bitmap)
 
+# animate()
+# canvas._rc_present_bitmap()
 canvas.request_draw(animate)
 pyodide_loop.run()
