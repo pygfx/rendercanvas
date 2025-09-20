@@ -78,52 +78,6 @@ class PyodideLoop(BaseLoop):
 
 pyodide_loop = PyodideLoop()
 
-# needed for the _canvas_context lookup in _draw_frame_and_present
-# mostly based on BitmapRenderingContext
-class HTMLBitmapContext:
-    def __init__(self, canvas, present_methods):
-        self._canvas_ref = weakref.ref(canvas)
-        self._present_methods = present_methods
-        assert "bitmap" in present_methods # for now just this?
-
-        self._format = "rgba-u8" # hardcoded for now
-
-        self._bitmap = None
-
-    @property
-    def canvas(self):
-        return self._canvas_ref()
-
-    def set_bitmap(self, bitmap):
-        # this needs to stay a python object I guess...
-        # as it breaks when we pass the js objects to the other class...
-        # so the interesting part is actually happening in the _rc_present_bitmap method of the canvas class
-        self._bitmap = bitmap
-
-    def present(self):
-        if self._bitmap is None:
-            return {"method": "skip"}
-        elif self._present_methods == "bitmap":
-            # TODO: reshape the bitmap to fit canvas size...
-            # copy pasted from ref:
-            bitmap = self._bitmap
-            flat_bitmap = bitmap.cast("B", (bitmap.nbytes,))
-            new_bitmap = memoryview(bytearray(bitmap.nbytes * 4)).cast("B")
-            new_bitmap[::4] = flat_bitmap
-            new_bitmap[1::4] = flat_bitmap
-            new_bitmap[2::4] = flat_bitmap
-            new_bitmap[3::4] = b"\xff" * flat_bitmap.nbytes
-            bitmap = new_bitmap.cast("B", (*bitmap.shape, 4))
-            self._bitmap = bitmap
-            return {
-                "method": "bitmap",
-                "data": self._bitmap,
-                "format": self._format,
-            }
-
-        else:
-            return {"method": "fail", "message": "wut?"}
-
 # needed for completeness? somehow is required for other examples - hmm?
 class HtmlCanvasGroup(BaseCanvasGroup):
     pass
@@ -162,7 +116,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         # TODO: store multiple proxies for more events... maybe a dict? maybe attach it to the event?
         self._proxy_f = create_proxy(f)
         # TODO: map event types from rendercanvas back to js event types example: key_down -> keydown
-        document.addEventListener('keydown', self._proxy_f)
+        document.addEventListener('keydown', self._proxy_f) # do all events need to be on the document or could they be on the canvas element?
 
         return self._events.add_handler(*args, order=order) # this returns the python callback of the user defined function
 
@@ -190,7 +144,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         self._draw_frame_and_present()
 
     def _rc_present_bitmap(self, **kwargs):
-        data = kwargs.get("data")
+        data = kwargs.get("data") # data is a memoryview
         shape = data.shape # use data shape instead of canvas size
         if self._js_array.length != shape[0] * shape[1] * 4:  # #assumes rgba-u8 -> 4 bytes per pixel
             # resize step here? or on first use.
@@ -202,6 +156,31 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         # this actually "writes" the data to the canvas I guess.
         self.html_context.transferFromImageBitmap(image_bitmap)
         # handles lower res just fine it seems.
+
+    # maybe if we don't use the existing bitmaprendering context, we could have something like this:
+    # _rc_present_js_array?
+    # _rc_present_js_image_data?
+
+    # TODO: consider switching:
+    def _rc_present_bitmap_2d(self, **kwargs):
+        # still takes a bitmap, but uses the 2d context instead which might be faster
+        if not hasattr(self, "_2d_context"):
+            # will give `null` if other context already exists! so we would need to avoid that above.
+            self._2d_context = self.canvas_element.getContext("2d")
+            print("got 2d context:", self._2d_context)
+        data = kwargs.get("data")
+
+        ## same as above ## (might be extracted to the bitmappresentcontext class one day?)
+        shape = data.shape # use data shape instead of canvas size
+        if self._js_array.length != shape[0] * shape[1] * 4:  # #assumes rgba-u8 -> 4 bytes per pixel
+            # resize step here? or on first use.
+            self._js_array = Uint8ClampedArray.new(shape[0] * shape[1] * 4)
+        self._js_array.assign(data)
+        image_data = ImageData.new(self._js_array, shape[1], shape[0]) # width, height !
+        #######
+        # TODO: is not resized because we writing bytes to pixels directly.
+        self._2d_context.putImageData(image_data, 0, 0) # x,y
+
 
     def _rc_get_physical_size(self):
         return self.canvas_element.style.width, self.canvas_element.style.height

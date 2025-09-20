@@ -24,7 +24,7 @@ then present the result to the screen. For this, the canvas provides one or more
                 └─────────┘               └────────┘
 
 This means that for the context to be able to present to any canvas, it must
-support *both* the 'image' and 'screen' present-methods. If the context prefers
+support *both* the 'bitmap' and 'screen' present-methods. If the context prefers
 presenting to the screen, and the canvas supports that, all is well. Similarly,
 if the context has a bitmap to present, and the canvas supports the
 bitmap-method, there's no problem.
