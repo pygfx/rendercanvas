@@ -1,7 +1,7 @@
 import rendercanvas
 print("rendercanvas version:", rendercanvas.__version__)
 from rendercanvas.base import BaseRenderCanvas, BaseCanvasGroup, BaseLoop
-
+import weakref
 import numpy as np
 
 # packages available inside pyodide
@@ -24,7 +24,6 @@ class HTMLLoop(BaseLoop):
 
     def _rc_init(self):
         from pyodide.webloop import WebLoop
-        import asyncio
         self._webloop = WebLoop()
 
         # TODO later try this
@@ -69,6 +68,41 @@ class HTMLLoop(BaseLoop):
 
 pyodide_loop = HTMLLoop()
 
+
+# needed for the _canvas_context lookup in _draw_frame_and_present
+# mostly based on BitmapRenderingContext
+class HTMLBitmapContext:
+    def __init__(self, canvas, present_methods):
+        self._canvas_ref = weakref.ref(canvas)
+        self._present_methods = present_methods
+        assert "bitmap" in present_methods # for now just this?
+
+        self._format = "rgba-u8" # hardcoded for now
+
+        self._bitmap = None
+
+    @property
+    def canvas(self):
+        return self._canvas_ref()
+
+    def set_bitmap(self, bitmap):
+        # this needs to stay a python object I guess...
+        self._bitmap = bitmap
+
+    def present(self):
+        if self._bitmap is None:
+            return {"method": "skip"}
+        elif self._present_methods == "bitmap":
+            # to mimic the reference?
+            return {
+                "method": "bitmap",
+                "data": self._bitmap,
+                "format": self._format,
+            }
+
+        else:
+            return {"method": "fail", "message": "wut?"}
+
 # needed for completeness? somehow is required for other examples - hmm?
 class HTMLCanvasGroup(BaseCanvasGroup):
     pass
@@ -81,13 +115,20 @@ class HTMLBitmapCanvas(BaseRenderCanvas):
         super().__init__(*args, **kwargs)
         canvas_element = document.getElementById("canvas")
         self.canvas_element = canvas_element
-        self.context = canvas_element.getContext("bitmaprenderer")
+        self.html_context = canvas_element.getContext("bitmaprenderer") # this is part of the canvas, not the context???
 
-        size = self.get_logical_size() #seemingly available during init
+        size = self.get_logical_size()
         # assume 1 byte per pixel and 4 channels right here # TODO parse format bpp?
         self._js_array = Uint8ClampedArray.new(size[0]*size[1]*4)
-
+        # self.setup_event() #TODO
         self._final_canvas_init()
+
+    def setup_event(self):
+        # https://pyodide.org/en/stable/usage/faq.html#how-can-i-use-a-python-function-as-an-event-handler maybe?
+        # https://pyodide.org/en/stable/usage/api/python-api/ffi.html#pyodide.ffi.wrappers.add_event_listener
+        # not this easy -.-
+        from pyodide.ffi.wrappers import add_event_listener
+        add_event_listener(self.canvas_element, "*", self.submit_event)
 
     def _rc_gui_poll(self):
         # not sure if anything has to be done
@@ -102,7 +143,6 @@ class HTMLBitmapCanvas(BaseRenderCanvas):
         }
 
     def _rc_request_draw(self):
-        # loop.call_soon?
         loop = self._rc_canvas_group.get_loop()
         loop.call_soon(self._draw_frame_and_present)
         # window.requestAnimationFrame(self._rc_present_bitmap) #doesn't feel like this is the way... maybe more reading
@@ -110,16 +150,17 @@ class HTMLBitmapCanvas(BaseRenderCanvas):
         # print("request draw called?")
 
     def _rc_force_draw(self):
-        self._draw_frame_and_present() # returns without calling the present it seems
+        self._draw_frame_and_present()
 
-    def _rc_present_bitmap(self):
+    def _rc_present_bitmap(self, **kwargs):
+        data = kwargs.get("data")
+        w, h = self.get_logical_size()
+        self._js_array.assign(data)
+        image_data = ImageData.new(self._js_array, w, h)
+        # fake async call here is blocking, todo - make everything async?
+        image_bitmap = run_sync(window.createImageBitmap(image_data))
         # this actually "writes" the data to the canvas I guess.
-        self.context.transferFromImageBitmap(self._image_bitmap)
-
-    # reimplement so we might understand what's going on
-    def _draw_frame_and_present(self):
-        self._draw_frame()
-        self._rc_present_bitmap()
+        self.html_context.transferFromImageBitmap(image_bitmap)
 
     def _rc_get_physical_size(self):
         return self.canvas_element.style.width, self.canvas_element.style.height
@@ -139,15 +180,6 @@ class HTMLBitmapCanvas(BaseRenderCanvas):
         # self.canvas_element.style.width = f"{width}px"
         # self.canvas_element.style.height = f"{height}px"
 
-    def set_bitmap(self, bitmap):
-        # method doesn't really exist? as it's part of the context? maybe we move it into the draw function...
-        # TODO: improve performance https://pyodide.org/en/stable/usage/type-conversions.html#buffers
-        self._js_array.assign(bitmap)
-        image_data = ImageData.new(self._js_array, bitmap.shape[1], bitmap.shape[0])
-        # now this is the fake async call so it should be blocking: https://blog.pyodide.org/posts/jspi/
-        self._image_bitmap = run_sync(window.createImageBitmap(image_data))
-        # better yet using a 2d context: https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/putImageData ?
-
     def _rc_close(self):
         # self.canvas_element.remove() # shouldn't really be needed?
         pass
@@ -162,17 +194,28 @@ class HTMLBitmapCanvas(BaseRenderCanvas):
 
     # TODO: events
 
-
-canvas = HTMLBitmapCanvas(title="RenderCanvas in Pyodide", max_fps=30.0)
+# based on the noise.py example
+canvas = HTMLBitmapCanvas(title="RenderCanvas in Pyodide", update_mode="continuous", max_fps=30.0)
+context = canvas.get_context("bitmap")
 
 def animate():
-    # based on the noise.py example
     w, h = canvas._rc_get_logical_size()
     shape = (int(h), int(w), 4) # third dimension sounds like it's needed
     bitmap = np.random.uniform(0, 255, shape).astype(np.uint8)
-    canvas.set_bitmap(bitmap)
+    context.set_bitmap(bitmap)
+
+# def on_click(event):
+#     print("clicked on the canvas!")
+
+# canvas.add_event_handler(on_click, "pointer_down")
+
 
 # animate()
 # canvas._rc_present_bitmap()
 canvas.request_draw(animate)
+# canvas.force_draw()
+# canvas.set_title("!rc in pyodide at $fps")
+# print(dir(canvas))
+# print(dir(pyodide_loop))
 pyodide_loop.run()
+# pyodide_loop.stop()
