@@ -141,23 +141,13 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         self._js_array = Uint8ClampedArray.new(0)
         self._final_canvas_init()
 
+    # override the base method to also register the js event and proxy
+    # TODO: maybe split up into multiple methods like other backends
     def add_event_handler(self, *args, order=0):
         # https://pyodide.org/en/stable/usage/faq.html#how-can-i-use-a-python-function-as-an-event-handler maybe?
         # https://pyodide.org/en/stable/usage/api/python-api/ffi.html#pyodide.ffi.wrappers.add_event_listener
-        # not this easy -.-
-        # from pyodide.ffi.wrappers import add_event_listener
-        print("got event to handle", args)
-        from pyodide.ffi import create_proxy
-        # def submit_event_proxy(event_object):
-        #     print("submitting proxy event", event_object)
-        #     self.submit_event(event_object)
-        # self._event_proxy = create_proxy(submit_event_proxy)
-        # document.body.addEventListener("keydown", self._event_proxy)
-        # TODO release and close this?
-
+        from pyodide.ffi import create_proxy # maybe import further up?
         def f(*proxy_args):
-            # print("inside f")
-            # print(dir(args[0]))
             # print(proxy_args[0].type)
             # print(proxy_args[0].key)
             # print(repr(self._events))
@@ -168,18 +158,18 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             }
             # print("event to submit:", event)
             self.submit_event(event)
-        print("made function, creating proxy")
 
+        # TODO: store multiple proxies for more events... maybe a dict? maybe attach it to the event?
         self._proxy_f = create_proxy(f)
+        # TODO: map event types from rendercanvas back to js event types example: key_down -> keydown
         document.addEventListener('keydown', self._proxy_f)
-        # Store proxy_f in Python then later:
-        # document.body.removeEventListener('keydown', proxy_f)
-        # proxy_f.destroy()
 
-        # or instead
-        return self._events.add_handler(*args, order=order) # doesn't do anything anymore?
-        # add_event_listener(self.canvas_element, "*", self.submit_event)
-        
+        return self._events.add_handler(*args, order=order) # this returns the python callback of the user defined function
+
+    # TODO: remove handler like this?
+    # document.body.removeEventListener('keydown', self._proxy_f)
+    # self._proxy_f.destroy()
+
     def _rc_gui_poll(self):
         # not sure if anything has to be done
         pass
@@ -206,9 +196,9 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             # resize step here? or on first use.
             self._js_array = Uint8ClampedArray.new(shape[0] * shape[1] * 4)
         self._js_array.assign(data)
-        image_data = ImageData.new(self._js_array, shape[0], shape[1])
-        # fake async call here is blocking, todo - make everything async?
-        image_bitmap = run_sync(window.createImageBitmap(image_data))
+        image_data = ImageData.new(self._js_array, shape[1], shape[0]) # width, height !
+        size = self.get_logical_size()
+        image_bitmap = run_sync(window.createImageBitmap(image_data, {"resizeQuality": "pixelated", "resizeWidth": int(size[0]), "resizeHeight": int(size[1])}))
         # this actually "writes" the data to the canvas I guess.
         self.html_context.transferFromImageBitmap(image_bitmap)
         # handles lower res just fine it seems.
@@ -242,8 +232,6 @@ class HtmlRenderCanvas(BaseRenderCanvas):
     def _rc_set_title(self, title: str):
         # canvas element doens't have a title directly... but maybe the whole page?
         document.title = title
-
-    # TODO: events
 
 # provide for the auto namespace:
 loop = pyodide_loop
