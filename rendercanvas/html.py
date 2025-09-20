@@ -139,16 +139,47 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         self.html_context = canvas_element.getContext("bitmaprenderer") # this is part of the canvas, not the context???
 
         self._js_array = Uint8ClampedArray.new(0)
-        # self.setup_event() #TODO
         self._final_canvas_init()
 
-    # def setup_event(self):
-    #     # https://pyodide.org/en/stable/usage/faq.html#how-can-i-use-a-python-function-as-an-event-handler maybe?
-    #     # https://pyodide.org/en/stable/usage/api/python-api/ffi.html#pyodide.ffi.wrappers.add_event_listener
-    #     # not this easy -.-
-    #     from pyodide.ffi.wrappers import add_event_listener
-    #     add_event_listener(self.canvas_element, "*", self.submit_event)
+    def add_event_handler(self, *args, order=0):
+        # https://pyodide.org/en/stable/usage/faq.html#how-can-i-use-a-python-function-as-an-event-handler maybe?
+        # https://pyodide.org/en/stable/usage/api/python-api/ffi.html#pyodide.ffi.wrappers.add_event_listener
+        # not this easy -.-
+        # from pyodide.ffi.wrappers import add_event_listener
+        print("got event to handle", args)
+        from pyodide.ffi import create_proxy
+        # def submit_event_proxy(event_object):
+        #     print("submitting proxy event", event_object)
+        #     self.submit_event(event_object)
+        # self._event_proxy = create_proxy(submit_event_proxy)
+        # document.body.addEventListener("keydown", self._event_proxy)
+        # TODO release and close this?
 
+        def f(*proxy_args):
+            # print("inside f")
+            # print(dir(args[0]))
+            # print(proxy_args[0].type)
+            # print(proxy_args[0].key)
+            # print(repr(self._events))
+            event = {
+                "event_type": "key_down",
+                "key": proxy_args[0].key,
+                "timestamp": proxy_args[0].timeStamp,
+            }
+            # print("event to submit:", event)
+            self.submit_event(event)
+        print("made function, creating proxy")
+
+        self._proxy_f = create_proxy(f)
+        document.addEventListener('keydown', self._proxy_f)
+        # Store proxy_f in Python then later:
+        # document.body.removeEventListener('keydown', proxy_f)
+        # proxy_f.destroy()
+
+        # or instead
+        return self._events.add_handler(*args, order=order) # doesn't do anything anymore?
+        # add_event_listener(self.canvas_element, "*", self.submit_event)
+        
     def _rc_gui_poll(self):
         # not sure if anything has to be done
         pass
