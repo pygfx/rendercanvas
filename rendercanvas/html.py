@@ -15,10 +15,8 @@ if "pyodide" not in sys.modules:
     raise ImportError("This module is only for use with Pyodide in the browser.")
 
 # packages available inside pyodide
-from pyodide.ffi import run_sync
+from pyodide.ffi import run_sync, create_proxy
 from js import document, ImageData, Uint8ClampedArray, window
-# import sys
-# assert sys.platform == "emscripten" # use in the future to direct the auto backend?
 
 # TODO event loop for js? https://rendercanvas.readthedocs.io/stable/backendapi.html#rendercanvas.stub.StubLoop
 # https://pyodide.org/en/stable/usage/sdl.html#working-with-infinite-loop
@@ -91,38 +89,193 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         canvas_element = document.getElementById(element_id)
         self.canvas_element = canvas_element
         self.html_context = canvas_element.getContext("bitmaprenderer") # this is part of the canvas, not the context???
-
+        self._setup_events()
         self._js_array = Uint8ClampedArray.new(0)
         self._final_canvas_init()
 
-    # override the base method to also register the js event and proxy
-    # TODO: maybe split up into multiple methods like other backends
-    def add_event_handler(self, *args, order=0):
-        # https://pyodide.org/en/stable/usage/faq.html#how-can-i-use-a-python-function-as-an-event-handler maybe?
-        # https://pyodide.org/en/stable/usage/api/python-api/ffi.html#pyodide.ffi.wrappers.add_event_listener
-        from pyodide.ffi import create_proxy # maybe import further up?
-        def f(*proxy_args):
-            # print(proxy_args[0].type)
-            # print(proxy_args[0].key)
-            # print(repr(self._events))
+
+    def _setup_events(self):
+        # following list from: https://jupyter-rfb.readthedocs.io/en/stable/events.html
+        # better: https://rendercanvas.readthedocs.io/stable/api.html#rendercanvas.EventType
+        KEY_MOD_MAP = {
+            "altKey": "Alt",
+            "ctrlKey": "Control",
+            "metaKey": "Meta",
+            "shiftKey": "Shift",
+        }
+        # resize ? maybe composition?
+
+        # close ? perhaps https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent
+
+        # pointer_down
+        def _html_pointer_down(proxy_args):
+            modifiers = tuple([v for k,v in KEY_MOD_MAP.items() if getattr(proxy_args, k)])
+            event = {
+                "event_type": "pointer_down",
+                "x": proxy_args.offsetX,
+                "y": proxy_args.offsetY,
+                "button": proxy_args.button,
+                "buttons": proxy_args.buttons,
+                "modifiers": modifiers,
+                "ntouches": 0,  # TODO: maybe via https://developer.mozilla.org/en-US/docs/Web/API/TouchEvent
+                "touches": {},
+                "time_stamp": proxy_args.timeStamp,
+            }
+            self.submit_event(event)
+        self._pointer_down_proxy = create_proxy(_html_pointer_down)
+        self.canvas_element.addEventListener("pointerdown", self._pointer_down_proxy)
+
+        # pointer_up
+        def _html_pointer_up(proxy_args):
+            modifiers = tuple([v for k,v in KEY_MOD_MAP.items() if getattr(proxy_args, k)])
+            event = {
+                "event_type": "pointer_up",
+                "x": proxy_args.offsetX,
+                "y": proxy_args.offsetY,
+                "button": proxy_args.button,
+                "buttons": proxy_args.buttons,
+                "modifiers": modifiers,
+                "ntouches": 0,
+                "touches": {},
+                "time_stamp": proxy_args.timeStamp,
+            }
+            self.submit_event(event)
+        self._pointer_up_proxy = create_proxy(_html_pointer_up)
+        self.canvas_element.addEventListener("pointerup", self._pointer_up_proxy)
+
+        # pointer_move
+        # TODO: track pointer_inside and pointer_down to only trigger this when relevant?
+        # also figure out why it doesn't work in the first place...
+        def _html_pointer_move(proxy_args):
+            modifiers = tuple([v for k,v in KEY_MOD_MAP.items() if getattr(proxy_args, k)])
+            event = {
+                "event_type": "pointer_move",
+                "x": proxy_args.offsetX,
+                "y": proxy_args.offsetY,
+                "button": proxy_args.button,
+                "buttons": proxy_args.buttons,
+                "modifiers": modifiers,
+                "ntouches": 0,
+                "touches": {},
+                "time_stamp": proxy_args.timeStamp,
+            }
+            self.submit_event(event)
+        self._pointer_move_proxy = create_proxy(_html_pointer_move)
+        document.addEventListener("pointermove", self._pointer_move_proxy)
+
+        # pointer_enter
+        def _html_pointer_enter(proxy_args):
+            modifiers = tuple([v for k,v in KEY_MOD_MAP.items() if getattr(proxy_args, k)])
+            event = {
+                "event_type": "pointer_enter",
+                "x": proxy_args.offsetX,
+                "y": proxy_args.offsetY,
+                "button": proxy_args.button,
+                "buttons": proxy_args.buttons,
+                "modifiers": modifiers,
+                "ntouches": 0,
+                "touches": {},
+                "time_stamp": proxy_args.timeStamp,
+            }
+            self.submit_event(event)
+        self._pointer_enter_proxy = create_proxy(_html_pointer_enter)
+        self.canvas_element.addEventListener("pointerenter", self._pointer_enter_proxy)
+
+        # pointer_leave
+        def _html_pointer_leave(proxy_args):
+            modifiers = tuple([v for k,v in KEY_MOD_MAP.items() if getattr(proxy_args, k)])
+            event = {
+                "event_type": "pointer_leave",
+                "x": proxy_args.offsetX,
+                "y": proxy_args.offsetY,
+                "button": proxy_args.button,
+                "buttons": proxy_args.buttons,
+                "modifiers": modifiers,
+                "ntouches": 0,
+                "touches": {},
+                "time_stamp": proxy_args.timeStamp,
+            }
+            self.submit_event(event)
+        self._pointer_leave_proxy = create_proxy(_html_pointer_leave)
+        self.canvas_element.addEventListener("pointerleave", self._pointer_leave_proxy)
+        # TODO: can all the above be refactored into a function consturctor/factory?
+
+        # double_click
+        def _html_double_click(proxy_args):
+            modifiers = tuple([v for k,v in KEY_MOD_MAP.items() if getattr(proxy_args, k)])
+            event = {
+                "event_type": "double_click",
+                "x": proxy_args.offsetX,
+                "y": proxy_args.offsetY,
+                "button": proxy_args.button,
+                "buttons": proxy_args.buttons,
+                "modifiers": modifiers,
+                # no touches here
+                "time_stamp": proxy_args.timeStamp,
+            }
+            self.submit_event(event)
+        self._double_click_proxy = create_proxy(_html_double_click)
+        self.canvas_element.addEventListener("dblclick", self._double_click_proxy)
+
+        # wheel
+        def _html_wheel(proxy_args):
+            modifiers = tuple([v for k,v in KEY_MOD_MAP.items() if getattr(proxy_args, k)])
+            event = {
+                "event_type": "wheel",
+                "dx": proxy_args.deltaX,
+                "dy": proxy_args.deltaY,
+                "x": proxy_args.offsetX,
+                "y": proxy_args.offsetY,
+                "buttons": proxy_args.buttons,
+                "modifiers": modifiers,
+                "time_stamp": proxy_args.timeStamp,
+            }
+            self.submit_event(event)
+        self._wheel_proxy = create_proxy(_html_wheel)
+        self.canvas_element.addEventListener("wheel", self._wheel_proxy)
+
+        # key_down
+        def _html_key_down(proxy_args):
+            modifiers = tuple([v for k,v in KEY_MOD_MAP.items() if getattr(proxy_args, k)])
             event = {
                 "event_type": "key_down",
-                "key": proxy_args[0].key,
-                "timestamp": proxy_args[0].timeStamp,
+                "modifiers": modifiers,
+                "key": proxy_args.key,
+                "time_stamp": proxy_args.timeStamp,
             }
-            # print("event to submit:", event)
             self.submit_event(event)
 
-        # TODO: store multiple proxies for more events... maybe a dict? maybe attach it to the event?
-        self._proxy_f = create_proxy(f)
-        # TODO: map event types from rendercanvas back to js event types example: key_down -> keydown
-        document.addEventListener('keydown', self._proxy_f) # do all events need to be on the document or could they be on the canvas element?
+        self._key_down_proxy = create_proxy(_html_key_down)
+        document.addEventListener("keydown", self._key_down_proxy) # key events happen on document scope?
 
-        return self._events.add_handler(*args, order=order) # this returns the python callback of the user defined function
+        # key_up
+        def _html_key_up(proxy_args):
+            modifiers = tuple([v for k,v in KEY_MOD_MAP.items() if getattr(proxy_args, k)])
+            event = {
+                "event_type": "key_up",
+                "modifiers": modifiers,
+                "key": proxy_args.key,
+                "time_stamp": proxy_args.timeStamp,
+            }
+            self.submit_event(event)
+        self._key_up_proxy = create_proxy(_html_key_up)
+        document.addEventListener("keyup", self._key_up_proxy)
 
-    # TODO: remove handler like this?
-    # document.body.removeEventListener('keydown', self._proxy_f)
-    # self._proxy_f.destroy()
+        # char
+        def _html_char(proxy_args):
+            print(dir(proxy_args))
+            modifiers = tuple([v for k,v in KEY_MOD_MAP.items() if getattr(proxy_args, k)])
+            event = {
+                "event_type": "char",
+                "modifiers": modifiers,
+                "char_str": proxy_args.key, # unsure if this works, it's experimental anyway: https://github.com/pygfx/rendercanvas/issues/28
+                "time_stamp": proxy_args.timeStamp,
+            }
+            self.submit_event(event)
+        self._char_proxy = create_proxy(_html_char)
+        document.addEventListener("input", self._char_proxy) # maybe just another keydown? (seems to include unicode chars)
+
+        # animate event doesn't seem to be actually implemented, and it's by the loop not the gui.
 
     def _rc_gui_poll(self):
         # not sure if anything has to be done
