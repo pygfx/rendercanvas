@@ -173,7 +173,7 @@ Alternatively, you can select the specific qt library to use, making it easy to 
     loop.run()  # calls app.exec_()
 
 
-It is technically possible to e.g. use a ``glfw`` canvas with the Qt loop. However, this is not recommended because Qt gets confused in the precense of other windows and may hang or segfault.
+It is technically possible to e.g. use a ``glfw`` canvas with the Qt loop. However, this is not recommended because Qt gets confused in the presence of other windows and may hang or segfault.
 But the other way around, running a Qt canvas in e.g. the trio loop, works fine:
 
 .. code-block:: py

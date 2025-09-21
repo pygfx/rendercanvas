@@ -44,7 +44,7 @@ on the CPU. All GPU API's have ways to do this.
                          download from gpu to cpu
 
 If the context has a bitmap to present, and the canvas only supports presenting
-to screen, you can usse a small utility: the ``BitmapPresentAdapter`` takes a
+to screen, you can use a small utility: the ``BitmapPresentAdapter`` takes a
 bitmap and presents it to the screen.
 
 .. code-block::
@@ -58,7 +58,7 @@ bitmap and presents it to the screen.
 
 This way, contexts can be made to work with all canvas backens.
 
-Canvases may also provide additionaly present-methods. If a context knows how to
+Canvases may also provide additionally present-methods. If a context knows how to
 use that present-method, it can make use of it. Examples could be presenting
 diff images or video streams.
 
