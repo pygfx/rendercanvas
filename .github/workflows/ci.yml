@@ -54,7 +54,8 @@ jobs:
     - name: move wheel into static
       run: |
         mkdir -p docs/static
-        mv dist/*.whl docs/static/
+        mv dist/* docs/static
+        ls -la docs/static
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
