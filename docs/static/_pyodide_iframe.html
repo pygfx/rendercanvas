@@ -9,7 +9,7 @@
 <!-- TODO: redirect stdout prints into something visible without console? -->
 <script type="text/javascript">
     async function main(){
-        let example_name = window.parent.location.href.split("/").slice(-1)[0].replace(".html", "");
+        let example_name = window.parent.location.href.split("/").slice(-1)[0].split("#").splice(0)[0].replace(".html", "");
         // TODO: get the script from docs dir? docs/gallery/script.py or the .zip?
         // for now get the example from main because the local example is hidden behind a hash in _downloads/hash/example_name.py (but it still exists)
         pythonCode = await (await fetch(`https://raw.githubusercontent.com/pygfx/rendercanvas/refs/heads/main/examples/${example_name}.py`)).text();
