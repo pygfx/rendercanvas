@@ -46,7 +46,12 @@ The table below gives an overview of the names in the different ``rendercanvas``
           | ``loop``
         - | Create a standalone canvas using wx, or
           | integrate a render canvas in a wx application.
-
+    *   - ``html``
+        - | ``HTMLRenderCanvas`` (toplevel)
+          | ``RenderCanvas`` (alias)
+          | ``PyodideLoop``
+        - | A canvas that runs in a web browser, using Pyodide.
+          
 
 There are also three loop-backends. These are mainly intended for use with the glfw backend:
 
@@ -264,6 +269,47 @@ subclass implementing a remote frame-buffer. There are also some `wgpu examples 
 
     canvas  # Use as cell output
 
+Support for HTMLCanvas in Pyodide
+---------------------------------
+When RenderCanvas runs in the browser using Pyodide the auto backend selects ``rendercanvas.html.HTMLRenderCanvas`` class.
+It expects a HTMLCanvasElement to be present in the DOM. It requires no additional dependencies, as rendercanvas can be installed from micropip.
+
+.. code-block:: html
+
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <script src="https://cdn.jsdelivr.net/pyodide/v0.28.2/full/pyodide.js"></script>
+    </head>
+    <body>
+    ...
+    <canvas id="canvas" width="640" height="480"></canvas>
+    <script type="text/javascript">
+        async function main(){
+            pythonCode = `
+                # Use python script as normally
+                from rendercanvas.auto import RenderCanvas, loop
+                canvas = RenderCanvas(title="Example")
+                context = canvas.get_context("bitmap")
+                bitmap = memoryview(b"HTMLRenderCanvas"[::-1]).cast("B", shape=(2, 2, 4))
+                context.set_bitmap(bitmap)
+                canvas.force_draw()
+            `
+        // load Pyodide and install Rendercanvas
+        let pyodide = await loadPyodide();
+        await pyodide.loadPackage("micropip");
+        const micropip = pyodide.pyimport("micropip");
+        await micropip.install("rendercanvas");
+        // have to call as runPythonAsync
+        pyodide.runPythonAsync(pythonCode);
+        }
+    main();
+    </script>
+    </body>
+    </html>
+
+
+Currently only presenting a bitmap is supported, as shown in the examples :doc:`noise.py <gallery/noise>` and :doc:`snake.py <gallery/snake>`.
 
 
 .. _env_vars:
