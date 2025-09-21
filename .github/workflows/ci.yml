@@ -40,11 +40,21 @@ jobs:
 
   docs:
     name: Docs
+    needs: [release]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
     steps:
     - uses: actions/checkout@v4
+    - name: Download assets
+      uses: actions/download-artifact@v4
+      with:
+        name: dist
+        path: dist
+    - name: move wheel into static
+      run: |
+        mkdir -p docs/static
+        mv dist/*.whl docs/static/
     - name: Set up Python
       uses: actions/setup-python@v5
       with:

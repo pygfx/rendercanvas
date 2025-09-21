@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+<head>
+    <!-- Interactive HTMLRenderCanvas via Pyodide:<br> -->
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.28.2/full/pyodide.js"></script>
+</head>
+<body>
+<canvas id="canvas" width="640" height="480" style="background-color: red;"></canvas><br>
+<!-- TODO: redirect stdout prints into something visible without console? -->
+<script type="text/javascript">
+    async function main(){
+        let example_name = window.parent.location.href.split("/").slice(-1)[0].replace(".html", "");
+        // TODO: get the script from docs dir? docs/gallery/script.py or the .zip?
+        // for now get the example from main because the local example is hidden behind a hash in _downloads/hash/example_name.py (but it still exists)
+        pythonCode = await (await fetch(`https://raw.githubusercontent.com/pygfx/rendercanvas/refs/heads/main/examples/${example_name}.py`)).text();
+        let pyodide = await loadPyodide();
+        await pyodide.loadPackage("micropip");
+        const micropip = pyodide.pyimport("micropip");
+        await micropip.install('numpy'); // can we figure out if we need it, or do we always get it?
+
+        // TODO: learn js to implement the other options...
+        // so we should get the rendercanvas wheel from three locations:
+        // 1) local wheel from ../dist/*whl? (for local development)
+        // 2) from the CI artefacts (moves into _static in the job) (for PR branch)
+        // 3) latest from pypi, when the artefacts are gone - for like stable/main?
+        // await micropip.install('rendercanvas');
+        await micropip.install('rendercanvas-2.2.1-py3-none-any.whl'); // from html/_static/ dir like a PR branch doc build...
+
+        // Run the Python code async because some calls are async it seems.
+        pyodide.runPythonAsync(pythonCode);
+    }
+    main();
+</script>
+</body>
+</html>
