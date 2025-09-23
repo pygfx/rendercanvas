@@ -159,7 +159,11 @@ def enable_hidpi():
         except Exception:
             pass  # fail on non-windows
     try:
-        QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
+        # https://doc.qt.io/qtforpython-6/faq/porting_from2.html#class-function-deprecations
+        # > High DPI is by default enabled in Qt 6 and cannot be turned off.
+        dpi_scaling_not_deprecated = qt_version_info[0] < 6
+        if dpi_scaling_not_deprecated:
+            QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
     except Exception:
         pass  # fail on older Qt's
 
