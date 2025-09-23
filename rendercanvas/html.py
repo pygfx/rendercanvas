@@ -84,11 +84,10 @@ class HtmlCanvasGroup(BaseCanvasGroup):
 class HtmlRenderCanvas(BaseRenderCanvas):
     _rc_canvas_group = HtmlCanvasGroup(pyodide_loop) # todo do we need the group?
     def __init__(self, *args, **kwargs):
+        canvas_selector = kwargs.pop("canvas_selector", "canvas")
         super().__init__(*args, **kwargs)
-        element_id = kwargs.get("element_id", "canvas") # should we allow this for multiple canvas?
-        canvas_element = document.getElementById(element_id)
-        self.canvas_element = canvas_element
-        self.html_context = canvas_element.getContext("bitmaprenderer") # this is part of the canvas, not the context???
+        self.canvas_element = document.querySelector(canvas_selector)
+        self.html_context = self.canvas_element.getContext("bitmaprenderer") # this is part of the canvas, not the context???
         self._setup_events()
         self._js_array = Uint8ClampedArray.new(0)
         self._final_canvas_init()
