@@ -7,8 +7,8 @@ It is not required to set the default sdl2 canvas as the Pyodide docs describe.
 
 __all__ = ["HtmlRenderCanvas", "RenderCanvas", "loop"]
 
-from rendercanvas.base import BaseRenderCanvas, BaseCanvasGroup, BaseLoop
-import weakref
+from rendercanvas.base import BaseRenderCanvas, BaseCanvasGroup
+from rendercanvas.asyncio import loop
 
 import sys
 if "pyodide" not in sys.modules:
@@ -18,63 +18,6 @@ if "pyodide" not in sys.modules:
 from pyodide.ffi import run_sync, create_proxy
 from js import document, ImageData, Uint8ClampedArray, window
 
-# TODO event loop for js? https://rendercanvas.readthedocs.io/stable/backendapi.html#rendercanvas.stub.StubLoop
-# https://pyodide.org/en/stable/usage/sdl.html#working-with-infinite-loop
-# https://pyodide.org/en/stable/usage/api/python-api/webloop.html
-# https://github.com/pyodide/pyodide/blob/0.28.2/src/py/pyodide/webloop.py
-# also the asyncio.py implementation
-class PyodideLoop(BaseLoop):
-    def __init__(self):
-        super().__init__()
-        self._webloop = None
-        self.__pending_tasks = []
-        self._stop_event = None
-
-    def _rc_init(self):
-        from pyodide.webloop import WebLoop
-        self._webloop = WebLoop()
-
-        # TODO later try this
-        # try:
-        #     self._interactive_loop = self._webloop.get_running_loop()
-        #     self._stop_event = PyodideFuture()
-        #     self._mark_as_interactive()
-        # except Exception:
-        #     self._interactive_loop = None
-        self._interactive_loop = None
-
-    def _rc_run(self):
-        import asyncio #so the .run method is now overwritten I guess
-        if self._interactive_loop is not None:
-            return
-        # self._webloop.run_forever() # or untill stop event?
-        asyncio.run(self._rc_run_async())
-
-    async def _rc_run_async(self):
-        import asyncio
-        self._run_loop = self._webloop
-
-        while self.__pending_tasks:
-            self._rc_add_task(*self.__pending_tasks.pop(-1))
-
-        if self._stop_event is None:
-            self._stop_event = asyncio.Event()
-        await self._stop_event.wait()
-
-    # untested maybe...
-    def _rc_stop_(self):
-        while self.__tasks:
-            task = self.__tasks.pop()
-            task.cancel()
-
-        self._stop_event.set()
-        self._stop_event = None
-        self._run_loop = None
-
-    def _rc_call_later(self, delay, callback, *args):
-        self._webloop.call_later(delay, callback, *args)
-
-pyodide_loop = PyodideLoop()
 
 # needed for completeness? somehow is required for other examples - hmm?
 class HtmlCanvasGroup(BaseCanvasGroup):
@@ -82,7 +25,7 @@ class HtmlCanvasGroup(BaseCanvasGroup):
 
 # https://rendercanvas.readthedocs.io/stable/backendapi.html#rendercanvas.stub.StubRenderCanvas
 class HtmlRenderCanvas(BaseRenderCanvas):
-    _rc_canvas_group = HtmlCanvasGroup(pyodide_loop) # todo do we need the group?
+    _rc_canvas_group = HtmlCanvasGroup(loop) # todo do we need the group?
     def __init__(self, *args, **kwargs):
         canvas_selector = kwargs.pop("canvas_selector", "canvas")
         super().__init__(*args, **kwargs)
@@ -365,5 +308,4 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         document.title = title
 
 # provide for the auto namespace:
-loop = pyodide_loop
 RenderCanvas = HtmlRenderCanvas

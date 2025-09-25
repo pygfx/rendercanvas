@@ -49,7 +49,7 @@ The table below gives an overview of the names in the different ``rendercanvas``
     *   - ``html``
         - | ``HTMLRenderCanvas`` (toplevel)
           | ``RenderCanvas`` (alias)
-          | ``PyodideLoop``
+          | ``loop`` (an ``AsyncioLoop``)
         - | A canvas that runs in a web browser, using Pyodide.
           
 
