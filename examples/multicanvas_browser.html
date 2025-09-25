@@ -7,9 +7,10 @@
 <body>
 <!-- declare your canvas elements with a unique id tag -->
 <canvas id="redCanvas" width="320" height="240" style="background-color: red;"></canvas>
+<canvas id="greenCanvas" width="320" height="240" style="background-color: green;"></canvas>
 <canvas id="blueCanvas" width="320" height="240" style="background-color: blue;"></canvas>
 <br>
-Left canvas updates when the pointer hovers, right canvas updates when you click!
+First canvas updates when the pointer hovers, second canvas changes direction while keypress, third canvas updates when you click!
 
 <script type="text/javascript">
     async function main(){
@@ -21,12 +22,22 @@ Left canvas updates when the pointer hovers, right canvas updates when you click
         canvas_red = RenderCanvas(canvas_selector="#redCanvas", size=(320, 240), update_mode="ondemand")
         canvas_blue = RenderCanvas(canvas_selector="#blueCanvas", size=(320, 240), update_mode="ondemand")
 
+        # or have the element via your own code
+        from js import document
+        green_canvas_el = document.getElementById("greenCanvas")
+        canvas_green = RenderCanvas(canvas_el=green_canvas_el, size=(320, 240), update_mode="continuous")
+
         context_red = canvas_red.get_context("bitmap")
+        context_green = canvas_green.get_context("bitmap")
         context_blue = canvas_blue.get_context("bitmap")
 
         red_data = np.random.uniform(127, 255, size=(24, 32, 4)).astype(np.uint8)
         red_data[..., 0] = 255
-
+        
+        green_data = np.random.uniform(0, 255, size=(24, 32, 4)).astype(np.uint8)
+        green_data[..., 1] = 255
+        green_data[..., 3] = 255 # solid alpha for this one
+        
         blue_data = np.random.uniform(127, 255, size=(24, 32, 4)).astype(np.uint8)
         blue_data[..., 2] = 255
 
@@ -37,6 +48,14 @@ Left canvas updates when the pointer hovers, right canvas updates when you click
         @canvas_red.add_event_handler("pointer_leave")
         def on_pointer_leave_red(event):
             canvas_red.set_update_mode("ondemand")
+
+        @canvas_green.add_event_handler("key_down")
+        def on_key_down_green(event):
+            green_data[0, 0, 3] = 254 # storing my bit flag in the data
+
+        @canvas_green.add_event_handler("key_up")
+        def on_key_up_green(event):
+            green_data[0, 0, 3] = 255
 
         @canvas_blue.add_event_handler("pointer_down")
         def on_pointer_click_blue(event):
@@ -50,6 +69,18 @@ Left canvas updates when the pointer hovers, right canvas updates when you click
             red_data[..., 2] += 19
             context_red.set_bitmap(red_data)
 
+        @canvas_green.request_draw
+        def animate_green():
+            if green_data[0, 0, 3] < 255:
+                # move downwards
+                green_data[1:, :, [0,2]] = green_data[:-1, :, [0,2]]
+                green_data[0, :, [0,2]] = green_data[-1, :, [0,2]]
+            else:
+                # move upwards
+                green_data[:-1, :, [0,2]] = green_data[1:, :, [0,2]]
+                green_data[-1, :, [0,2]] = green_data[0, :, [0,2]]
+            context_green.set_bitmap(green_data)
+            
         def animate_blue():
             context_blue.set_bitmap(blue_data)
 

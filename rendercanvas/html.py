@@ -17,7 +17,7 @@ if "pyodide" not in sys.modules:
 
 # packages available inside pyodide
 from pyodide.ffi import run_sync, create_proxy
-from js import document, ImageData, Uint8ClampedArray, window
+from js import document, ImageData, Uint8ClampedArray, window, HTMLCanvasElement
 
 
 # needed for completeness? somehow is required for other examples - hmm?
@@ -29,10 +29,18 @@ class HtmlCanvasGroup(BaseCanvasGroup):
 class HtmlRenderCanvas(BaseRenderCanvas):
     _rc_canvas_group = HtmlCanvasGroup(loop)  # todo do we need the group?
 
-    def __init__(self, *args, **kwargs):
-        canvas_selector = kwargs.pop("canvas_selector", "canvas")
+    def __init__(
+        self,
+        canvas_el: HTMLCanvasElement = None,
+        canvas_selector: str = "canvas",
+        *args,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
-        self.canvas_element = document.querySelector(canvas_selector)
+        if canvas_el is not None:
+            self.canvas_element = canvas_el
+        else:
+            self.canvas_element = document.querySelector(canvas_selector)
         self.html_context = self.canvas_element.getContext(
             "bitmaprenderer"
         )  # this is part of the canvas, not the context???
