@@ -206,11 +206,13 @@ def backends_by_trying_in_order():
             continue
         yield backend_name, f"{libname} can be imported"
 
+
 def backends_by_browser():
     """If python runs in a web browser, we use the html backend."""
     # https://pyodide.org/en/stable/usage/faq.html#how-to-detect-that-code-is-run-with-pyodide
     if sys.platform == "emscripten":
         yield "html", "running in a web browser"
+
 
 # Load!
 module = select_backend()

@@ -11,6 +11,7 @@ from rendercanvas.base import BaseRenderCanvas, BaseCanvasGroup
 from rendercanvas.asyncio import loop
 
 import sys
+
 if "pyodide" not in sys.modules:
     raise ImportError("This module is only for use with Pyodide in the browser.")
 
@@ -23,23 +24,26 @@ from js import document, ImageData, Uint8ClampedArray, window
 class HtmlCanvasGroup(BaseCanvasGroup):
     pass
 
+
 # https://rendercanvas.readthedocs.io/stable/backendapi.html#rendercanvas.stub.StubRenderCanvas
 class HtmlRenderCanvas(BaseRenderCanvas):
-    _rc_canvas_group = HtmlCanvasGroup(loop) # todo do we need the group?
+    _rc_canvas_group = HtmlCanvasGroup(loop)  # todo do we need the group?
+
     def __init__(self, *args, **kwargs):
         canvas_selector = kwargs.pop("canvas_selector", "canvas")
         super().__init__(*args, **kwargs)
         self.canvas_element = document.querySelector(canvas_selector)
-        self.html_context = self.canvas_element.getContext("bitmaprenderer") # this is part of the canvas, not the context???
+        self.html_context = self.canvas_element.getContext(
+            "bitmaprenderer"
+        )  # this is part of the canvas, not the context???
         self._setup_events()
         self._js_array = Uint8ClampedArray.new(0)
         self._final_canvas_init()
 
-
     def _setup_events(self):
         # following list from: https://jupyter-rfb.readthedocs.io/en/stable/events.html
         # better: https://rendercanvas.readthedocs.io/stable/api.html#rendercanvas.EventType
-        KEY_MOD_MAP = {
+        key_mod_map = {
             "altKey": "Alt",
             "ctrlKey": "Control",
             "metaKey": "Meta",
@@ -51,7 +55,9 @@ class HtmlRenderCanvas(BaseRenderCanvas):
 
         # pointer_down
         def _html_pointer_down(proxy_args):
-            modifiers = tuple([v for k,v in KEY_MOD_MAP.items() if getattr(proxy_args, k)])
+            modifiers = tuple(
+                [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
+            )
             event = {
                 "event_type": "pointer_down",
                 "x": proxy_args.offsetX,
@@ -64,12 +70,15 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                 "time_stamp": proxy_args.timeStamp,
             }
             self.submit_event(event)
+
         self._pointer_down_proxy = create_proxy(_html_pointer_down)
         self.canvas_element.addEventListener("pointerdown", self._pointer_down_proxy)
 
         # pointer_up
         def _html_pointer_up(proxy_args):
-            modifiers = tuple([v for k,v in KEY_MOD_MAP.items() if getattr(proxy_args, k)])
+            modifiers = tuple(
+                [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
+            )
             event = {
                 "event_type": "pointer_up",
                 "x": proxy_args.offsetX,
@@ -82,6 +91,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                 "time_stamp": proxy_args.timeStamp,
             }
             self.submit_event(event)
+
         self._pointer_up_proxy = create_proxy(_html_pointer_up)
         self.canvas_element.addEventListener("pointerup", self._pointer_up_proxy)
 
@@ -89,7 +99,9 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         # TODO: track pointer_inside and pointer_down to only trigger this when relevant?
         # also figure out why it doesn't work in the first place...
         def _html_pointer_move(proxy_args):
-            modifiers = tuple([v for k,v in KEY_MOD_MAP.items() if getattr(proxy_args, k)])
+            modifiers = tuple(
+                [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
+            )
             event = {
                 "event_type": "pointer_move",
                 "x": proxy_args.offsetX,
@@ -102,12 +114,15 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                 "time_stamp": proxy_args.timeStamp,
             }
             self.submit_event(event)
+
         self._pointer_move_proxy = create_proxy(_html_pointer_move)
         document.addEventListener("pointermove", self._pointer_move_proxy)
 
         # pointer_enter
         def _html_pointer_enter(proxy_args):
-            modifiers = tuple([v for k,v in KEY_MOD_MAP.items() if getattr(proxy_args, k)])
+            modifiers = tuple(
+                [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
+            )
             event = {
                 "event_type": "pointer_enter",
                 "x": proxy_args.offsetX,
@@ -120,12 +135,15 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                 "time_stamp": proxy_args.timeStamp,
             }
             self.submit_event(event)
+
         self._pointer_enter_proxy = create_proxy(_html_pointer_enter)
         self.canvas_element.addEventListener("pointerenter", self._pointer_enter_proxy)
 
         # pointer_leave
         def _html_pointer_leave(proxy_args):
-            modifiers = tuple([v for k,v in KEY_MOD_MAP.items() if getattr(proxy_args, k)])
+            modifiers = tuple(
+                [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
+            )
             event = {
                 "event_type": "pointer_leave",
                 "x": proxy_args.offsetX,
@@ -138,13 +156,16 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                 "time_stamp": proxy_args.timeStamp,
             }
             self.submit_event(event)
+
         self._pointer_leave_proxy = create_proxy(_html_pointer_leave)
         self.canvas_element.addEventListener("pointerleave", self._pointer_leave_proxy)
         # TODO: can all the above be refactored into a function consturctor/factory?
 
         # double_click
         def _html_double_click(proxy_args):
-            modifiers = tuple([v for k,v in KEY_MOD_MAP.items() if getattr(proxy_args, k)])
+            modifiers = tuple(
+                [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
+            )
             event = {
                 "event_type": "double_click",
                 "x": proxy_args.offsetX,
@@ -156,12 +177,15 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                 "time_stamp": proxy_args.timeStamp,
             }
             self.submit_event(event)
+
         self._double_click_proxy = create_proxy(_html_double_click)
         self.canvas_element.addEventListener("dblclick", self._double_click_proxy)
 
         # wheel
         def _html_wheel(proxy_args):
-            modifiers = tuple([v for k,v in KEY_MOD_MAP.items() if getattr(proxy_args, k)])
+            modifiers = tuple(
+                [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
+            )
             event = {
                 "event_type": "wheel",
                 "dx": proxy_args.deltaX,
@@ -173,12 +197,15 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                 "time_stamp": proxy_args.timeStamp,
             }
             self.submit_event(event)
+
         self._wheel_proxy = create_proxy(_html_wheel)
         self.canvas_element.addEventListener("wheel", self._wheel_proxy)
 
         # key_down
         def _html_key_down(proxy_args):
-            modifiers = tuple([v for k,v in KEY_MOD_MAP.items() if getattr(proxy_args, k)])
+            modifiers = tuple(
+                [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
+            )
             event = {
                 "event_type": "key_down",
                 "modifiers": modifiers,
@@ -188,11 +215,15 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             self.submit_event(event)
 
         self._key_down_proxy = create_proxy(_html_key_down)
-        document.addEventListener("keydown", self._key_down_proxy) # key events happen on document scope?
+        document.addEventListener(
+            "keydown", self._key_down_proxy
+        )  # key events happen on document scope?
 
         # key_up
         def _html_key_up(proxy_args):
-            modifiers = tuple([v for k,v in KEY_MOD_MAP.items() if getattr(proxy_args, k)])
+            modifiers = tuple(
+                [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
+            )
             event = {
                 "event_type": "key_up",
                 "modifiers": modifiers,
@@ -200,22 +231,28 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                 "time_stamp": proxy_args.timeStamp,
             }
             self.submit_event(event)
+
         self._key_up_proxy = create_proxy(_html_key_up)
         document.addEventListener("keyup", self._key_up_proxy)
 
         # char
         def _html_char(proxy_args):
             print(dir(proxy_args))
-            modifiers = tuple([v for k,v in KEY_MOD_MAP.items() if getattr(proxy_args, k)])
+            modifiers = tuple(
+                [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
+            )
             event = {
                 "event_type": "char",
                 "modifiers": modifiers,
-                "char_str": proxy_args.key, # unsure if this works, it's experimental anyway: https://github.com/pygfx/rendercanvas/issues/28
+                "char_str": proxy_args.key,  # unsure if this works, it's experimental anyway: https://github.com/pygfx/rendercanvas/issues/28
                 "time_stamp": proxy_args.timeStamp,
             }
             self.submit_event(event)
+
         self._char_proxy = create_proxy(_html_char)
-        document.addEventListener("input", self._char_proxy) # maybe just another keydown? (seems to include unicode chars)
+        document.addEventListener(
+            "input", self._char_proxy
+        )  # maybe just another keydown? (seems to include unicode chars)
 
         # animate event doesn't seem to be actually implemented, and it's by the loop not the gui.
 
@@ -239,15 +276,28 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         self._draw_frame_and_present()
 
     def _rc_present_bitmap(self, **kwargs):
-        data = kwargs.get("data") # data is a memoryview
-        shape = data.shape # use data shape instead of canvas size
-        if self._js_array.length != shape[0] * shape[1] * 4:  # #assumes rgba-u8 -> 4 bytes per pixel
+        data = kwargs.get("data")  # data is a memoryview
+        shape = data.shape  # use data shape instead of canvas size
+        if (
+            self._js_array.length != shape[0] * shape[1] * 4
+        ):  # #assumes rgba-u8 -> 4 bytes per pixel
             # resize step here? or on first use.
             self._js_array = Uint8ClampedArray.new(shape[0] * shape[1] * 4)
         self._js_array.assign(data)
-        image_data = ImageData.new(self._js_array, shape[1], shape[0]) # width, height !
+        image_data = ImageData.new(
+            self._js_array, shape[1], shape[0]
+        )  # width, height !
         size = self.get_logical_size()
-        image_bitmap = run_sync(window.createImageBitmap(image_data, {"resizeQuality": "pixelated", "resizeWidth": int(size[0]), "resizeHeight": int(size[1])}))
+        image_bitmap = run_sync(
+            window.createImageBitmap(
+                image_data,
+                {
+                    "resizeQuality": "pixelated",
+                    "resizeWidth": int(size[0]),
+                    "resizeHeight": int(size[1]),
+                },
+            )
+        )
         # this actually "writes" the data to the canvas I guess.
         self.html_context.transferFromImageBitmap(image_bitmap)
         # handles lower res just fine it seems.
@@ -266,16 +316,19 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         data = kwargs.get("data")
 
         ## same as above ## (might be extracted to the bitmappresentcontext class one day?)
-        shape = data.shape # use data shape instead of canvas size
-        if self._js_array.length != shape[0] * shape[1] * 4:  # #assumes rgba-u8 -> 4 bytes per pixel
+        shape = data.shape  # use data shape instead of canvas size
+        if (
+            self._js_array.length != shape[0] * shape[1] * 4
+        ):  # #assumes rgba-u8 -> 4 bytes per pixel
             # resize step here? or on first use.
             self._js_array = Uint8ClampedArray.new(shape[0] * shape[1] * 4)
         self._js_array.assign(data)
-        image_data = ImageData.new(self._js_array, shape[1], shape[0]) # width, height !
+        image_data = ImageData.new(
+            self._js_array, shape[1], shape[0]
+        )  # width, height !
         #######
         # TODO: is not resized because we writing bytes to pixels directly.
-        self._2d_context.putImageData(image_data, 0, 0) # x,y
-
+        self._2d_context.putImageData(image_data, 0, 0)  # x,y
 
     def _rc_get_physical_size(self):
         return self.canvas_element.style.width, self.canvas_element.style.height
@@ -289,7 +342,9 @@ class HtmlRenderCanvas(BaseRenderCanvas):
 
     def _rc_set_logical_size(self, width: float, height: float):
         ratio = self._rc_get_pixel_ratio()
-        self.canvas_element.width = int(width * ratio) # only positive, int() -> floor()
+        self.canvas_element.width = int(
+            width * ratio
+        )  # only positive, int() -> floor()
         self.canvas_element.height = int(height * ratio)
         # also set the physical scale here?
         # self.canvas_element.style.width = f"{width}px"
@@ -306,6 +361,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
     def _rc_set_title(self, title: str):
         # canvas element doens't have a title directly... but maybe the whole page?
         document.title = title
+
 
 # provide for the auto namespace:
 RenderCanvas = HtmlRenderCanvas
