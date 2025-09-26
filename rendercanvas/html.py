@@ -31,16 +31,15 @@ class HtmlRenderCanvas(BaseRenderCanvas):
 
     def __init__(
         self,
-        canvas_el: HTMLCanvasElement = None,
-        canvas_selector: str = "canvas",
+        canvas_el: str = "canvas",
         *args,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
-        if canvas_el is not None:
-            self.canvas_element = canvas_el
+        if isinstance(canvas_el, str):
+            self.canvas_element = document.querySelector(canvas_el)
         else:
-            self.canvas_element = document.querySelector(canvas_selector)
+            self.canvas_element = canvas_el
         self.html_context = self.canvas_element.getContext(
             "bitmaprenderer"
         )  # this is part of the canvas, not the context???
