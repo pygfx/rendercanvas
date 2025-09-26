@@ -18,9 +18,9 @@ First canvas updates when the pointer hovers, second canvas changes direction wh
         from rendercanvas.auto import RenderCanvas, loop
         import numpy as np
 
-        # use the canvas_selector argument to select the canvas by its id tag
-        canvas_red = RenderCanvas(canvas_selector="#redCanvas", size=(320, 240), update_mode="ondemand")
-        canvas_blue = RenderCanvas(canvas_selector="#blueCanvas", size=(320, 240), update_mode="ondemand")
+        # use the canvas_el argument to select the canvas by its id tag
+        canvas_red = RenderCanvas(canvas_el="#redCanvas", size=(320, 240), update_mode="ondemand")
+        canvas_blue = RenderCanvas(canvas_el="#blueCanvas", size=(320, 240), update_mode="ondemand")
 
         # or have the element via your own code
         from js import document
