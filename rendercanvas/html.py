@@ -40,12 +40,15 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             self.canvas_element = document.querySelector(canvas_el)
         else:
             self.canvas_element = canvas_el
-        self.html_context = self.canvas_element.getContext(
-            "bitmaprenderer"
-        )  # this is part of the canvas, not the context???
         self._setup_events()
         self._js_array = Uint8ClampedArray.new(0)
         self._final_canvas_init()
+
+    @property
+    def html_context(self):
+        # this should only be accessed canvas.get_context("ctx_type") was called.
+        return self._html_context
+
 
     def _setup_events(self):
         # following list from: https://jupyter-rfb.readthedocs.io/en/stable/events.html
@@ -272,6 +275,10 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         return {
             "bitmap": {
                 "formats": ["rgba-u8"],
+            },
+            "screen": {
+                "formats": ["rgba-u8"],
+                "window": self.canvas_element.js_id, #is a number - doubt it's useful though...
             }
         }
 
@@ -368,6 +375,17 @@ class HtmlRenderCanvas(BaseRenderCanvas):
     def _rc_set_title(self, title: str):
         # canvas element doens't have a title directly... but maybe the whole page?
         document.title = title
+
+    def get_context(self, context_type: str):
+        # hook onto this function so we get the "html_context" (js proxy) representation available...
+        res = super().get_context(context_type)
+        if context_type == "bitmap":
+            self._html_context = self.canvas_element.getContext("bitmaprenderer")
+        elif context_type in ("wgpu", "webgpu"):
+            self._html_context = self.canvas_element.getContext("webgpu")
+        else:
+            raise ValueError(f"Unsupported context_type for html canvas: {context_type}")
+        return res
 
 
 # provide for the auto namespace:
