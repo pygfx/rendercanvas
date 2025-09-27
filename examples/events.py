@@ -19,3 +19,16 @@ def process_event(event):
 
 if __name__ == "__main__":
     loop.run()
+
+# %%
+#
+# .. only:: html
+#
+#     Interactive example
+#     ===================
+#     There is no visible canvas, but events will get printed to your browsers console.
+#
+#     .. raw:: html
+#
+#         <iframe src="../_static/_pyodide_iframe.html"></iframe>
+#
