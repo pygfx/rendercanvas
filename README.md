@@ -3,8 +3,7 @@
 [![PyPI version](https://badge.fury.io/py/rendercanvas.svg)](https://badge.fury.io/py/rendercanvas)
 [![EffVer Versioning](https://img.shields.io/badge/version_scheme-EffVer-0097a7)](https://jacobtomlinson.dev/effver)
 
-
-# rendercanvas
+<h1 align="center"><img src="https://github.com/user-attachments/assets/74ddfc1e-03ae-4965-afe9-8697ec4614b5" height="128"><br>rendercanvas</h1>
 
 One canvas API, multiple backends 🚀
 
