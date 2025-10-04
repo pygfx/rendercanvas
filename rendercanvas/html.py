@@ -59,6 +59,27 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             "metaKey": "Meta",
             "shiftKey": "Shift",
         }
+
+        # https://jupyter-rfb.readthedocs.io/en/stable/events.html#mouse-buttons
+        # https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/button
+        mouse_button_map = {
+            -1:0, # no button
+            0: 1, # left
+            1: 3, # middle/wheel
+            2: 2, # right
+            3: 4, # backwards
+            4: 5, # forwards
+        }
+
+        # https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/buttons
+        def buttons_mask_to_tuple(mask) -> tuple[int, ...]:
+            bin(mask)
+            res = ()
+            for i, v in enumerate(bin(mask)[:1:-1]):
+                if v == "1":
+                    res += (mouse_button_map.get(i, i),)
+            return res
+
         # resize ? maybe composition?
 
         # close ? perhaps https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent
@@ -72,8 +93,8 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                 "event_type": "pointer_down",
                 "x": proxy_args.offsetX,
                 "y": proxy_args.offsetY,
-                "button": proxy_args.button,
-                "buttons": proxy_args.buttons,
+                "button": mouse_button_map.get(proxy_args.button, proxy_args.button),
+                "buttons": buttons_mask_to_tuple(proxy_args.buttons),
                 "modifiers": modifiers,
                 "ntouches": 0,  # TODO: maybe via https://developer.mozilla.org/en-US/docs/Web/API/TouchEvent
                 "touches": {},
@@ -93,8 +114,8 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                 "event_type": "pointer_up",
                 "x": proxy_args.offsetX,
                 "y": proxy_args.offsetY,
-                "button": proxy_args.button,
-                "buttons": proxy_args.buttons,
+                "button": mouse_button_map.get(proxy_args.button, proxy_args.button),
+                "buttons": buttons_mask_to_tuple(proxy_args.buttons),
                 "modifiers": modifiers,
                 "ntouches": 0,
                 "touches": {},
@@ -116,8 +137,8 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                 "event_type": "pointer_move",
                 "x": proxy_args.offsetX,
                 "y": proxy_args.offsetY,
-                "button": proxy_args.button,
-                "buttons": proxy_args.buttons,
+                "button": mouse_button_map.get(proxy_args.button, proxy_args.button),
+                "buttons": buttons_mask_to_tuple(proxy_args.buttons),
                 "modifiers": modifiers,
                 "ntouches": 0,
                 "touches": {},
@@ -137,8 +158,8 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                 "event_type": "pointer_enter",
                 "x": proxy_args.offsetX,
                 "y": proxy_args.offsetY,
-                "button": proxy_args.button,
-                "buttons": proxy_args.buttons,
+                "button": mouse_button_map.get(proxy_args.button, proxy_args.button),
+                "buttons": buttons_mask_to_tuple(proxy_args.buttons),
                 "modifiers": modifiers,
                 "ntouches": 0,
                 "touches": {},
@@ -158,8 +179,8 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                 "event_type": "pointer_leave",
                 "x": proxy_args.offsetX,
                 "y": proxy_args.offsetY,
-                "button": proxy_args.button,
-                "buttons": proxy_args.buttons,
+                "button": mouse_button_map.get(proxy_args.button, proxy_args.button),
+                "buttons": buttons_mask_to_tuple(proxy_args.buttons),
                 "modifiers": modifiers,
                 "ntouches": 0,
                 "touches": {},
@@ -180,8 +201,8 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                 "event_type": "double_click",
                 "x": proxy_args.offsetX,
                 "y": proxy_args.offsetY,
-                "button": proxy_args.button,
-                "buttons": proxy_args.buttons,
+                "button": mouse_button_map.get(proxy_args.button, proxy_args.button),
+                "buttons": buttons_mask_to_tuple(proxy_args.buttons),
                 "modifiers": modifiers,
                 # no touches here
                 "time_stamp": proxy_args.timeStamp,
@@ -202,7 +223,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                 "dy": proxy_args.deltaY,
                 "x": proxy_args.offsetX,
                 "y": proxy_args.offsetY,
-                "buttons": proxy_args.buttons,
+                "buttons": buttons_mask_to_tuple(proxy_args.buttons),
                 "modifiers": modifiers,
                 "time_stamp": proxy_args.timeStamp,
             }
