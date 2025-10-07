@@ -84,7 +84,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                     res += (mouse_button_map.get(i, i),)
             return res
 
-
+        self._pointer_inside = False # keep track for the pointer_move event
         # resize ? maybe composition?
         # perhaps: https://developer.mozilla.org/en-US/docs/Web/API/ResizeObserver
 
@@ -160,9 +160,9 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         self.canvas_element.addEventListener("pointerup", self._pointer_up_proxy)
 
         # pointer_move
-        # TODO: track pointer_inside and pointer_down to only trigger this when relevant?
-        # also figure out why it doesn't work in the first place...
         def _html_pointer_move(proxy_args):
+            if (not self._pointer_inside) and (not proxy_args.buttons):  # only when inside or a button is pressed
+                return
             modifiers = tuple(
                 [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
             )
@@ -199,6 +199,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                 "time_stamp": proxy_args.timeStamp,
             }
             self.submit_event(event)
+            self._pointer_inside = True
 
         self._pointer_enter_proxy = create_proxy(_html_pointer_enter)
         self.canvas_element.addEventListener("pointerenter", self._pointer_enter_proxy)
@@ -220,6 +221,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                 "time_stamp": proxy_args.timeStamp,
             }
             self.submit_event(event)
+            self._pointer_inside = False
 
         self._pointer_leave_proxy = create_proxy(_html_pointer_leave)
         self.canvas_element.addEventListener("pointerleave", self._pointer_leave_proxy)
@@ -299,24 +301,24 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         self._key_up_proxy = create_proxy(_html_key_up)
         document.addEventListener("keyup", self._key_up_proxy)
 
-        # char
-        def _html_char(proxy_args):
-            print(dir(proxy_args))
-            modifiers = tuple(
-                [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
-            )
-            event = {
-                "event_type": "char",
-                "modifiers": modifiers,
-                "char_str": proxy_args.key,  # unsure if this works, it's experimental anyway: https://github.com/pygfx/rendercanvas/issues/28
-                "time_stamp": proxy_args.timeStamp,
-            }
-            self.submit_event(event)
+        # char ... it's not this
+        # def _html_char(proxy_args):
+        #     print(dir(proxy_args))
+        #     modifiers = tuple(
+        #         [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
+        #     )
+        #     event = {
+        #         "event_type": "char",
+        #         "modifiers": modifiers,
+        #         "char_str": proxy_args.key,  # unsure if this works, it's experimental anyway: https://github.com/pygfx/rendercanvas/issues/28
+        #         "time_stamp": proxy_args.timeStamp,
+        #     }
+        #     self.submit_event(event)
 
-        self._char_proxy = create_proxy(_html_char)
-        document.addEventListener(
-            "input", self._char_proxy
-        )  # maybe just another keydown? (seems to include unicode chars)
+        # self._char_proxy = create_proxy(_html_char)
+        # document.addEventListener(
+        #     "input", self._char_proxy
+        # )  # maybe just another keydown? (seems to include unicode chars)
 
         # animate event doesn't seem to be actually implemented, and it's by the loop not the gui.
 
