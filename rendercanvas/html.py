@@ -17,7 +17,7 @@ if "pyodide" not in sys.modules:
 
 # packages available inside pyodide
 from pyodide.ffi import run_sync, create_proxy
-from js import document, ImageData, Uint8ClampedArray, window, HTMLCanvasElement
+from js import document, ImageData, Uint8ClampedArray, window, HTMLCanvasElement, ResizeObserver
 
 
 # needed for completeness? somehow is required for other examples - hmm?
@@ -80,7 +80,36 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                     res += (mouse_button_map.get(i, i),)
             return res
 
+
         # resize ? maybe composition?
+        # perhaps: https://developer.mozilla.org/en-US/docs/Web/API/ResizeObserver
+
+        def _resize_callback(entries, observer):
+            entry = entries[0] # assume it's just this as we are observing the canvas element only?
+            # print(entry)
+            new_size = ()
+            ratio = self.get_pixel_ratio()
+            if entry.devicePixelContentBoxSize: # safari doesn't 
+                new_size = (entry.devicePixelContentBoxSize[0].inlineSize, entry.devicePixelContentBoxSize[0].blockSize)
+            else:
+                lsize = ()
+                if entry.contentBoxSize:
+                    lsize = (entry.contentBoxSize[0].inlineSize, entry.contentBoxSize[0].blockSize)
+                else:
+                    lsize = (entry.contentRect.width, entry.contentRect.height)
+                new_size = (int(lsize[0]*ratio), int(lsize[1]*ratio))
+
+            event = {
+                "width": new_size[0],
+                "height": new_size[1],
+                "pixel_ratio": ratio,
+                "event_type": "resize",
+            }
+            self.submit_event(event)
+
+        self._resize_callback_proxy = create_proxy(_resize_callback)
+        self._resize_observer = ResizeObserver.new(self._resize_callback_proxy)
+        self._resize_observer.observe(self.canvas_element)
 
         # close ? perhaps https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent
 
