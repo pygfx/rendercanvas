@@ -4,9 +4,17 @@
 <head>
     RenderCanvas HTML canvas via Pyodide:<br>
     <script src="https://cdn.jsdelivr.net/pyodide/v0.28.2/full/pyodide.js"></script>
+ <style>
+        /* so the demo page can have interactive resizing */
+        #canvas {
+            position: absolute;
+            width: 90%;
+            height: 90%;
+        }
+    </style>
 </head>
 <body>
-<canvas id="canvas" width="640" height="480" style="background-color: lightgrey;"></canvas><br>
+<canvas id="canvas" style="background-color: lightgrey;"></canvas><br>
 some text below the canvas!
 <script type="text/javascript">
     async function main(){
@@ -14,8 +22,8 @@ some text below the canvas!
         // fetch the file locally for easier scripting
         // --allow-file-access-from-files or local webserver
         // TODO: replace the actual code here (unless you have the module)
-        // pythonCode = await (await fetch("snake.py")).text();
-        pythonCode = await (await fetch("events.py")).text();
+        pythonCode = await (await fetch("snake.py")).text();
+        // pythonCode = await (await fetch("events.py")).text();
         // pythonCode = await (await fetch("noise.py")).text();
 
 

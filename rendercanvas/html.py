@@ -35,11 +35,15 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         *args,
         **kwargs,
     ):
-        super().__init__(*args, **kwargs)
         if isinstance(canvas_el, str):
             self.canvas_element = document.querySelector(canvas_el)
         else:
             self.canvas_element = canvas_el
+        if "size" not in kwargs:
+            # if size isn't given, we use the existing size.
+            # otherwise the final init will set it to the default (480,640)
+            kwargs["size"] = self.get_logical_size()
+        super().__init__(*args, **kwargs)
         self._setup_events()
         self._js_array = Uint8ClampedArray.new(0)
         self._final_canvas_init()
@@ -404,7 +408,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         ratio = window.devicePixelRatio
         return ratio
 
-    def _rc_set_logical_size(self, width: float, height: float):
+    def _rc_gical_size(self, width: float, height: float):
         ratio = self._rc_get_pixel_ratio()
         self.canvas_element.width = int(
             width * ratio
