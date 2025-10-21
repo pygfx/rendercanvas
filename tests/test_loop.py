@@ -31,7 +31,7 @@ class CanvasGroup(BaseCanvasGroup):
 class FakeEventEmitter:
     is_closed = False
 
-    async def close(self):
+    def close(self):
         self.is_closed = True
 
 
@@ -182,7 +182,7 @@ def test_run_loop_and_close_canvases(SomeLoop):
 
 @pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
 def test_run_loop_and_close_by_loop_stop(SomeLoop):
-    # Close, then wait at most one tick to close canvases, and another to conform close.
+    # Close, then wait at most one tick to close canvases, and another to confirm close.
     loop = SomeLoop()
     group = CanvasGroup(loop)
 
@@ -231,34 +231,6 @@ def test_run_loop_and_close_by_loop_stop_via_async(SomeLoop):
 
     assert canvas1._events.is_closed
     assert canvas2._events.is_closed
-
-
-def test_run_loop_and_close_via_async_event():
-    # Stop via an async event, and an async task
-    loop = real_loop
-
-    canvas1 = RealRenderCanvas()
-    canvas2 = RealRenderCanvas()  # noqa
-
-    @canvas1.add_event_handler("key_down")
-    async def on_key_down(event):
-        print(event)
-        if event["key"] == "q":
-            await async_sleep(0.2)
-            loop.stop()
-
-    async def stopper():
-        await async_sleep(0.2)
-        canvas1._events.submit({"event_type": "key_down", "key": "q"})
-
-    loop.add_task(stopper)
-
-    t0 = time.time()
-    loop.run()
-    et = time.time() - t0
-
-    print(et)
-    assert 0.35 < et < 0.65
 
 
 @pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])

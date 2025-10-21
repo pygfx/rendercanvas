@@ -117,7 +117,7 @@ class BaseLoop:
                 closed_canvas_ids = set(event_emitters) - set(new_event_emitters)
                 for canvas_id in closed_canvas_ids:
                     events = event_emitters[canvas_id]
-                    await events.close()
+                    events.close()
 
                 # Keep canvases alive
                 for canvas in canvases:
