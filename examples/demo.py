@@ -9,8 +9,6 @@ A nice demo, and very convenient to test the different backends.
 * Can be closed with Escape or by pressing the window close button.
 * In both cases, it should print "Close detected" exactly once.
 * Hit "f" to spend 2 seconds doing direct draws.
-* Hit "s" to async-sleep the scheduling loop for 2 seconds. Resizing
-  and closing the window still work.
 
 """
 
@@ -18,7 +16,6 @@ import time
 
 from rendercanvas.auto import RenderCanvas, loop
 from rendercanvas.utils.cube import setup_drawing_sync
-from rendercanvas.utils.asyncs import sleep
 import rendercanvas
 
 
@@ -41,7 +38,7 @@ cursor_index = 0
 
 
 @canvas.add_event_handler("*")
-async def process_event(event):
+def process_event(event):
     global cursor_index
 
     if event["event_type"] not in ["pointer_move", "before_draw", "animate"]:
@@ -59,10 +56,6 @@ async def process_event(event):
                 i += 1
                 canvas.force_draw()
             print(f"Drew {i} frames in 2s.")
-        elif event["key"] == "s":
-            print("Async sleep ... zzzz")
-            await sleep(2)
-            print("waking up")
         elif event["key"] == "c":
             # Swap cursor
             shapes = list(rendercanvas.CursorShape)
