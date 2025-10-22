@@ -198,15 +198,7 @@ def test_canvas_base_events():
     c.submit_event({"event_type": "key_down", "value": 1})
     c.submit_event({"event_type": "key_down", "value": 2})
 
-    def sync_flush(events):
-        coro = events.flush()
-        while True:
-            try:
-                coro.send(None)
-            except StopIteration:
-                break
-
-    sync_flush(c._events)
+    c._events.flush()
     assert events == [1, 2]
 
 

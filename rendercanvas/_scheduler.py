@@ -143,7 +143,7 @@ class Scheduler:
             # Process events, handlers may request a draw
             if (canvas := self.get_canvas()) is None:
                 break
-            await canvas._process_events()
+            canvas._process_events()
             del canvas
 
             # Determine what to do next ...
@@ -176,7 +176,7 @@ class Scheduler:
             if not do_draw:
                 continue
 
-            await self._events.emit({"event_type": "before_draw"})
+            self._events.emit({"event_type": "before_draw"})
 
             # Ask the canvas to draw
             if (canvas := self.get_canvas()) is None:

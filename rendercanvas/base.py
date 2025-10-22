@@ -308,8 +308,8 @@ class BaseRenderCanvas:
 
     # %% Scheduling and drawing
 
-    async def _process_events(self):
-        """Process events and animations (async).
+    def _process_events(self):
+        """Process events and animations.
 
         Called from the scheduler.
         """
@@ -323,7 +323,7 @@ class BaseRenderCanvas:
 
         # Flush our events, so downstream code can update stuff.
         # Maybe that downstream code request a new draw.
-        await self._events.flush()
+        self._events.flush()
 
         # TODO: implement later (this is a start but is not tested)
         # Schedule animation events until the lag is gone

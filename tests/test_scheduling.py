@@ -62,9 +62,9 @@ class MyCanvas(BaseRenderCanvas):
     def _rc_get_closed(self):
         return self._closed
 
-    async def _process_events(self):
+    def _process_events(self):
         self.events_count += 1
-        return await super()._process_events()
+        return super()._process_events()
 
     def _draw_frame_and_present(self):
         super()._draw_frame_and_present()

@@ -70,8 +70,8 @@ class StubRenderCanvas(BaseRenderCanvas):
     def _final_canvas_init(self):
         return super()._final_canvas_init()
 
-    async def _process_events(self):
-        return await super()._process_events()
+    def _process_events(self):
+        return super()._process_events()
 
     def _draw_frame_and_present(self):
         return super()._draw_frame_and_present()
