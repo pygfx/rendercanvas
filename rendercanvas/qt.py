@@ -408,32 +408,6 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         # backingstore.endPaint()
         # backingstore.flush(rect2)
 
-    def _rc_get_physical_size(self):
-        # https://doc.qt.io/qt-5/qpaintdevice.html
-        # https://doc.qt.io/qt-5/highdpi.html
-        lsize = self.width(), self.height()
-        lsize = float(lsize[0]), float(lsize[1])
-        ratio = self.devicePixelRatioF()
-
-        # When the ratio is not integer (qt6), we need to somehow round
-        # it. It turns out that we need to round it, but also add a
-        # small offset. Tested on Win10 with several different OS
-        # scales. Would be nice if we could ask Qt for the exact
-        # physical size! Not an issue on qt5, because ratio is always
-        # integer then.
-        return round(lsize[0] * ratio + 0.01), round(lsize[1] * ratio + 0.01)
-
-    def _rc_get_logical_size(self):
-        # Sizes in Qt are logical
-        lsize = self.width(), self.height()
-        return float(lsize[0]), float(lsize[1])
-
-    def _rc_get_pixel_ratio(self):
-        # Observations:
-        # * On Win10 + PyQt5 the ratio is a whole number (175% becomes 2).
-        # * On Win10 + PyQt6 the ratio is correct (non-integer).
-        return self.devicePixelRatioF()
-
     def _rc_set_logical_size(self, width, height):
         width, height = int(width), int(height)
         parent = self.parent()
@@ -583,13 +557,22 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         self.submit_event(ev)
 
     def resizeEvent(self, event):  # noqa: N802
-        ev = {
-            "event_type": "resize",
-            "width": float(event.size().width()),
-            "height": float(event.size().height()),
-            "pixel_ratio": self.get_pixel_ratio(),
-        }
-        self.submit_event(ev)
+        # Logical size
+        lsize = float(self.width()), float(self.height())
+
+        # * On Win10 + PyQt5 the ratio is a whole number (175% becomes 2).
+        # * On Win10 + PyQt6 the ratio is correct (non-integer).
+        ratio = self.devicePixelRatioF()
+
+        # When the ratio is not integer (qt6), we need to somehow round
+        # it. It turns out that we need to round it, but also add a
+        # small offset. Tested on Win10 with several different OS
+        # scales. Would be nice if we could ask Qt for the exact
+        # physical size! Not an issue on qt5, because ratio is always
+        # integer then.
+        psize = round(lsize[0] * ratio + 0.01), round(lsize[1] * ratio + 0.01)
+        self._set_size_info(psize, ratio)
+        # self.update() / self.request_draw() is implicit
 
     def closeEvent(self, event):  # noqa: N802
         self._is_closed = True

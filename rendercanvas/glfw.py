@@ -246,6 +246,7 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         self._screen_size_is_logical = False
 
         # Set size, title, etc.
+        self._determine_size()
         self._final_canvas_init()
 
         # Now show the window
@@ -270,17 +271,8 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         pixel_ratio = get_window_content_scale(self._window)[0]
         psize = get_physical_size(self._window)
 
-        self._pixel_ratio = pixel_ratio
-        self._physical_size = psize
-        self._logical_size = psize[0] / pixel_ratio, psize[1] / pixel_ratio
-
-        ev = {
-            "event_type": "resize",
-            "width": self._logical_size[0],
-            "height": self._logical_size[1],
-            "pixel_ratio": self._pixel_ratio,
-        }
-        self.submit_event(ev)
+        self._pixel_ratio = pixel_ratio  # store
+        self._set_size_info(psize, pixel_ratio)
 
     def _on_want_close(self, *args):
         # Called when the user attempts to close the window, for example by clicking the close widget in the title bar.
@@ -313,12 +305,7 @@ class GlfwRenderCanvas(BaseRenderCanvas):
             int(new_logical_size[0] * pixel_ratio * screen_ratio),
             int(new_logical_size[1] * pixel_ratio * screen_ratio),
         )
-
         self._screen_size_is_logical = screen_ratio != 1
-        # If this causes the widget size to change, then _on_size_change will
-        # be called, but we may want force redetermining the size.
-        if pixel_ratio != self._pixel_ratio:
-            self._determine_size()
 
     # %% Methods to implement RenderCanvas
 
@@ -347,15 +334,6 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         # AFAIK glfw does not have a builtin way to blit an image. It also does
         # not really need one, since it's the most reliable backend to
         # render to the screen.
-
-    def _rc_get_physical_size(self):
-        return self._physical_size
-
-    def _rc_get_logical_size(self):
-        return self._logical_size
-
-    def _rc_get_pixel_ratio(self):
-        return self._pixel_ratio
 
     def _rc_set_logical_size(self, width, height):
         if width < 0 or height < 0:
@@ -406,7 +384,8 @@ class GlfwRenderCanvas(BaseRenderCanvas):
             return
         self._changing_pixel_ratio = True  # prevent recursion (on Wayland)
         try:
-            self._set_logical_size(self._logical_size)
+            self._set_logical_size(self.get_logical_size())
+            self._determine_size()
         finally:
             self._changing_pixel_ratio = False
         self.request_draw()
