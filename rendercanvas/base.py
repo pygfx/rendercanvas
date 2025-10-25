@@ -296,7 +296,7 @@ class BaseRenderCanvas:
         Backends must *not* submit a "resize" event; the base class takes care of that, because
         it requires some more attention than the other events.
 
-        The subclass must call this when the actual viewport has changed. So not in ``_rc_set_logical_size()`,
+        The subclass must call this when the actual viewport has changed. So not in ``_rc_set_logical_size()``,
         but e.g. when the underlying GUI layer fires a resize event, and maybe on init.
         """
         w, h = physical_size
