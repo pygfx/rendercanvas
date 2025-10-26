@@ -564,12 +564,11 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         # * On Win10 + PyQt6 the ratio is correct (non-integer).
         ratio = self.devicePixelRatioF()
 
-        # When the ratio is not integer (qt6), we need to somehow round
-        # it. It turns out that we need to round it, but also add a
-        # small offset. Tested on Win10 with several different OS
-        # scales. Would be nice if we could ask Qt for the exact
-        # physical size! Not an issue on qt5, because ratio is always
-        # integer then.
+        # When the ratio is not integer (qt6), we need to somehow make it integer.
+        # It turns out that we need to round it (Qt does that itself internally),
+        # but also add a small offset. Tested on Win10 with several different OS
+        # scales. Would be nice if we could ask Qt for the exact physical size, but
+        # we can't. Not an issue on qt5, because ratio is always integer then.
         psize = round(lsize[0] * ratio + 0.01), round(lsize[1] * ratio + 0.01)
         self._set_size_info(psize, ratio)
         # self.update() / self.request_draw() is implicit

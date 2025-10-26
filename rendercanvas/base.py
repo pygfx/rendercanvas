@@ -468,6 +468,11 @@ class BaseRenderCanvas:
             if self._rc_get_closed():
                 return
 
+            # Note: could check whether the known physical size is > 0.
+            # But we also consider it the responsiblity of the backend to not
+            # draw if the size is zero. GUI toolkits like Qt do this correctly.
+            # I might get back on this once we also draw outside of the draw-event ...
+
             # Make sure that the user-code is up-to-date with the current size before it draws.
             self.__maybe_emit_resize_event()
 

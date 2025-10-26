@@ -169,7 +169,13 @@ class Scheduler:
             if (canvas := self.get_canvas()) is None:
                 break
 
-            # Process events now
+            # Process events now.
+            # Note that we don't want to emit events *during* the draw, because event
+            # callbacks do stuff, and that stuff may include changing the canvas size,
+            # or affect layout in a UI application, all which are not recommended during
+            # the main draw-event (a.k.a. animation frame), and may even lead to errors.
+            # The one exception is resize events, which we do emit during a draw, if the
+            # size has changed since the last time that events were processed.
             canvas._process_events()
 
             if not do_draw:
