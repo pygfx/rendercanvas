@@ -38,15 +38,26 @@ class HtmlRenderCanvas(BaseRenderCanvas):
 
     def __init__(
         self,
-        canvas_el: str | object = "canvas",
+        canvas_element: str = "rendercanvas",
         *args,
         **kwargs,
     ):
-        if isinstance(canvas_el, str):
-            # todo: make private attr
-            self.canvas_element = document.querySelector(canvas_el)
-        else:
-            self.canvas_element = canvas_el
+        # Resolve and check the canvas element
+        # todo: make canvas_element a private attr
+        canvas_id = None
+        if isinstance(canvas_element, str):
+            canvas_id = canvas_element
+            canvas_element = document.getElementById(canvas_id)
+        if not (
+            hasattr(canvas_element, "tagName") and canvas_element.tagName == "CANVAS"
+        ):
+            repr = f"{canvas_element!r}"
+            if canvas_id:
+                repr = f"{canvas_id!r} -> " + repr
+            raise TypeError(
+                f"Given canvas element does not look like a <canvas>: {repr}"
+            )
+        self.canvas_element = canvas_element
 
         if "size" not in kwargs:
             # if size isn't given, we use the existing size.

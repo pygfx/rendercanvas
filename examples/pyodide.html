@@ -9,7 +9,7 @@
 
 <body>
     <p>
-        This example demonstrates using Pyoide directly. It's a bit more involved that PyScript,
+        This example demonstrates using Pyodide directly. It's a bit more involved that PyScript,
         but it shows more directly what happens. Further, this example shows how to deal with
         multiple canvases on the same page; the first is made red, the second is made green.
         Both canvases are also resized from the Python code.
@@ -27,11 +27,11 @@
                 from js import document
 
                 # Select by name
-                canvas_red = RenderCanvas(canvas_el="#canvas1", size=(320, 240), update_mode="ondemand")
+                canvas_red = RenderCanvas(canvas_element="canvas1", size=(320, 240), update_mode="ondemand")
 
                 # Or by element
                 canvas2_el = document.getElementById("canvas2")
-                canvas_green = RenderCanvas(canvas_el=canvas2_el, size=(320, 240), update_mode="continuous")
+                canvas_green = RenderCanvas(canvas_element=canvas2_el, size=(320, 240), update_mode="continuous")
 
                 context_red = canvas_red.get_context("bitmap")
                 context_green = canvas_green.get_context("bitmap")

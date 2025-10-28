@@ -38,9 +38,7 @@ html_examples = [
 
 
 def get_html_index():
-    py_examples_list = [
-        f"<li><a href='{name}'>{name}</a></li>" for name in py_examples
-    ]
+    py_examples_list = [f"<li><a href='{name}'>{name}</a></li>" for name in py_examples]
     html_examples_list = [
         f"<li><a href='{name}'>{name}</a></li>" for name in html_examples
     ]
@@ -53,16 +51,19 @@ def get_html_index():
         <script type="module" src="https://pyscript.net/releases/2025.10.3/core.js"></script>
     </head>
     <body>
+
+    <a href='/build'>Rebuild the wheel</a><br><br>
     """
 
     html += "List of .py examples that run in PyScript:\n"
-    html += f"<ul>{"".join(py_examples_list)}</ul><br><br>\n\n"
+    html += f"<ul>{''.join(py_examples_list)}</ul><br>\n\n"
 
     html += "List of .html examples:\n"
-    html += f"<ul>{"".join(html_examples_list)}</ul><br><br>\n\n"
+    html += f"<ul>{''.join(html_examples_list)}</ul><br>\n\n"
 
     html += "</body>\n</html>\n"
     return html
+
 
 html_index = get_html_index()
 
@@ -87,7 +88,7 @@ html_template = """
         loading.showModal();
     </script>
 
-    <canvas id="canvas" style="background:#aaa; width: 90%; height: 500px;"></canvas>
+    <canvas id='rendercanvas' style="background:#aaa; width: 90%; height: 500px;"></canvas>
     <script type="py" src="example.py" ,
         config='{"packages": ["numpy", "sniffio", "rendercanvas"]}'>
     </script>
@@ -120,6 +121,14 @@ class MyHandler(BaseHTTPRequestHandler):
     def do_GET(self):  # noqa
         if self.path == "/":
             self.respond(200, html_index, "text/html")
+        elif self.path == "/build":
+            try:
+                build_wheel()
+            except Exception as err:
+                self.respond(500, str(err), "text/plain")
+            else:
+                html = f"Wheel build: {wheel_name}<br><br><a href='/'>Back to list</a>"
+                self.respond(200, html, "text/html")
         elif self.path.endswith(".whl"):
             filename = os.path.join(root, "dist", self.path.strip("/"))
             if os.path.isfile(filename):
