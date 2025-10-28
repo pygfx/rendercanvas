@@ -57,7 +57,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             raise TypeError(
                 f"Given canvas element does not look like a <canvas>: {repr}"
             )
-        self.canvas_element = canvas_element
+        self._canvas_element = canvas_element
 
         if "size" not in kwargs:
             # if size isn't given, we use the existing size.
@@ -141,7 +141,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
 
         self._resize_callback_proxy = create_proxy(_resize_callback)
         self._resize_observer = ResizeObserver.new(self._resize_callback_proxy)
-        self._resize_observer.observe(self.canvas_element)
+        self._resize_observer.observe(self._canvas_element)
 
         # close ? perhaps https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent
 
@@ -164,7 +164,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             self.submit_event(event)
 
         self._pointer_down_proxy = create_proxy(_html_pointer_down)
-        self.canvas_element.addEventListener("pointerdown", self._pointer_down_proxy)
+        self._canvas_element.addEventListener("pointerdown", self._pointer_down_proxy)
 
         # pointer_up
         def _html_pointer_up(proxy_args):
@@ -185,7 +185,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             self.submit_event(event)
 
         self._pointer_up_proxy = create_proxy(_html_pointer_up)
-        self.canvas_element.addEventListener("pointerup", self._pointer_up_proxy)
+        self._canvas_element.addEventListener("pointerup", self._pointer_up_proxy)
 
         # pointer_move
         def _html_pointer_move(proxy_args):
@@ -232,7 +232,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             self._pointer_inside = True
 
         self._pointer_enter_proxy = create_proxy(_html_pointer_enter)
-        self.canvas_element.addEventListener("pointerenter", self._pointer_enter_proxy)
+        self._canvas_element.addEventListener("pointerenter", self._pointer_enter_proxy)
 
         # pointer_leave
         def _html_pointer_leave(proxy_args):
@@ -254,7 +254,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             self._pointer_inside = False
 
         self._pointer_leave_proxy = create_proxy(_html_pointer_leave)
-        self.canvas_element.addEventListener("pointerleave", self._pointer_leave_proxy)
+        self._canvas_element.addEventListener("pointerleave", self._pointer_leave_proxy)
         # TODO: can all the above be refactored into a function consturctor/factory?
 
         # double_click
@@ -275,7 +275,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             self.submit_event(event)
 
         self._double_click_proxy = create_proxy(_html_double_click)
-        self.canvas_element.addEventListener("dblclick", self._double_click_proxy)
+        self._canvas_element.addEventListener("dblclick", self._double_click_proxy)
 
         # wheel
         def _html_wheel(proxy_args):
@@ -295,7 +295,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             self.submit_event(event)
 
         self._wheel_proxy = create_proxy(_html_wheel)
-        self.canvas_element.addEventListener("wheel", self._wheel_proxy)
+        self._canvas_element.addEventListener("wheel", self._wheel_proxy)
 
         # key_down
         def _html_key_down(proxy_args):
@@ -364,7 +364,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             },
             "screen": {
                 "platform": "pyodide",
-                "window": self.canvas_element.js_id,  # is a number - doubt it's useful though...
+                "window": self._canvas_element.js_id,  # is a number - doubt it's useful though...
             },
         }
 
@@ -416,7 +416,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         # still takes a bitmap, but uses the 2d context instead which might be faster
         if not hasattr(self, "_2d_context"):
             # will give `null` if other context already exists! so we would need to avoid that above.
-            self._2d_context = self.canvas_element.getContext("2d")
+            self._2d_context = self._canvas_element.getContext("2d")
             print("got 2d context:", self._2d_context)
         data = kwargs.get("data")
 
@@ -436,10 +436,10 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         self._2d_context.putImageData(image_data, 0, 0)  # x,y
 
     def _rc_get_physical_size(self):
-        return self.canvas_element.style.width, self.canvas_element.style.height
+        return self._canvas_element.style.width, self._canvas_element.style.height
 
     def _rc_get_logical_size(self):
-        return float(self.canvas_element.width), float(self.canvas_element.height)
+        return float(self._canvas_element.width), float(self._canvas_element.height)
 
     def _rc_get_pixel_ratio(self) -> float:
         ratio = window.devicePixelRatio
@@ -447,16 +447,16 @@ class HtmlRenderCanvas(BaseRenderCanvas):
 
     def _xxrc_set_logical_size(self, width: float, height: float):
         ratio = self._rc_get_pixel_ratio()
-        self.canvas_element.width = int(
+        self._canvas_element.width = int(
             width * ratio
         )  # only positive, int() -> floor()
-        self.canvas_element.height = int(height * ratio)
+        self._canvas_element.height = int(height * ratio)
         # also set the physical scale here?
-        # self.canvas_element.style.width = f"{width}px"
-        # self.canvas_element.style.height = f"{height}px"
+        # self._canvas_element.style.width = f"{width}px"
+        # self._canvas_element.style.height = f"{height}px"
 
     def _rc_close(self):
-        # self.canvas_element.remove() # shouldn't really be needed?
+        # self._canvas_element.remove() # shouldn't really be needed?
         pass
 
     def _rc_get_closed(self):
@@ -471,9 +471,9 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         # hook onto this function so we get the "html_context" (js proxy) representation available...
         res = super().get_context(context_type)
         if context_type == "bitmap":
-            self._html_context = self.canvas_element.getContext("bitmaprenderer")
+            self._html_context = self._canvas_element.getContext("bitmaprenderer")
         elif context_type in ("wgpu", "webgpu"):
-            self._html_context = self.canvas_element.getContext("webgpu")
+            self._html_context = self._canvas_element.getContext("webgpu")
         else:
             raise ValueError(
                 f"Unsupported context_type for html canvas: {context_type}"
