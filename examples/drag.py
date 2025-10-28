@@ -11,7 +11,6 @@ events, since any unintended delays (in the presentation of the bitmap,
 or the delivery of events) are easily felt as lag.
 """
 
-
 import numpy as np
 from rendercanvas.auto import RenderCanvas, loop
 
