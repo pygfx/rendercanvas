@@ -50,8 +50,6 @@ class EventEmitter:
 
         Arguments:
             callback (callable, optional): The event handler. Must accept a single event argument.
-                Can be a plain function or a coroutine function.
-                If you use async callbacks, see :ref:`async` for the limitations.
             *types (list of EventType): A list of event types.
             order (float): Set callback priority order. Callbacks with lower priorities
                 are called first. Default is 0. When an event is emitted, callbacks with
@@ -113,6 +111,10 @@ class EventEmitter:
         return decorator(callback)
 
     def _add_handler(self, callback, order, *types):
+        if iscoroutinefunction(callback):
+            raise TypeError(
+                "Coroutines cannot be callbacks (anymore). Instead, you can use a regular callback that calls `loop.add_task(coro)`."
+            )
         if self._closed:
             return
         self.remove_handler(callback, *types)
@@ -166,7 +168,7 @@ class EventEmitter:
 
         self._pending_events.append(event)
 
-    async def flush(self):
+    def flush(self):
         """Dispatch all pending events.
 
         This should generally be left to the scheduler.
@@ -176,9 +178,9 @@ class EventEmitter:
                 event = self._pending_events.popleft()
             except IndexError:
                 break
-            await self.emit(event)
+            self.emit(event)
 
-    async def emit(self, event):
+    def emit(self, event):
         """Directly emit the given event.
 
         In most cases events should be submitted, so that they are flushed
@@ -192,15 +194,12 @@ class EventEmitter:
             if event.get("stop_propagation", False):
                 break
             with log_exception(f"Error during handling {event_type} event"):
-                if iscoroutinefunction(callback):
-                    await callback(event)
-                else:
-                    callback(event)
+                callback(event)
         # Close?
         if event_type == "close":
             self._release()
 
-    async def close(self):
+    def close(self):
         """Close the event handler.
 
         Drops all pending events, send the close event, and disables the emitter.
@@ -209,4 +208,4 @@ class EventEmitter:
         if not self._closed:
             self._pending_events.clear()
             self.submit({"event_type": "close"})
-            await self.flush()
+            self.flush()

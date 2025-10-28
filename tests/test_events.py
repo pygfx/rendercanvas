@@ -9,26 +9,8 @@ from testutils import run_tests
 import pytest
 
 
-class OurEventEmitter(EventEmitter):
-    def sync_flush(self):
-        coro = self.flush()
-        while True:
-            try:
-                coro.send(None)
-            except StopIteration:
-                break
-
-    def sync_emit(self, event):
-        coro = self.emit(event)
-        while True:
-            try:
-                coro.send(None)
-            except StopIteration:
-                break
-
-
 def test_events_event_types():
-    ee = OurEventEmitter()
+    ee = EventEmitter()
 
     def handler(event):
         pass
@@ -45,7 +27,7 @@ def test_events_event_types():
 
 
 def test_events_basic():
-    ee = OurEventEmitter()
+    ee = EventEmitter()
 
     values = []
 
@@ -58,23 +40,23 @@ def test_events_basic():
     ee.submit({"event_type": "key_down", "value": 2})
     assert values == []
 
-    ee.sync_flush()
+    ee.flush()
     ee.submit({"event_type": "key_down", "value": 3})
     assert values == [1, 2]
 
-    ee.sync_flush()
+    ee.flush()
     assert values == [1, 2, 3]
 
     # Removing a handler affects all events since the last flush
     ee.submit({"event_type": "key_down", "value": 4})
     ee.remove_handler(handler, "key_down")
     ee.submit({"event_type": "key_down", "value": 5})
-    ee.sync_flush()
+    ee.flush()
     assert values == [1, 2, 3]
 
 
 def test_events_handler_arg_position():
-    ee = OurEventEmitter()
+    ee = EventEmitter()
 
     def handler(event):
         pass
@@ -87,7 +69,7 @@ def test_events_handler_arg_position():
 
 
 def test_events_handler_decorated():
-    ee = OurEventEmitter()
+    ee = EventEmitter()
 
     values = []
 
@@ -97,12 +79,12 @@ def test_events_handler_decorated():
 
     ee.submit({"event_type": "key_down", "value": 1})
     ee.submit({"event_type": "key_up", "value": 2})
-    ee.sync_flush()
+    ee.flush()
     assert values == [1, 2]
 
 
 def test_direct_emit_():
-    ee = OurEventEmitter()
+    ee = EventEmitter()
 
     values = []
 
@@ -111,18 +93,18 @@ def test_direct_emit_():
         values.append(event["value"])
 
     ee.submit({"event_type": "key_down", "value": 1})
-    ee.sync_flush()
+    ee.flush()
     ee.submit({"event_type": "key_up", "value": 2})
-    ee.sync_emit({"event_type": "key_up", "value": 3})  # goes before pending events
+    ee.emit({"event_type": "key_up", "value": 3})  # goes before pending events
     ee.submit({"event_type": "key_up", "value": 4})
-    ee.sync_flush()
+    ee.flush()
     ee.submit({"event_type": "key_up", "value": 5})
 
     assert values == [1, 3, 2, 4]
 
 
 def test_events_two_types():
-    ee = OurEventEmitter()
+    ee = EventEmitter()
 
     values = []
 
@@ -133,24 +115,24 @@ def test_events_two_types():
 
     ee.submit({"event_type": "key_down", "value": 1})
     ee.submit({"event_type": "key_up", "value": 2})
-    ee.sync_flush()
+    ee.flush()
     assert values == [1, 2]
 
     ee.remove_handler(handler, "key_down")
     ee.submit({"event_type": "key_down", "value": 3})
     ee.submit({"event_type": "key_up", "value": 4})
-    ee.sync_flush()
+    ee.flush()
     assert values == [1, 2, 4]
 
     ee.remove_handler(handler, "key_up")
     ee.submit({"event_type": "key_down", "value": 5})
     ee.submit({"event_type": "key_up", "value": 6})
-    ee.sync_flush()
+    ee.flush()
     assert values == [1, 2, 4]
 
 
 def test_events_two_handlers():
-    ee = OurEventEmitter()
+    ee = EventEmitter()
 
     values = []
 
@@ -164,22 +146,22 @@ def test_events_two_handlers():
     ee.add_handler(handler2, "key_down")
 
     ee.submit({"event_type": "key_down", "value": 1})
-    ee.sync_flush()
+    ee.flush()
     assert values == [101, 201]
 
     ee.remove_handler(handler1, "key_down")
     ee.submit({"event_type": "key_down", "value": 2})
-    ee.sync_flush()
+    ee.flush()
     assert values == [101, 201, 202]
 
     ee.remove_handler(handler2, "key_down")
     ee.submit({"event_type": "key_down", "value": 3})
-    ee.sync_flush()
+    ee.flush()
     assert values == [101, 201, 202]
 
 
 def test_events_handler_order():
-    ee = OurEventEmitter()
+    ee = EventEmitter()
 
     values = []
 
@@ -203,7 +185,7 @@ def test_events_handler_order():
     ee.add_handler(handler3, "key_down")
 
     ee.submit({"event_type": "key_down", "value": 1})
-    ee.sync_flush()
+    ee.flush()
     assert values == [101, 201, 301]
 
     # Now re-connect with priorities
@@ -213,7 +195,7 @@ def test_events_handler_order():
     ee.add_handler(handler3, "key_down", order=1)
 
     ee.submit({"event_type": "key_down", "value": 1})
-    ee.sync_flush()
+    ee.flush()
     assert values == [101, 301, 201]
 
     # Another run using negative priorities too
@@ -223,7 +205,7 @@ def test_events_handler_order():
     ee.add_handler(handler3, "key_down", order=-1)
 
     ee.submit({"event_type": "key_down", "value": 1})
-    ee.sync_flush()
+    ee.flush()
     assert values == [201, 301, 101]
 
     # Use floats!
@@ -233,12 +215,12 @@ def test_events_handler_order():
     ee.add_handler(handler3, "key_down", order=0.11)
 
     ee.submit({"event_type": "key_down", "value": 1})
-    ee.sync_flush()
+    ee.flush()
     assert values == [301, 201, 101]
 
 
 def test_events_duplicate_handler():
-    ee = OurEventEmitter()
+    ee = EventEmitter()
 
     values = []
 
@@ -250,17 +232,17 @@ def test_events_duplicate_handler():
     ee.add_handler(handler, "key_down")
 
     ee.submit({"event_type": "key_down", "value": 1})
-    ee.sync_flush()
+    ee.flush()
     assert values == [1]
 
     ee.remove_handler(handler, "key_down")
     ee.submit({"event_type": "key_down", "value": 2})
-    ee.sync_flush()
+    ee.flush()
     assert values == [1]
 
 
 def test_events_duplicate_handler_with_lambda():
-    ee = OurEventEmitter()
+    ee = EventEmitter()
 
     values = []
 
@@ -272,17 +254,17 @@ def test_events_duplicate_handler_with_lambda():
     ee.add_handler(lambda e: handler(e), "key_down")
 
     ee.submit({"event_type": "key_down", "value": 1})
-    ee.sync_flush()
+    ee.flush()
     assert values == [1, 1]
 
     ee.remove_handler(handler, "key_down")
     ee.submit({"event_type": "key_down", "value": 2})
-    ee.sync_flush()
+    ee.flush()
     assert values == [1, 1, 2, 2]
 
 
 def test_merging_events():
-    ee = OurEventEmitter()
+    ee = EventEmitter()
 
     events = []
 
@@ -310,7 +292,7 @@ def test_merging_events():
     ee.submit({"event_type": "key_down", "value": 1})
     ee.submit({"event_type": "key_down", "value": 2})
 
-    ee.sync_flush()
+    ee.flush()
 
     assert len(events) == 7
 
@@ -335,7 +317,7 @@ def test_mini_benchmark():
     # Can be used to tweak internals of the EventEmitter and see the
     # effect on performance.
 
-    ee = OurEventEmitter()
+    ee = EventEmitter()
 
     def handler(event):
         pass
@@ -349,7 +331,7 @@ def test_mini_benchmark():
     t0 = time.perf_counter()
     for _ in range(100):
         ee.submit({"event_type": "key_down", "value": 2})
-        ee.sync_flush()
+        ee.flush()
     t2 = time.perf_counter() - t0
 
     print(f"add_handler: {1000 * t1:0.0f} ms, emit: {1000 * t2:0.0f} ms")
