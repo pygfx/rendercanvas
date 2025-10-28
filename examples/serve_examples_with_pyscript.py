@@ -1,5 +1,12 @@
 """
-Little script to make it serve a selection of examples as PyScript applications.
+Little script that:
+
+* Builds the wheel.
+* Start a tiny webserver to host html files for a selection of examples.
+* Opens a webpage in the default browser.
+
+Files are loaded from disk on each request, so you can leave the server running
+and just update examples, update rendercanvas and build the wheel, etc.
 """
 
 import os
@@ -16,29 +23,48 @@ except ImportError:
     raise ImportError(msg) from None
 
 
-available_examples = [
+# Examples to load as PyScript application
+py_examples = [
     "drag.html",
     "noise.html",
     "events.html",
     "demo.html",
 ]
 
+# Examples that are already html
+html_examples = [
+    "pyodide.html",
+]
 
-example_list_items = [f"<li><a href='{name}'>{name}</a></li>" for name in available_examples]
-html_index = f"""
-<!doctype html>
-<html>
-<head>
-    <meta name="viewport" content="width=device-width,initial-scale=1.0">
-    <title>RenderCanvas PyScript examples</title>
-    <script type="module" src="https://pyscript.net/releases/2025.10.3/core.js"></script>
-</head>
-<body>
-List of examples that run in PyScript:
-<ul>{''.join(example_list_items)}</ul>
-</body>
-</html>
-"""
+
+def get_html_index():
+    py_examples_list = [
+        f"<li><a href='{name}'>{name}</a></li>" for name in py_examples
+    ]
+    html_examples_list = [
+        f"<li><a href='{name}'>{name}</a></li>" for name in html_examples
+    ]
+
+    html = f"""<!doctype html>
+    <html>
+    <head>
+        <meta name="viewport" content="width=device-width,initial-scale=1.0">
+        <title>RenderCanvas PyScript examples</title>
+        <script type="module" src="https://pyscript.net/releases/2025.10.3/core.js"></script>
+    </head>
+    <body>
+    """
+
+    html += "List of .py examples that run in PyScript:\n"
+    html += f"<ul>{"".join(py_examples_list)}</ul><br><br>\n\n"
+
+    html += "List of .html examples:\n"
+    html += f"<ul>{"".join(html_examples_list)}</ul><br><br>\n\n"
+
+    html += "</body>\n</html>\n"
+    return html
+
+html_index = get_html_index()
 
 html_template = """
 <!doctype html>
@@ -104,16 +130,21 @@ class MyHandler(BaseHTTPRequestHandler):
                 self.respond(404, "wheel not found")
         elif self.path.endswith(".html"):
             name = self.path.strip("/")
-            if name in available_examples:
+            if name in py_examples:
                 pyname = name.replace(".html", ".py")
                 html = html_template.replace("example.py", pyname)
+                html = html.replace('"rendercanvas"', f'"./{wheel_name}"')
+                self.respond(200, html, "text/html")
+            elif name in html_examples:
+                filename = os.path.join(root, "examples", name)
+                with open(filename, "rb") as f:
+                    html = f.read().decode()
                 html = html.replace('"rendercanvas"', f'"./{wheel_name}"')
                 self.respond(200, html, "text/html")
             else:
                 self.respond(404, "example not found")
         elif self.path.endswith(".py"):
-            name = self.path.strip("/")
-            filename = os.path.join(root, "examples", name)
+            filename = os.path.join(root, "examples", self.path.strip("/"))
             if os.path.isfile(filename):
                 with open(filename, "rb") as f:
                     data = f.read()
