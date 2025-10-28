@@ -1,0 +1,38 @@
+<!doctype html>
+<!--- Warning, some IDE's, like VSCode will screw up the Python formatting when saved! --->
+<html>
+
+<head>
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <title>RenderCanvas PyScript example</title>
+    <script type="module" src="https://pyscript.net/releases/2025.10.3/core.js"></script>
+</head>
+
+<body>
+
+    <dialog id="loading" style='outline: none; border: none; background: transparent;'>
+        <h1>Loading...</h1>
+    </dialog>
+    <script type="module">
+        const loading = document.getElementById('loading');
+        addEventListener('py:ready', () => loading.close());
+        loading.showModal();
+    </script>
+
+    <p>
+    This example demonstrates using PyScript. It needs to be acced through
+    a web-server for it to access the Python file.
+    </p>
+    <p>
+    This uses the latest release from rendercanvas. To run this with the dev version,
+    run the <i>serve_pyodide.py</i> script and select the example from there.
+    </p>
+
+    <canvas id='rendercanvas' style="background:#aaa; width: 90%; height: 500px;"></canvas>
+    <br>
+    <script type="py" src="drag.py" ,
+        config='{"packages": ["numpy", "sniffio", "rendercanvas"]}'>
+    </script>
+</body>
+
+</html>
