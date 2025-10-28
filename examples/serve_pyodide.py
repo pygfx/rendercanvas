@@ -32,9 +32,7 @@ py_examples = [
 ]
 
 # Examples that are already html
-html_examples = [
-    "pyodide.html",
-]
+html_examples = ["pyodide.html", "pyscript.html"]
 
 
 def get_html_index():
@@ -66,6 +64,7 @@ def get_html_index():
 
 
 html_index = get_html_index()
+
 
 html_template = """
 <!doctype html>
