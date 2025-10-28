@@ -51,7 +51,7 @@ The table below gives an overview of the names in the different ``rendercanvas``
           | ``RenderCanvas`` (alias)
           | ``loop`` (an ``AsyncioLoop``)
         - | A canvas that runs in a web browser, using Pyodide.
-          
+
 
 There are also three loop-backends. These are mainly intended for use with the glfw backend:
 
@@ -269,9 +269,10 @@ subclass implementing a remote frame-buffer. There are also some `wgpu examples 
 
     canvas  # Use as cell output
 
+
 Support for HTMLCanvas in Pyodide
 ---------------------------------
-When RenderCanvas runs in the browser using Pyodide the auto backend selects ``rendercanvas.html.HTMLRenderCanvas`` class.
+When Python is running in the browser using Pyodide, the auto backend selects the ``rendercanvas.html.HTMLRenderCanvas`` class.
 It expects a HTMLCanvasElement to be present in the DOM. It requires no additional dependencies, as rendercanvas can be installed from micropip.
 
 .. code-block:: html
@@ -310,6 +311,7 @@ It expects a HTMLCanvasElement to be present in the DOM. It requires no addition
 
 
 Currently only presenting a bitmap is supported, as shown in the examples :doc:`noise.py <gallery/noise>` and :doc:`snake.py <gallery/snake>`.
+Support for wgpu is a work in progress.
 
 
 .. _env_vars:

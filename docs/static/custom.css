@@ -2,8 +2,9 @@ div.sphx-glr-download,
 div.sphx-glr-download-link-note {
     display: none;
 }
+
 div.document iframe {
     width: 100%;
-    height: 500px; 
+    height: 500px;
     border: none;
 }

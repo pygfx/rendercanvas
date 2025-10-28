@@ -7,42 +7,52 @@ It is not required to set the default sdl2 canvas as the Pyodide docs describe.
 
 __all__ = ["HtmlRenderCanvas", "RenderCanvas", "loop"]
 
-from rendercanvas.base import BaseRenderCanvas, BaseCanvasGroup
-from rendercanvas.asyncio import loop
-
 import sys
+
+from .base import BaseRenderCanvas, BaseCanvasGroup
+from .asyncio import loop
 
 if "pyodide" not in sys.modules:
     raise ImportError("This module is only for use with Pyodide in the browser.")
 
-# packages available inside pyodide
 from pyodide.ffi import run_sync, create_proxy
-from js import document, ImageData, Uint8ClampedArray, window, HTMLCanvasElement, ResizeObserver
+from js import (
+    document,
+    ImageData,
+    Uint8ClampedArray,
+    window,
+    HTMLCanvasElement,
+    ResizeObserver,
+)
 
 
-# needed for completeness? somehow is required for other examples - hmm?
+# The canvas group manages canvases of the type we define below. In general we don't have to implement anything here.
 class HtmlCanvasGroup(BaseCanvasGroup):
     pass
 
 
-# https://rendercanvas.readthedocs.io/stable/backendapi.html#rendercanvas.stub.StubRenderCanvas
 class HtmlRenderCanvas(BaseRenderCanvas):
-    _rc_canvas_group = HtmlCanvasGroup(loop)  # todo do we need the group?
+    """An html canvas providing a render canvas."""
+
+    _rc_canvas_group = HtmlCanvasGroup(loop)
 
     def __init__(
         self,
-        canvas_el: str = "canvas",
+        canvas_el: str | object = "canvas",
         *args,
         **kwargs,
     ):
         if isinstance(canvas_el, str):
+            # todo: make private attr
             self.canvas_element = document.querySelector(canvas_el)
         else:
             self.canvas_element = canvas_el
+
         if "size" not in kwargs:
             # if size isn't given, we use the existing size.
             # otherwise the final init will set it to the default (480,640)
             kwargs["size"] = self.get_logical_size()
+
         super().__init__(*args, **kwargs)
         self._setup_events()
         self._js_array = Uint8ClampedArray.new(0)
@@ -52,7 +62,6 @@ class HtmlRenderCanvas(BaseRenderCanvas):
     def html_context(self):
         # this should only be accessed canvas.get_context("ctx_type") was called.
         return self._html_context
-
 
     def _setup_events(self):
         # following list from: https://jupyter-rfb.readthedocs.io/en/stable/events.html
@@ -67,12 +76,12 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         # https://jupyter-rfb.readthedocs.io/en/stable/events.html#mouse-buttons
         # https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/button
         mouse_button_map = {
-            -1:0, # no button
-            0: 1, # left
-            1: 3, # middle/wheel
-            2: 2, # right
-            3: 4, # backwards
-            4: 5, # forwards
+            -1: 0,  # no button
+            0: 1,  # left
+            1: 3,  # middle/wheel
+            2: 2,  # right
+            3: 4,  # backwards
+            4: 5,  # forwards
         }
 
         # https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/buttons
@@ -84,24 +93,32 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                     res += (mouse_button_map.get(i, i),)
             return res
 
-        self._pointer_inside = False # keep track for the pointer_move event
+        self._pointer_inside = False  # keep track for the pointer_move event
         # resize ? maybe composition?
         # perhaps: https://developer.mozilla.org/en-US/docs/Web/API/ResizeObserver
 
         def _resize_callback(entries, observer):
-            entry = entries[0] # assume it's just this as we are observing the canvas element only?
+            entry = entries[
+                0
+            ]  # assume it's just this as we are observing the canvas element only?
             # print(entry)
             new_size = ()
             ratio = self.get_pixel_ratio()
-            if entry.devicePixelContentBoxSize: # safari doesn't 
-                new_size = (entry.devicePixelContentBoxSize[0].inlineSize, entry.devicePixelContentBoxSize[0].blockSize)
+            if entry.devicePixelContentBoxSize:  # safari doesn't
+                new_size = (
+                    entry.devicePixelContentBoxSize[0].inlineSize,
+                    entry.devicePixelContentBoxSize[0].blockSize,
+                )
             else:
                 lsize = ()
                 if entry.contentBoxSize:
-                    lsize = (entry.contentBoxSize[0].inlineSize, entry.contentBoxSize[0].blockSize)
+                    lsize = (
+                        entry.contentBoxSize[0].inlineSize,
+                        entry.contentBoxSize[0].blockSize,
+                    )
                 else:
                     lsize = (entry.contentRect.width, entry.contentRect.height)
-                new_size = (int(lsize[0]*ratio), int(lsize[1]*ratio))
+                new_size = (int(lsize[0] * ratio), int(lsize[1] * ratio))
 
             event = {
                 "width": new_size[0],
@@ -161,7 +178,9 @@ class HtmlRenderCanvas(BaseRenderCanvas):
 
         # pointer_move
         def _html_pointer_move(proxy_args):
-            if (not self._pointer_inside) and (not proxy_args.buttons):  # only when inside or a button is pressed
+            if (not self._pointer_inside) and (
+                not proxy_args.buttons
+            ):  # only when inside or a button is pressed
                 return
             modifiers = tuple(
                 [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
@@ -323,29 +342,34 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         # animate event doesn't seem to be actually implemented, and it's by the loop not the gui.
 
     def _rc_gui_poll(self):
-        # not sure if anything has to be done
-        pass
+        pass  # Nothing to be done; the JS loop is always running (and Pyodide wraps that in a global asyncio loop)
 
     def _rc_get_present_methods(self):
-        # in the future maybe we can get the webgpu context (as JsProxy) or something... future stuff!
+        # TODO: provide access to wgpu context
+        # TODO: that window id does not make sense
         return {
             "bitmap": {
                 "formats": ["rgba-u8"],
             },
             "screen": {
-                "formats": ["rgba-u8"],
-                "window": self.canvas_element.js_id, #is a number - doubt it's useful though...
-            }
+                "platform": "pyodide",
+                "window": self.canvas_element.js_id,  # is a number - doubt it's useful though...
+            },
         }
 
     def _rc_request_draw(self):
+        # todo: use request animation frame!!
         loop = self._rc_canvas_group.get_loop()
         loop.call_soon(self._draw_frame_and_present)
 
     def _rc_force_draw(self):
+        # Not very clean to do this, and not sure if it works in a browser;
+        # you can draw all you want, but the browser compositer only uses the last frame, I expect.
+        # But that's ok, since force-drawing is not recomended in general.
         self._draw_frame_and_present()
 
     def _rc_present_bitmap(self, **kwargs):
+        # TODO: canvases actually support a context that is very similar to our bitmap context
         data = kwargs.get("data")  # data is a memoryview
         shape = data.shape  # use data shape instead of canvas size
         if (
@@ -410,7 +434,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         ratio = window.devicePixelRatio
         return ratio
 
-    def _rc_gical_size(self, width: float, height: float):
+    def _xxrc_set_logical_size(self, width: float, height: float):
         ratio = self._rc_get_pixel_ratio()
         self.canvas_element.width = int(
             width * ratio
@@ -440,9 +464,12 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         elif context_type in ("wgpu", "webgpu"):
             self._html_context = self.canvas_element.getContext("webgpu")
         else:
-            raise ValueError(f"Unsupported context_type for html canvas: {context_type}")
+            raise ValueError(
+                f"Unsupported context_type for html canvas: {context_type}"
+            )
         return res
 
 
-# provide for the auto namespace:
+# Make available under a name that is the same for all backends
+loop = loop  # must set loop variable to pass meta tests
 RenderCanvas = HtmlRenderCanvas
