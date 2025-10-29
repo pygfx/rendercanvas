@@ -124,6 +124,8 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                 return
             entry = entries[0]
 
+            ratio = window.devicePixelRatio
+
             if entry.devicePixelContentBoxSize:
                 psize = (
                     entry.devicePixelContentBoxSize[0].inlineSize,
@@ -137,8 +139,16 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                     )
                 else:
                     lsize = (entry.contentRect.width, entry.contentRect.height)
-                ratio = window.devicePixelRatio
                 psize = (int(lsize[0] * ratio), int(lsize[1] * ratio))
+
+            # If the element does not set the size with its style, the canvas' width and height are used.
+            # On hidpi screens this'd cause the canvas size to quickly increase with factors of 2 :)
+            # Therefore we want to make sure that the style.width and style.height are set.
+            lsize = ratio * psize[0], ratio * psize[1]
+            if not self._canvas_element.style.width:
+                self._canvas_element.style.width = f"{lsize[0]}px"
+            if not self._canvas_element.style.height:
+                self._canvas_element.style.height = f"{lsize[1]}px"
 
             # Set the canvas to the match its physical size on screen
             self._canvas_element.width = psize[0]
