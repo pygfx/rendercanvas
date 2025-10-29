@@ -114,16 +114,32 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         el = self._canvas_element
         el.tabIndex = -1
 
+        # Obtain container to put our hidden focus element.
+        # Putting the focus_element as a child of the canvas prevents chrome van emitting input events.
+        focus_element_container_id = "rendercanvas-focus-element-container"
+        focus_element_container = document.getElementById(focus_element_container_id)
+        if not focus_element_container:
+            focus_element_container = document.createElement("div")
+            focus_element_container.setAttribute("id", focus_element_container_id)
+            focus_element_container.style.position = "absolute"
+            focus_element_container.style.top = "0"
+            focus_element_container.style.left = "-9999px"
+            document.body.appendChild(focus_element_container)
+
         # Create an element to which we transfer focus, so we can capture key events and prevent global shortcuts
         self._focus_element = focus_element = document.createElement("input")
-        focus_element.tabIndex = -1
         focus_element.type = "text"
-        focus_element.style.position = "absolute"
+        focus_element.tabIndex = -1
+        focus_element.autocomplete = "off"
+        focus_element.autocorrect = "off"
+        focus_element.autocapitalize = "off"
+        focus_element.spellcheck = False
         focus_element.style.width = "1px"
         focus_element.style.height = "1px"
         focus_element.style.padding = "0"
-        focus_element.style.zIndex = "-99"
-        el.appendChild(focus_element)
+        focus_element.style.opacity = 0
+        focus_element.style.pointerEvents = "none"
+        focus_element_container.appendChild(focus_element)
 
         pointers = {}
         last_buttons = []
@@ -350,13 +366,12 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             self.submit_event(event)
 
         def _html_char(ev):
-            print("char event!")
             event = {
                 "event_type": "char",
                 "data": ev.data,
                 "is_composing": ev.isComposing,
                 "input_type": ev.inputType,
-                "repeat": getattr(ev, "repeat", False),
+                # "repeat": getattr(ev, "repeat", False),  # n.a.
                 "time_stamp": time.time(),
             }
             self.submit_event(event)
@@ -484,6 +499,9 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         if self._unregister_events:
             self._unregister_events()
             self._unregister_events = None
+
+        # Remove the focus element from the dom.
+        self._focus_element.remove()
 
         # Removing the element from the page. One can argue whether you want this or not.
         canvas_element.remove()
