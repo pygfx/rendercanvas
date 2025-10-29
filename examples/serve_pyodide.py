@@ -41,7 +41,7 @@ def get_html_index():
         f"<li><a href='{name}'>{name}</a></li>" for name in html_examples
     ]
 
-    html = f"""<!doctype html>
+    html = """<!doctype html>
     <html>
     <head>
         <meta name="viewport" content="width=device-width,initial-scale=1.0">
@@ -117,7 +117,7 @@ def build_wheel():
 
 
 class MyHandler(BaseHTTPRequestHandler):
-    def do_GET(self):  # noqa
+    def do_GET(self):
         if self.path == "/":
             self.respond(200, html_index, "text/html")
         elif self.path == "/build":

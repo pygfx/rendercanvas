@@ -4,10 +4,10 @@
 
 <head>
     <title>RenderCanvas HTML canvas via Pyodide</title>
-    <script src="https://cdn.jsdelivr.net/pyodide/v0.28.2/full/pyodide.js"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.29.0/full/pyodide.js"></script>
     <style>
         /* so the demo page can have interactive resizing */
-        #canvas {
+        #rendercanvas {
             position: absolute;
             width: 90%;
             height: 90%;
@@ -32,7 +32,7 @@
     <input type="checkbox" id="load-wgpu">Load WebGPU (experimental)</input>
     <br>
     <!-- maybe wrap in a div so content after it still shows? -->
-    <canvas id="canvas" style="background-color: lightgrey;"></canvas><br>
+    <canvas id="rendercanvas" style="background-color: lightgrey;"></canvas><br>
     some text below the canvas!
     <!-- TODO: redirect the Python stdout/stderr to some kind of text box at the bottom -->
     <script type="text/javascript">

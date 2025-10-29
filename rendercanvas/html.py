@@ -8,6 +8,7 @@ It is not required to set the default sdl2 canvas as the Pyodide docs describe.
 __all__ = ["HtmlRenderCanvas", "RenderCanvas", "loop"]
 
 import sys
+import ctypes
 
 from .base import BaseRenderCanvas, BaseCanvasGroup
 from .asyncio import loop
@@ -15,13 +16,12 @@ from .asyncio import loop
 if "pyodide" not in sys.modules:
     raise ImportError("This module is only for use with Pyodide in the browser.")
 
-from pyodide.ffi import run_sync, create_proxy
+from pyodide.ffi import create_proxy, to_js
 from js import (
     document,
     ImageData,
     Uint8ClampedArray,
     window,
-    HTMLCanvasElement,
     ResizeObserver,
 )
 
@@ -66,7 +66,9 @@ class HtmlRenderCanvas(BaseRenderCanvas):
 
         super().__init__(*args, **kwargs)
         self._setup_events()
-        self._js_array = Uint8ClampedArray.new(0)
+        self._js_array = Uint8ClampedArray.new(0)  # buffer to store pixel data
+        self._pending_image_bitmap = None
+        self._draw_is_requested = True
         self._final_canvas_init()
 
     @property
@@ -371,69 +373,78 @@ class HtmlRenderCanvas(BaseRenderCanvas):
     def _rc_request_draw(self):
         # todo: use request animation frame!!
         loop = self._rc_canvas_group.get_loop()
-        loop.call_soon(self._draw_frame_and_present)
+        self._draw_is_requested = True
+        if self._pending_image_bitmap is None:
+            loop.call_soon(self._rc_force_draw)
 
     def _rc_force_draw(self):
         # Not very clean to do this, and not sure if it works in a browser;
         # you can draw all you want, but the browser compositer only uses the last frame, I expect.
         # But that's ok, since force-drawing is not recomended in general.
+        self._draw_is_requested = False
         self._draw_frame_and_present()
 
     def _rc_present_bitmap(self, **kwargs):
-        # TODO: canvases actually support a context that is very similar to our bitmap context
-        data = kwargs.get("data")  # data is a memoryview
-        shape = data.shape  # use data shape instead of canvas size
-        if (
-            self._js_array.length != shape[0] * shape[1] * 4
-        ):  # #assumes rgba-u8 -> 4 bytes per pixel
-            # resize step here? or on first use.
-            self._js_array = Uint8ClampedArray.new(shape[0] * shape[1] * 4)
-        self._js_array.assign(data)
-        image_data = ImageData.new(
-            self._js_array, shape[1], shape[0]
-        )  # width, height !
-        size = self.get_logical_size()
-        image_bitmap = run_sync(
-            window.createImageBitmap(
-                image_data,
-                {
-                    "resizeQuality": "pixelated",
-                    "resizeWidth": int(size[0]),
-                    "resizeHeight": int(size[1]),
-                },
-            )
-        )
-        # this actually "writes" the data to the canvas I guess.
-        self.html_context.transferFromImageBitmap(image_bitmap)
-        # handles lower res just fine it seems.
-
-    # maybe if we don't use the existing bitmaprendering context, we could have something like this:
-    # _rc_present_js_array?
-    # _rc_present_js_image_data?
-
-    # TODO: consider switching:
-    def _rc_present_bitmap_2d(self, **kwargs):
-        # still takes a bitmap, but uses the 2d context instead which might be faster
-        if not hasattr(self, "_2d_context"):
-            # will give `null` if other context already exists! so we would need to avoid that above.
-            self._2d_context = self._canvas_element.getContext("2d")
-            print("got 2d context:", self._2d_context)
         data = kwargs.get("data")
 
-        ## same as above ## (might be extracted to the bitmappresentcontext class one day?)
-        shape = data.shape  # use data shape instead of canvas size
-        if (
-            self._js_array.length != shape[0] * shape[1] * 4
-        ):  # #assumes rgba-u8 -> 4 bytes per pixel
-            # resize step here? or on first use.
-            self._js_array = Uint8ClampedArray.new(shape[0] * shape[1] * 4)
-        self._js_array.assign(data)
-        image_data = ImageData.new(
-            self._js_array, shape[1], shape[0]
-        )  # width, height !
-        #######
-        # TODO: is not resized because we writing bytes to pixels directly.
-        self._2d_context.putImageData(image_data, 0, 0)  # x,y
+        # Convert to memoryview. It probably already is.
+        m = memoryview(data)
+        h, w = m.shape[:2]
+
+        if True:
+            # Make sure that the array matches the number of pixels
+            if self._js_array.length != m.nbytes:
+                self._js_array = Uint8ClampedArray.new(m.nbytes)
+            # Copy pixels into the array.
+            self._js_array.assign(m)
+            array_uint8_clamped = self._js_array
+        else:
+            # Convert memoryview to a JS array without making a copy. Does not work yet.
+            # Pyodide does not support memoryview very well, so we convert to a ctypes array first.
+            # Some options:
+            # * Use pyodide.ffi.PyBuffer, but this name cannot be imported. See https://github.com/pyodide/pyodide/issues/5972
+            # * Use ``ptr = ctypes.addressof(ctypes.c_char.from_buffer(buf))`` and then ``Uint8ClampedArray.new(full_wasm_buffer, ptr, nbytes)``,
+            #   but for now we don't seem to be able to get access to the raw wasm data.
+            # * Use to_js(). For now this makes a copy (maybe that changes someday?).
+            c = (ctypes.c_uint8 * m.nbytes).from_buffer(data)  # No copy
+            array_uint8 = to_js(c)  # Makes a copy, and somehow mangles the data??
+            array_uint8_clamped = Uint8ClampedArray.new(array_uint8.buffer)  # no-copy
+
+        # Create image data
+        image_data = ImageData.new(array_uint8_clamped, w, h)
+
+        # Convert to image bitmap.
+        # AK: I strongly suspect that this is actually a GPU texture. This would explain why creating an ImageBitmap is async.
+        size = self.get_logical_size()
+        promise = window.createImageBitmap(
+            image_data,
+            {
+                "resizeQuality": "pixelated",
+                "resizeWidth": int(size[0]),
+                "resizeHeight": int(size[1]),
+            },
+        )
+
+        # So now we wait for the ImageBitmap to be ready, and then present it in the animation frame
+
+        @create_proxy
+        def schedule_final_present(image_bitmap):
+            self._pending_image_bitmap = image_bitmap
+            window.requestAnimationFrame(create_proxy(self._present_final))
+
+        promise.then(schedule_final_present)
+
+    def _present_final(self, _=None):
+        if self._pending_image_bitmap is not None:
+            self._html_context.transferFromImageBitmap(self._pending_image_bitmap)
+            self._pending_image_bitmap.close()
+        self._pending_image_bitmap = None
+        # Maybe schedule a new draw
+        if self._draw_is_requested:
+            loop.call_soon(self._rc_force_draw)
+
+    def _request_animation_frame_callback(self, timestamp: float):
+        self._draw_frame_and_present()
 
     def _rc_get_physical_size(self):
         return self._canvas_element.style.width, self._canvas_element.style.height

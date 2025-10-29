@@ -280,7 +280,7 @@ It expects a HTMLCanvasElement to be present in the DOM. It requires no addition
     <!DOCTYPE html>
     <html>
     <head>
-        <script src="https://cdn.jsdelivr.net/pyodide/v0.28.2/full/pyodide.js"></script>
+        <script src="https://cdn.jsdelivr.net/pyodide/v0.29.0/full/pyodide.js"></script>
     </head>
     <body>
     ...
