@@ -17,6 +17,7 @@ if "pyodide" not in sys.modules:
     raise ImportError("This module is only for use with Pyodide in the browser.")
 
 from pyodide.ffi import create_proxy, to_js
+from pyodide.ffi.wrappers import add_event_listener, remove_event_listener
 from js import (
     document,
     ImageData,
@@ -80,6 +81,8 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         return self._html_context
 
     def _setup_events(self):
+        el = self._canvas_element
+
         # following list from: https://jupyter-rfb.readthedocs.io/en/stable/events.html
         # better: https://rendercanvas.readthedocs.io/stable/api.html#rendercanvas.EventType
         key_mod_map = {
@@ -120,7 +123,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                 ev.stopPropagation()
                 return False
 
-        self._canvas_element.oncontextmenu = create_proxy(_on_context_menu)
+        el.oncontextmenu = create_proxy(_on_context_menu)
 
         def _resize_callback(entries, _=None):
             # The physical size is easy. The logical size can be much more tricky
@@ -128,11 +131,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             # from the physical size and the pixel ratio.
 
             # Select entry
-            our_entries = [
-                entry
-                for entry in entries
-                if entry.target.js_id == self._canvas_element.js_id
-            ]
+            our_entries = [entry for entry in entries if entry.target.js_id == el.js_id]
             if not our_entries:
                 return
             entry = entries[0]
@@ -158,21 +157,21 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             # On hidpi screens this'd cause the canvas size to quickly increase with factors of 2 :)
             # Therefore we want to make sure that the style.width and style.height are set.
             lsize = ratio * psize[0], ratio * psize[1]
-            if not self._canvas_element.style.width:
-                self._canvas_element.style.width = f"{lsize[0]}px"
-            if not self._canvas_element.style.height:
-                self._canvas_element.style.height = f"{lsize[1]}px"
+            if not el.style.width:
+                el.style.width = f"{lsize[0]}px"
+            if not el.style.height:
+                el.style.height = f"{lsize[1]}px"
 
             # Set the canvas to the match its physical size on screen
-            self._canvas_element.width = psize[0]
-            self._canvas_element.height = psize[1]
+            el.width = psize[0]
+            el.height = psize[1]
 
             # Notify the base class, so it knows our new size
             self._set_size_info(psize, window.devicePixelRatio)
 
         self._resize_callback_proxy = create_proxy(_resize_callback)
         self._resize_observer = ResizeObserver.new(self._resize_callback_proxy)
-        self._resize_observer.observe(self._canvas_element)
+        self._resize_observer.observe(el)
 
         # close ? perhaps https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent
 
@@ -194,10 +193,6 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             }
             self.submit_event(event)
 
-        self._pointer_down_proxy = create_proxy(_html_pointer_down)
-        self._canvas_element.addEventListener("pointerdown", self._pointer_down_proxy)
-
-        # pointer_up
         def _html_pointer_up(proxy_args):
             modifiers = tuple(
                 [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
@@ -215,10 +210,6 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             }
             self.submit_event(event)
 
-        self._pointer_up_proxy = create_proxy(_html_pointer_up)
-        self._canvas_element.addEventListener("pointerup", self._pointer_up_proxy)
-
-        # pointer_move
         def _html_pointer_move(proxy_args):
             if (not self._pointer_inside) and (
                 not proxy_args.buttons
@@ -240,10 +231,6 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             }
             self.submit_event(event)
 
-        self._pointer_move_proxy = create_proxy(_html_pointer_move)
-        document.addEventListener("pointermove", self._pointer_move_proxy)
-
-        # pointer_enter
         def _html_pointer_enter(proxy_args):
             modifiers = tuple(
                 [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
@@ -262,10 +249,6 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             self.submit_event(event)
             self._pointer_inside = True
 
-        self._pointer_enter_proxy = create_proxy(_html_pointer_enter)
-        self._canvas_element.addEventListener("pointerenter", self._pointer_enter_proxy)
-
-        # pointer_leave
         def _html_pointer_leave(proxy_args):
             modifiers = tuple(
                 [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
@@ -284,11 +267,6 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             self.submit_event(event)
             self._pointer_inside = False
 
-        self._pointer_leave_proxy = create_proxy(_html_pointer_leave)
-        self._canvas_element.addEventListener("pointerleave", self._pointer_leave_proxy)
-        # TODO: can all the above be refactored into a function consturctor/factory?
-
-        # double_click
         def _html_double_click(proxy_args):
             modifiers = tuple(
                 [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
@@ -305,10 +283,6 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             }
             self.submit_event(event)
 
-        self._double_click_proxy = create_proxy(_html_double_click)
-        self._canvas_element.addEventListener("dblclick", self._double_click_proxy)
-
-        # wheel
         def _html_wheel(proxy_args):
             modifiers = tuple(
                 [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
@@ -325,10 +299,6 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             }
             self.submit_event(event)
 
-        self._wheel_proxy = create_proxy(_html_wheel)
-        self._canvas_element.addEventListener("wheel", self._wheel_proxy)
-
-        # key_down
         def _html_key_down(proxy_args):
             modifiers = tuple(
                 [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
@@ -340,11 +310,6 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                 "time_stamp": proxy_args.timeStamp,
             }
             self.submit_event(event)
-
-        self._key_down_proxy = create_proxy(_html_key_down)
-        document.addEventListener(
-            "keydown", self._key_down_proxy
-        )  # key events happen on document scope?
 
         # key_up
         def _html_key_up(proxy_args):
@@ -359,8 +324,29 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             }
             self.submit_event(event)
 
-        self._key_up_proxy = create_proxy(_html_key_up)
-        document.addEventListener("keyup", self._key_up_proxy)
+        add_event_listener(el, "pointerdown", _html_pointer_down)
+        add_event_listener(el, "pointerup", _html_pointer_up)
+        add_event_listener(el, "pointermove", _html_pointer_move)
+        add_event_listener(el, "pointerenter", _html_pointer_enter)
+        add_event_listener(el, "pointerleave", _html_pointer_leave)
+        add_event_listener(el, "dblclick", _html_double_click)
+        add_event_listener(el, "wheel", _html_wheel)
+        add_event_listener(document, "keydown", _html_key_down)  # or document?
+        add_event_listener(document, "keyup", _html_key_up)
+
+        def unregister_events():
+            self._resize_observer.disconnect()
+            remove_event_listener(el, "pointerdown", _html_pointer_down)
+            remove_event_listener(el, "pointerup", _html_pointer_up)
+            remove_event_listener(el, "pointermove", _html_pointer_move)
+            remove_event_listener(el, "pointerenter", _html_pointer_enter)
+            remove_event_listener(el, "pointerleave", _html_pointer_leave)
+            remove_event_listener(el, "dblclick", _html_double_click)
+            remove_event_listener(el, "wheel", _html_wheel)
+            remove_event_listener(document, "keydown", _html_key_down)  # or document?
+            remove_event_listener(document, "keyup", _html_key_up)
+
+        self._unregister_events = unregister_events
 
         # char ... it's not this
         # def _html_char(proxy_args):
@@ -474,7 +460,10 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             return  # already closed
         self._canvas_element = None
 
-        # todo: remove handlers
+        # Disconnect events
+        if self._unregister_events:
+            self._unregister_events()
+            self._unregister_events = None
 
         # Removing the element from the page. One can argue whether you want this or not.
         canvas_element.remove()
