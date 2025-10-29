@@ -8,6 +8,7 @@ It is not required to set the default sdl2 canvas as the Pyodide docs describe.
 __all__ = ["HtmlRenderCanvas", "RenderCanvas", "loop"]
 
 import sys
+import time
 import ctypes
 
 from .base import BaseRenderCanvas, BaseCanvasGroup
@@ -26,6 +27,37 @@ from js import (
     ResizeObserver,
     OffscreenCanvas,
 )
+
+KEYMAP = {
+    "Ctrl": "Control",
+    "Del": "Delete",
+    "Esc": "Escape",
+}
+
+KEY_MOD_MAP = {
+    "altKey": "Alt",
+    "ctrlKey": "Control",
+    "metaKey": "Meta",
+    "shiftKey": "Shift",
+}
+
+MOUSE_BUTTON_MAP = {
+    -1: 0,  # no button
+    0: 1,  # left
+    1: 3,  # middle/wheel
+    2: 2,  # right
+    3: 4,  # backwards
+    4: 5,  # forwards
+}
+
+
+def buttons_mask_to_tuple(mask) -> tuple[int, ...]:
+    bin(mask)
+    res = ()
+    for i, v in enumerate(bin(mask)[:1:-1]):
+        if v == "1":
+            res += (MOUSE_BUTTON_MAP.get(i, i),)
+    return res
 
 
 # The canvas group manages canvases of the type we define below. In general we don't have to implement anything here.
@@ -64,8 +96,6 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         self._js_array = Uint8ClampedArray.new(0)  # buffer to store pixel data
         self._offscreen_canvas = None
 
-        self._canvas_element.tabIndex = -1  # better support for key events
-
         # If size or title are not given, set them to None, so they are left as-is. This is usually preferred in html docs.
         kwargs["size"] = kwargs.get("size", None)
         kwargs["title"] = kwargs.get("title", None)
@@ -82,39 +112,21 @@ class HtmlRenderCanvas(BaseRenderCanvas):
 
     def _setup_events(self):
         el = self._canvas_element
+        el.tabIndex = -1
 
-        # following list from: https://jupyter-rfb.readthedocs.io/en/stable/events.html
-        # better: https://rendercanvas.readthedocs.io/stable/api.html#rendercanvas.EventType
-        key_mod_map = {
-            "altKey": "Alt",
-            "ctrlKey": "Control",
-            "metaKey": "Meta",
-            "shiftKey": "Shift",
-        }
+        # Create an element to which we transfer focus, so we can capture key events and prevent global shortcuts
+        self._focus_element = focus_element = document.createElement("input")
+        focus_element.tabIndex = -1
+        focus_element.type = "text"
+        focus_element.style.position = "absolute"
+        focus_element.style.width = "1px"
+        focus_element.style.height = "1px"
+        focus_element.style.padding = "0"
+        focus_element.style.zIndex = "-99"
+        el.appendChild(focus_element)
 
-        # https://jupyter-rfb.readthedocs.io/en/stable/events.html#mouse-buttons
-        # https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/button
-        mouse_button_map = {
-            -1: 0,  # no button
-            0: 1,  # left
-            1: 3,  # middle/wheel
-            2: 2,  # right
-            3: 4,  # backwards
-            4: 5,  # forwards
-        }
-
-        # https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/buttons
-        def buttons_mask_to_tuple(mask) -> tuple[int, ...]:
-            bin(mask)
-            res = ()
-            for i, v in enumerate(bin(mask)[:1:-1]):
-                if v == "1":
-                    res += (mouse_button_map.get(i, i),)
-            return res
-
-        self._pointer_inside = False  # keep track for the pointer_move event
-        # resize ? maybe composition?
-        # perhaps: https://developer.mozilla.org/en-US/docs/Web/API/ResizeObserver
+        pointers = {}
+        last_buttons = []
 
         # Prevent context menu
         def _on_context_menu(ev):
@@ -173,201 +185,209 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         self._resize_observer = ResizeObserver.new(self._resize_callback_proxy)
         self._resize_observer.observe(el)
 
-        # close ? perhaps https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent
+        # Note: there is no concept of an element being 'closed' in the DOM.
 
-        # pointer_down
-        def _html_pointer_down(proxy_args):
-            modifiers = tuple(
-                [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
-            )
+        def _html_pointer_down(ev):
+            nonlocal last_buttons
+            focus_element.focus({"preventScroll": True, "focusVisble": False})
+            el.setPointerCapture(ev.pointerId)
+            modifiers = tuple([v for k, v in KEY_MOD_MAP.items() if getattr(ev, k)])
+            last_buttons = buttons = buttons_mask_to_tuple(ev.buttons)
+            pointers[ev.pointerId] = ev
             event = {
                 "event_type": "pointer_down",
-                "x": proxy_args.offsetX,
-                "y": proxy_args.offsetY,
-                "button": mouse_button_map.get(proxy_args.button, proxy_args.button),
-                "buttons": buttons_mask_to_tuple(proxy_args.buttons),
+                "x": ev.offsetX,
+                "y": ev.offsetY,
+                "button": MOUSE_BUTTON_MAP.get(ev.button, ev.button),
+                "buttons": buttons,
                 "modifiers": modifiers,
-                "ntouches": 0,  # TODO: maybe via https://developer.mozilla.org/en-US/docs/Web/API/TouchEvent
+                "ntouches": 0,  # TODO later: maybe via https://developer.mozilla.org/en-US/docs/Web/API/TouchEvent
                 "touches": {},
-                "time_stamp": proxy_args.timeStamp,
+                "time_stamp": time.time(),
             }
+            if not ev.altKey:
+                ev.preventDefault()
             self.submit_event(event)
 
-        def _html_pointer_up(proxy_args):
-            modifiers = tuple(
-                [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
-            )
+        def _html_pointer_lost(ev):
+            nonlocal last_buttons
+            # This happens on pointer-up or pointer-cancel. We threat them the same.
+            modifiers = tuple([v for k, v in KEY_MOD_MAP.items() if getattr(ev, k)])
+            last_buttons = buttons = buttons_mask_to_tuple(ev.buttons)
+            pointers.pop(ev.pointerId, None)
             event = {
                 "event_type": "pointer_up",
-                "x": proxy_args.offsetX,
-                "y": proxy_args.offsetY,
-                "button": mouse_button_map.get(proxy_args.button, proxy_args.button),
-                "buttons": buttons_mask_to_tuple(proxy_args.buttons),
+                "x": ev.offsetX,
+                "y": ev.offsetY,
+                "button": MOUSE_BUTTON_MAP.get(ev.button, ev.button),
+                "buttons": buttons,
                 "modifiers": modifiers,
                 "ntouches": 0,
                 "touches": {},
-                "time_stamp": proxy_args.timeStamp,
+                "time_stamp": time.time(),
             }
             self.submit_event(event)
 
-        def _html_pointer_move(proxy_args):
-            if (not self._pointer_inside) and (
-                not proxy_args.buttons
-            ):  # only when inside or a button is pressed
+        def _html_pointer_move(ev):
+            # If this pointer is not down, but other pointers are, don't emit an event.
+            if pointers and ev.pointerId not in pointers:
                 return
-            modifiers = tuple(
-                [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
-            )
+            modifiers = tuple([v for k, v in KEY_MOD_MAP.items() if getattr(ev, k)])
+            buttons = buttons_mask_to_tuple(ev.buttons)
             event = {
                 "event_type": "pointer_move",
-                "x": proxy_args.offsetX,
-                "y": proxy_args.offsetY,
-                "button": mouse_button_map.get(proxy_args.button, proxy_args.button),
-                "buttons": buttons_mask_to_tuple(proxy_args.buttons),
+                "x": ev.offsetX,
+                "y": ev.offsetY,
+                "button": MOUSE_BUTTON_MAP.get(ev.button, ev.button),
+                "buttons": buttons,
                 "modifiers": modifiers,
                 "ntouches": 0,
                 "touches": {},
-                "time_stamp": proxy_args.timeStamp,
+                "time_stamp": time.time(),
             }
             self.submit_event(event)
 
-        def _html_pointer_enter(proxy_args):
-            modifiers = tuple(
-                [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
-            )
+        def _html_pointer_enter(ev):
+            # If this pointer is not down, but other pointers are, don't emit an event.
+            if pointers and ev.pointerId not in pointers:
+                return
+            modifiers = tuple([v for k, v in KEY_MOD_MAP.items() if getattr(ev, k)])
+            buttons = buttons_mask_to_tuple(ev.buttons)
             event = {
                 "event_type": "pointer_enter",
-                "x": proxy_args.offsetX,
-                "y": proxy_args.offsetY,
-                "button": mouse_button_map.get(proxy_args.button, proxy_args.button),
-                "buttons": buttons_mask_to_tuple(proxy_args.buttons),
+                "x": ev.offsetX,
+                "y": ev.offsetY,
+                "button": MOUSE_BUTTON_MAP.get(ev.button, ev.button),
+                "buttons": buttons,
                 "modifiers": modifiers,
                 "ntouches": 0,
                 "touches": {},
-                "time_stamp": proxy_args.timeStamp,
+                "time_stamp": time.time(),
             }
             self.submit_event(event)
-            self._pointer_inside = True
 
-        def _html_pointer_leave(proxy_args):
-            modifiers = tuple(
-                [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
-            )
+        def _html_pointer_leave(ev):
+            # If this pointer is not down, but other pointers are, don't emit an event.
+            if pointers and ev.pointerId not in pointers:
+                return
+            modifiers = tuple([v for k, v in KEY_MOD_MAP.items() if getattr(ev, k)])
+            buttons = buttons_mask_to_tuple(ev.buttons)
             event = {
                 "event_type": "pointer_leave",
-                "x": proxy_args.offsetX,
-                "y": proxy_args.offsetY,
-                "button": mouse_button_map.get(proxy_args.button, proxy_args.button),
-                "buttons": buttons_mask_to_tuple(proxy_args.buttons),
+                "x": ev.offsetX,
+                "y": ev.offsetY,
+                "button": MOUSE_BUTTON_MAP.get(ev.button, ev.button),
+                "buttons": buttons,
                 "modifiers": modifiers,
                 "ntouches": 0,
                 "touches": {},
-                "time_stamp": proxy_args.timeStamp,
+                "time_stamp": time.time(),
             }
             self.submit_event(event)
-            self._pointer_inside = False
 
-        def _html_double_click(proxy_args):
-            modifiers = tuple(
-                [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
-            )
+        def _html_double_click(ev):
+            modifiers = tuple([v for k, v in KEY_MOD_MAP.items() if getattr(ev, k)])
+            buttons = buttons_mask_to_tuple(ev.buttons)
             event = {
                 "event_type": "double_click",
-                "x": proxy_args.offsetX,
-                "y": proxy_args.offsetY,
-                "button": mouse_button_map.get(proxy_args.button, proxy_args.button),
-                "buttons": buttons_mask_to_tuple(proxy_args.buttons),
+                "x": ev.offsetX,
+                "y": ev.offsetY,
+                "button": MOUSE_BUTTON_MAP.get(ev.button, ev.button),
+                "buttons": buttons,
                 "modifiers": modifiers,
                 # no touches here
-                "time_stamp": proxy_args.timeStamp,
+                "time_stamp": time.time(),
             }
+            if not ev.altKey:
+                ev.preventDefault()
             self.submit_event(event)
 
-        def _html_wheel(proxy_args):
-            modifiers = tuple(
-                [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
-            )
+        def _html_wheel(ev):
+            if window.document.activeElement.js_id != focus_element.js_id:
+                return
+            scales = [1 / window.devicePixelRatio, 16, 600]  # pixel, line, page
+            scale = scales[ev.deltaMode]
+            modifiers = tuple([v for k, v in KEY_MOD_MAP.items() if getattr(ev, k)])
             event = {
                 "event_type": "wheel",
-                "dx": proxy_args.deltaX,
-                "dy": proxy_args.deltaY,
-                "x": proxy_args.offsetX,
-                "y": proxy_args.offsetY,
-                "buttons": buttons_mask_to_tuple(proxy_args.buttons),
+                "x": ev.offsetX,
+                "y": ev.offsetY,
+                "dx": ev.deltaX * scale,
+                "dy": ev.deltaY * scale,
+                "buttons": last_buttons,
                 "modifiers": modifiers,
-                "time_stamp": proxy_args.timeStamp,
+                "time_stamp": time.time(),
             }
+            if not ev.altKey:
+                ev.preventDefault()
             self.submit_event(event)
 
-        def _html_key_down(proxy_args):
-            modifiers = tuple(
-                [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
-            )
+        def _html_key_down(ev):
+            if ev.repeat:
+                return  # don't repeat keys
+            modifiers = tuple([v for k, v in KEY_MOD_MAP.items() if getattr(ev, k)])
             event = {
                 "event_type": "key_down",
                 "modifiers": modifiers,
-                "key": proxy_args.key,
-                "time_stamp": proxy_args.timeStamp,
+                "key": KEYMAP.get(ev.key, ev.key),
+                "time_stamp": time.time(),
             }
+            # No need for stopPropagation or preventDefault because we are in a text-input.
             self.submit_event(event)
 
-        # key_up
-        def _html_key_up(proxy_args):
-            modifiers = tuple(
-                [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
-            )
+            # NOTE: to allow text-editing functionality *inside* a framebuffer, e.g. via imgui or something similar,
+            # we need events like arrow keys, backspace, and delete, with modifiers, and with repeat.
+            # Also see comment in jupyter_rfb
+
+        def _html_key_up(ev):
+            modifiers = tuple([v for k, v in KEY_MOD_MAP.items() if getattr(ev, k)])
             event = {
                 "event_type": "key_up",
                 "modifiers": modifiers,
-                "key": proxy_args.key,
-                "time_stamp": proxy_args.timeStamp,
+                "key": KEYMAP.get(ev.key, ev.key),
+                "time_stamp": time.time(),
             }
             self.submit_event(event)
 
+        def _html_char(ev):
+            print("char event!")
+            event = {
+                "event_type": "char",
+                "data": ev.data,
+                "is_composing": ev.isComposing,
+                "input_type": ev.inputType,
+                "repeat": getattr(ev, "repeat", False),
+                "time_stamp": time.time(),
+            }
+            self.submit_event(event)
+            if not ev.isComposing:
+                focus_element.value = ""  # Prevent the text box from growing
+
         add_event_listener(el, "pointerdown", _html_pointer_down)
-        add_event_listener(el, "pointerup", _html_pointer_up)
+        add_event_listener(el, "lostpointercapture", _html_pointer_lost)
         add_event_listener(el, "pointermove", _html_pointer_move)
         add_event_listener(el, "pointerenter", _html_pointer_enter)
         add_event_listener(el, "pointerleave", _html_pointer_leave)
         add_event_listener(el, "dblclick", _html_double_click)
         add_event_listener(el, "wheel", _html_wheel)
-        add_event_listener(document, "keydown", _html_key_down)  # or document?
-        add_event_listener(document, "keyup", _html_key_up)
+        add_event_listener(focus_element, "keydown", _html_key_down)  # or document?
+        add_event_listener(focus_element, "keyup", _html_key_up)
+        add_event_listener(focus_element, "input", _html_char)
 
         def unregister_events():
             self._resize_observer.disconnect()
             remove_event_listener(el, "pointerdown", _html_pointer_down)
-            remove_event_listener(el, "pointerup", _html_pointer_up)
+            remove_event_listener(el, "lostpointercapture", _html_pointer_lost)
             remove_event_listener(el, "pointermove", _html_pointer_move)
             remove_event_listener(el, "pointerenter", _html_pointer_enter)
             remove_event_listener(el, "pointerleave", _html_pointer_leave)
             remove_event_listener(el, "dblclick", _html_double_click)
             remove_event_listener(el, "wheel", _html_wheel)
-            remove_event_listener(document, "keydown", _html_key_down)  # or document?
-            remove_event_listener(document, "keyup", _html_key_up)
+            remove_event_listener(focus_element, "keydown", _html_key_down)
+            remove_event_listener(focus_element, "keyup", _html_key_up)
+            remove_event_listener(focus_element, "input", _html_char)
 
         self._unregister_events = unregister_events
-
-        # char ... it's not this
-        # def _html_char(proxy_args):
-        #     print(dir(proxy_args))
-        #     modifiers = tuple(
-        #         [v for k, v in key_mod_map.items() if getattr(proxy_args, k)]
-        #     )
-        #     event = {
-        #         "event_type": "char",
-        #         "modifiers": modifiers,
-        #         "char_str": proxy_args.key,  # unsure if this works, it's experimental anyway: https://github.com/pygfx/rendercanvas/issues/28
-        #         "time_stamp": proxy_args.timeStamp,
-        #     }
-        #     self.submit_event(event)
-
-        # self._char_proxy = create_proxy(_html_char)
-        # document.addEventListener(
-        #     "input", self._char_proxy
-        # )  # maybe just another keydown? (seems to include unicode chars)
-
-        # animate event doesn't seem to be actually implemented, and it's by the loop not the gui.
 
     def _rc_gui_poll(self):
         pass  # Nothing to be done; the JS loop is always running (and Pyodide wraps that in a global asyncio loop)
