@@ -29,7 +29,7 @@ class OffscreenRenderCanvas(BaseRenderCanvas):
 
     def __init__(self, *args, pixel_ratio=1.0, format="rgba-u8", **kwargs):
         super().__init__(*args, **kwargs)
-        self._pixel_ratio = pixel_ratio
+        self._pixel_ratio = float(pixel_ratio)
         self._closed = False
         self._last_image = None
 
@@ -70,19 +70,13 @@ class OffscreenRenderCanvas(BaseRenderCanvas):
     def _rc_present_bitmap(self, *, data, format, **kwargs):
         self._last_image = data
 
-    def _rc_get_physical_size(self):
-        return int(self._logical_size[0] * self._pixel_ratio), int(
-            self._logical_size[1] * self._pixel_ratio
-        )
-
-    def _rc_get_logical_size(self):
-        return self._logical_size
-
-    def _rc_get_pixel_ratio(self):
-        return self._pixel_ratio
-
     def _rc_set_logical_size(self, width, height):
-        self._logical_size = width, height
+        logical_size = float(width), float(height)
+        physical_size = (
+            int(logical_size[0] * self._pixel_ratio),
+            int(logical_size[1] * self._pixel_ratio),
+        )
+        self._set_size_info(physical_size, self._pixel_ratio)
 
     def _rc_close(self):
         self._closed = True
