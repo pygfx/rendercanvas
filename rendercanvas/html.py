@@ -63,6 +63,8 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         self._js_array = Uint8ClampedArray.new(0)  # buffer to store pixel data
         self._offscreen_canvas = None
 
+        self._canvas_element.tabIndex = -1  # better support for key events
+
         # If size or title are not given, set them to None, so they are left as-is. This is usually preferred in html docs.
         kwargs["size"] = kwargs.get("size", None)
         kwargs["title"] = kwargs.get("title", None)
@@ -110,6 +112,15 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         self._pointer_inside = False  # keep track for the pointer_move event
         # resize ? maybe composition?
         # perhaps: https://developer.mozilla.org/en-US/docs/Web/API/ResizeObserver
+
+        # Prevent context menu
+        def _on_context_menu(ev):
+            if not ev.shiftKey:
+                ev.preventDefault()
+                ev.stopPropagation()
+                return False
+
+        self._canvas_element.oncontextmenu = create_proxy(_on_context_menu)
 
         def _resize_callback(entries, _=None):
             # The physical size is easy. The logical size can be much more tricky
