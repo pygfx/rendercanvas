@@ -140,13 +140,7 @@ class Scheduler:
 
             last_tick_time = time.perf_counter()
 
-            # Process events, handlers may request a draw
-            if (canvas := self.get_canvas()) is None:
-                break
-            canvas._process_events()
-            del canvas
-
-            # Determine what to do next ...
+            # Determine whether to draw or not yet
 
             do_draw = False
 
@@ -166,28 +160,36 @@ class Scheduler:
                     and time.perf_counter() - last_draw_time > 1 / self._min_fps
                 ):
                     do_draw = True
-
             elif self._mode == "manual":
                 pass
             else:
                 raise RuntimeError(f"Unexpected scheduling mode: '{self._mode}'")
 
-            # If we don't want to draw, we move to the next iter
-            if not do_draw:
-                continue
-
-            self._events.emit({"event_type": "before_draw"})
-
-            # Ask the canvas to draw
+            # Get canvas object or stop the loop
             if (canvas := self.get_canvas()) is None:
                 break
-            canvas._rc_request_draw()
-            del canvas
 
-            # Wait for the draw to happen
-            self._async_draw_event = Event()
-            await self._async_draw_event.wait()
-            last_draw_time = time.perf_counter()
+            # Process events now.
+            # Note that we don't want to emit events *during* the draw, because event
+            # callbacks do stuff, and that stuff may include changing the canvas size,
+            # or affect layout in a UI application, all which are not recommended during
+            # the main draw-event (a.k.a. animation frame), and may even lead to errors.
+            # The one exception is resize events, which we do emit during a draw, if the
+            # size has changed since the last time that events were processed.
+            canvas._process_events()
+
+            if not do_draw:
+                # If we don't want to draw, move to the next iter
+                del canvas
+                continue
+            else:
+                # Otherwise, request a draw ...
+                canvas._rc_request_draw()
+                del canvas
+                # ... and wait for the draw to happen
+                self._async_draw_event = Event()
+                await self._async_draw_event.wait()
+                last_draw_time = time.perf_counter()
 
         # Note that when the canvas is closed, we may detect it here and break from the loop.
         # But the task may also be waiting for a draw to happen, or something else. In that case

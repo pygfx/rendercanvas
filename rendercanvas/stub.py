@@ -70,6 +70,9 @@ class StubRenderCanvas(BaseRenderCanvas):
     def _final_canvas_init(self):
         return super()._final_canvas_init()
 
+    def _set_size_info(self, physical_size, pixel_ratio):
+        return super()._set_size_info(physical_size, pixel_ratio)
+
     def _process_events(self):
         return super()._process_events()
 
@@ -93,15 +96,6 @@ class StubRenderCanvas(BaseRenderCanvas):
         self._draw_frame_and_present()
 
     def _rc_present_bitmap(self, *, data, format, **kwargs):
-        raise NotImplementedError()
-
-    def _rc_get_physical_size(self):
-        raise NotImplementedError()
-
-    def _rc_get_logical_size(self):
-        raise NotImplementedError()
-
-    def _rc_get_pixel_ratio(self):
         raise NotImplementedError()
 
     def _rc_set_logical_size(self, width, height):

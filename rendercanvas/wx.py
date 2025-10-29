@@ -334,22 +334,6 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         bitmap = wx.Bitmap.FromBufferRGBA(width, height, data)
         dc.DrawBitmap(bitmap, 0, 0, False)
 
-    def _rc_get_physical_size(self):
-        lsize = self.Size[0], self.Size[1]
-        lsize = float(lsize[0]), float(lsize[1])
-        ratio = self.GetContentScaleFactor()
-        return round(lsize[0] * ratio + 0.01), round(lsize[1] * ratio + 0.01)
-
-    def _rc_get_logical_size(self):
-        lsize = self.Size[0], self.Size[1]
-        return float(lsize[0]), float(lsize[1])
-
-    def _rc_get_pixel_ratio(self):
-        # todo: this is not hidpi-ready (at least on win10)
-        # Observations:
-        # * On Win10 this always returns 1 - so hidpi is effectively broken
-        return self.GetContentScaleFactor()
-
     def _rc_set_logical_size(self, width, height):
         width, height = int(width), int(height)
         parent = self.Parent
@@ -388,21 +372,20 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
             cursor_object = wx.Cursor(cursor_flag)
             self.SetCursor(cursor_object)
 
-    # %% Turn Qt events into rendercanvas events
+    # %% Turn wx events into rendercanvas events
 
     def _on_resize(self, event: wx.SizeEvent):
         self._draw_lock = True
         self._resize_timer.Start(100, wx.TIMER_ONE_SHOT)
 
-        # fire resize event
-        size: wx.Size = event.GetSize()
-        ev = {
-            "event_type": "resize",
-            "width": float(size.GetWidth()),
-            "height": float(size.GetHeight()),
-            "pixel_ratio": self.get_pixel_ratio(),
-        }
-        self.submit_event(ev)
+        lsize = float(self.Size[0]), float(self.Size[1])
+        # Note: this is not hidpi-ready (at least on win10)
+        # Observations:
+        # * On Win10 this always returns 1 - so hidpi is effectively broken
+        ratio = self.GetContentScaleFactor()
+        # We use the same logic as for Qt to derive the physical size.
+        psize = round(lsize[0] * ratio + 0.01), round(lsize[1] * ratio + 0.01)
+        self._set_size_info(psize, ratio)
 
     def _on_key_down(self, event: wx.KeyEvent):
         char_str = self._get_char_from_event(event)

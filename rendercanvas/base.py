@@ -122,7 +122,7 @@ class BaseRenderCanvas:
     def __init__(
         self,
         *args,
-        size: Tuple[int, int] = (640, 480),
+        size: Tuple[float, float] = (640, 480),
         title: str = "$backend",
         update_mode: UpdateModeEnum = "ondemand",
         min_fps: float = 0.0,
@@ -151,6 +151,8 @@ class BaseRenderCanvas:
             if (self._rc_canvas_group and self._rc_canvas_group.get_loop())
             else "no-loop",
         }
+        self._set_size_info((0, 0), 1.0)  # Init self.__size_info
+        self.__size_info["need_event"] = False
 
         # Events and scheduler
         self._events = EventEmitter()
@@ -177,8 +179,8 @@ class BaseRenderCanvas:
     def _final_canvas_init(self):
         """Must be called by the subclasses at the end of their ``__init__``.
 
-        This sets the canvas size and title, which must happen *after* the widget itself
-        is initialized. Doing this automatically can be done with a metaclass, but let's keep it simple.
+        This sets the canvas logical size and title, which must happen *after* the widget itself
+        is initialized. (Doing this automatically can be done with a metaclass, but let's keep it simple.)
         """
         # Pop kwargs
         try:
@@ -211,7 +213,7 @@ class BaseRenderCanvas:
 
     def get_physical_size(self) -> Tuple[int, int]:
         """Get the physical size of the canvas in integer pixels."""
-        return self._rc_get_physical_size()
+        return self.__size_info["physical_size"]
 
     def get_context(self, context_type: str) -> object:
         """Get a context object that can be used to render to this canvas.
@@ -288,6 +290,27 @@ class BaseRenderCanvas:
 
     # %% Events
 
+    def _set_size_info(self, physical_size: Tuple[int, int], pixel_ratio: float):
+        """Must be called by subclasses when their size changes.
+
+        Backends must *not* submit a "resize" event; the base class takes care of that, because
+        it requires some more attention than the other events.
+
+        The subclass must call this when the actual viewport has changed. So not in ``_rc_set_logical_size()``,
+        but e.g. when the underlying GUI layer fires a resize event, and maybe on init.
+        """
+        w, h = physical_size
+
+        psize = int(w), int(h)
+        pixel_ratio = float(pixel_ratio)
+        lsize = psize[0] / pixel_ratio, psize[1] / pixel_ratio
+        self.__size_info = {
+            "physical_size": psize,
+            "logical_size": lsize,
+            "pixel_ratio": pixel_ratio,
+            "need_event": True,
+        }
+
     def add_event_handler(
         self, *args: EventTypeEnum | EventHandlerFunction, order: float = 0
     ) -> Callable:
@@ -308,6 +331,22 @@ class BaseRenderCanvas:
 
     # %% Scheduling and drawing
 
+    def __maybe_emit_resize_event(self):
+        if self.__size_info["need_event"]:
+            self.__size_info["need_event"] = False
+            lsize = self.__size_info["logical_size"]
+            self._events.emit(
+                {
+                    "event_type": "resize",
+                    "width": lsize[0],
+                    "height": lsize[1],
+                    "pixel_ratio": self.__size_info["pixel_ratio"],
+                    # Would be nice to have more details. But as it is now, PyGfx errors if we add fields it does not know, so let's do later.
+                    # "logical_size": self.__size_info["logical_size"],
+                    # "physical_size": self.__size_info["physical_size"],
+                }
+            )
+
     def _process_events(self):
         """Process events and animations.
 
@@ -320,6 +359,9 @@ class BaseRenderCanvas:
 
         # Get events from the GUI into our event mechanism.
         self._rc_gui_poll()
+
+        # If the canvas changed size, send event
+        self.__maybe_emit_resize_event()
 
         # Flush our events, so downstream code can update stuff.
         # Maybe that downstream code request a new draw.
@@ -426,9 +468,16 @@ class BaseRenderCanvas:
             if self._rc_get_closed():
                 return
 
-            # Process special events
-            # Note that we must not process normal events here, since these can do stuff
-            # with the canvas (resize/close/etc) and most GUI systems don't like that.
+            # Note: could check whether the known physical size is > 0.
+            # But we also consider it the responsiblity of the backend to not
+            # draw if the size is zero. GUI toolkits like Qt do this correctly.
+            # I might get back on this once we also draw outside of the draw-event ...
+
+            # Make sure that the user-code is up-to-date with the current size before it draws.
+            self.__maybe_emit_resize_event()
+
+            # Emit before-draw
+            self._events.emit({"event_type": "before_draw"})
 
             # Notify the scheduler
             if self.__scheduler is not None:
@@ -471,7 +520,7 @@ class BaseRenderCanvas:
         The logical size can be smaller than the physical size, e.g. on HiDPI
         monitors or when the user's system has the display-scale set to e.g. 125%.
         """
-        return self._rc_get_logical_size()
+        return self.__size_info["logical_size"]
 
     def get_pixel_ratio(self) -> float:
         """Get the float ratio between logical and physical pixels.
@@ -482,7 +531,7 @@ class BaseRenderCanvas:
         pixel ratio >= 2.0. On MacOS (with a Retina screen) the pixel ratio is
         always 2.0.
         """
-        return self._rc_get_pixel_ratio()
+        return self.__size_info["pixel_ratio"]
 
     def close(self) -> None:
         """Close the canvas."""
@@ -609,18 +658,6 @@ class BaseRenderCanvas:
 
         If a canvas supports special present methods, it will need to implement corresponding ``_rc_present_xx()`` methods.
         """
-        raise NotImplementedError()
-
-    def _rc_get_physical_size(self) -> Tuple[int, int]:
-        """Get the physical size (with, height) in integer pixels."""
-        raise NotImplementedError()
-
-    def _rc_get_logical_size(self) -> Tuple[float, float]:
-        """Get the logical size (with, height) in float pixels."""
-        raise NotImplementedError()
-
-    def _rc_get_pixel_ratio(self) -> float:
-        """Get ratio between physical and logical size."""
         raise NotImplementedError()
 
     def _rc_set_logical_size(self, width: float, height: float):

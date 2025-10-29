@@ -29,8 +29,6 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
 
         # Internal variables
         self._last_image = None
-        self._pixel_ratio = 1
-        self._logical_size = 0, 0
         self._is_closed = False
         self._draw_request_time = 0
         self._rendercanvas_event_types = set(EventType)
@@ -82,19 +80,7 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
         assert format == "rgba-u8"
         self._last_image = np.frombuffer(data, np.uint8).reshape(data.shape)
 
-    def _rc_get_physical_size(self):
-        return int(self._logical_size[0] * self._pixel_ratio), int(
-            self._logical_size[1] * self._pixel_ratio
-        )
-
-    def _rc_get_logical_size(self):
-        return self._logical_size
-
-    def _rc_get_pixel_ratio(self):
-        return self._pixel_ratio
-
     def _rc_set_logical_size(self, width, height):
-        self._logical_size = width, height
         self.css_width = f"{width}px"
         self.css_height = f"{height}px"
 
@@ -117,10 +103,17 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
         if event_type == "close":
             self._is_closed = True
         elif event_type == "resize":
-            self._pixel_ratio = event["pixel_ratio"]
-            self._logical_size = event["width"], event["height"]
+            logical_size = event["width"], event["height"]
+            pixel_ratio = event["pixel_ratio"]
+            physical_size = (
+                int(logical_size[0] * pixel_ratio),
+                int(logical_size[1] * pixel_ratio),
+            )
+            self._set_size_info(physical_size, pixel_ratio)
+            self.request_draw()
+            return
 
-        # Only submit events that rendercanvas known. Otherwise, if new events are added
+        # Only submit events that rendercanvas knows. Otherwise, if new events are added
         # to jupyter_rfb that rendercanvas does not (yet) know, rendercanvas will complain.
         if event_type in self._rendercanvas_event_types:
             self.submit_event(event)
