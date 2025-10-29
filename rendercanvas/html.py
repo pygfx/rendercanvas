@@ -59,10 +59,9 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             )
         self._canvas_element = canvas_element
 
-        if "size" not in kwargs:
-            # if size isn't given, we use the existing size.
-            # otherwise the final init will set it to the default (480,640)
-            kwargs["size"] = self.get_logical_size()
+        # If size or title are not given, set them to None, so they are left as-is. This is usually preferred in html docs.
+        kwargs["size"] = kwargs.get("size", None)
+        kwargs["title"] = kwargs.get("title", None)
 
         super().__init__(*args, **kwargs)
         self._setup_events()
@@ -110,20 +109,27 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         # resize ? maybe composition?
         # perhaps: https://developer.mozilla.org/en-US/docs/Web/API/ResizeObserver
 
-        def _resize_callback(entries, observer):
-            entry = entries[
-                0
-            ]  # assume it's just this as we are observing the canvas element only?
-            # print(entry)
-            new_size = ()
-            ratio = self.get_pixel_ratio()
-            if entry.devicePixelContentBoxSize:  # safari doesn't
-                new_size = (
+        def _resize_callback(entries, _=None):
+            # The physical size is easy. The logical size can be much more tricky
+            # to obtain due to all the CSS stuff. But the base class will just calcualte that
+            # from the physical size and the pixel ratio.
+
+            # Select entry
+            our_entries = [
+                entry
+                for entry in entries
+                if entry.target.js_id == self._canvas_element.js_id
+            ]
+            if not our_entries:
+                return
+            entry = entries[0]
+
+            if entry.devicePixelContentBoxSize:
+                psize = (
                     entry.devicePixelContentBoxSize[0].inlineSize,
                     entry.devicePixelContentBoxSize[0].blockSize,
                 )
-            else:
-                lsize = ()
+            else:  # some browsers don't support the above
                 if entry.contentBoxSize:
                     lsize = (
                         entry.contentBoxSize[0].inlineSize,
@@ -131,15 +137,15 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                     )
                 else:
                     lsize = (entry.contentRect.width, entry.contentRect.height)
-                new_size = (int(lsize[0] * ratio), int(lsize[1] * ratio))
+                ratio = window.devicePixelRatio
+                psize = (int(lsize[0] * ratio), int(lsize[1] * ratio))
 
-            event = {
-                "width": new_size[0],
-                "height": new_size[1],
-                "pixel_ratio": ratio,
-                "event_type": "resize",
-            }
-            self.submit_event(event)
+            # Set the canvas to the match its physical size on screen
+            self._canvas_element.width = psize[0]
+            self._canvas_element.height = psize[1]
+
+            # Notify the base class, so it knows our new size
+            self._set_size_info(psize, window.devicePixelRatio)
 
         self._resize_callback_proxy = create_proxy(_resize_callback)
         self._resize_observer = ResizeObserver.new(self._resize_callback_proxy)
@@ -415,7 +421,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
 
         # Convert to image bitmap.
         # AK: I strongly suspect that this is actually a GPU texture. This would explain why creating an ImageBitmap is async.
-        size = self.get_logical_size()
+        size = self._canvas_element.width, self._canvas_element.height
         promise = window.createImageBitmap(
             image_data,
             {
@@ -434,7 +440,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
 
         promise.then(schedule_final_present)
 
-    def _present_final(self, _=None):
+    def _present_final(self, _timestamp=None):
         if self._pending_image_bitmap is not None:
             self._html_context.transferFromImageBitmap(self._pending_image_bitmap)
             self._pending_image_bitmap.close()
@@ -443,28 +449,9 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         if self._draw_is_requested:
             loop.call_soon(self._rc_force_draw)
 
-    def _request_animation_frame_callback(self, timestamp: float):
-        self._draw_frame_and_present()
-
-    def _rc_get_physical_size(self):
-        return self._canvas_element.style.width, self._canvas_element.style.height
-
-    def _rc_get_logical_size(self):
-        return float(self._canvas_element.width), float(self._canvas_element.height)
-
-    def _rc_get_pixel_ratio(self) -> float:
-        ratio = window.devicePixelRatio
-        return ratio
-
-    def _xxrc_set_logical_size(self, width: float, height: float):
-        ratio = self._rc_get_pixel_ratio()
-        self._canvas_element.width = int(
-            width * ratio
-        )  # only positive, int() -> floor()
-        self._canvas_element.height = int(height * ratio)
-        # also set the physical scale here?
-        # self._canvas_element.style.width = f"{width}px"
-        # self._canvas_element.style.height = f"{height}px"
+    def _set_logical_size(self, width: float, height: float):
+        self._canvas_element.style.width = f"{width}px"
+        self._canvas_element.style.height = f"{height}px"
 
     def _rc_close(self):
         # self._canvas_element.remove() # shouldn't really be needed?
