@@ -469,7 +469,7 @@ class BaseRenderCanvas:
             # "draw event" that we requested, or as part of a forced draw.
 
             # Cannot draw to a closed canvas.
-            if self._rc_get_closed():
+            if self._rc_get_closed() or self._draw_frame is None:
                 return
 
             # Note: could check whether the known physical size is > 0.

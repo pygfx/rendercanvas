@@ -70,6 +70,7 @@ def on_pointer_down(event):
             bx, by = block[:2]
             if bx - hs < x < bx + hs and by - hs < y < by + hs:
                 dragging = i, (bx, by), (x, y)
+                canvas.set_cursor("pointer")
                 break
 
 
@@ -107,6 +108,7 @@ def on_pointer_up(event):
     global dragging
     if event["button"] == 1:
         dragging = None
+        canvas.set_cursor("default")
 
 
 @canvas.add_event_handler("key_down")

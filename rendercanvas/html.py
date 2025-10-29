@@ -466,16 +466,30 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         self._canvas_element.style.height = f"{height}px"
 
     def _rc_close(self):
-        # self._canvas_element.remove() # shouldn't really be needed?
-        pass
+        # Closing is a bit weird in the browser ...
+
+        # Mark as closed
+        canvas_element = self._canvas_element
+        if canvas_element is None:
+            return  # already closed
+        self._canvas_element = None
+
+        # todo: remove handlers
+
+        # Removing the element from the page. One can argue whether you want this or not.
+        canvas_element.remove()
 
     def _rc_get_closed(self):
-        # TODO: like check if the element still exists?
-        return False
+        return self._canvas_element is None
 
     def _rc_set_title(self, title: str):
-        # canvas element doens't have a title directly... but maybe the whole page?
+        # A canvas element doens't have a title directly.
+        # We assume that when the canvas sets a title it's the only one, and we set the title of the document.
+        # Maybe we want a mechanism to prevent this at some point, we'll see.
         document.title = title
+
+    def _rc_set_cursor(self, cursor: str):
+        self._canvas_element.style.cursor = cursor
 
     def get_context(self, context_type: str):
         # hook onto this function so we get the "html_context" (js proxy) representation available...
