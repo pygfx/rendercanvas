@@ -23,6 +23,7 @@ from js import (
     Uint8ClampedArray,
     window,
     ResizeObserver,
+    OffscreenCanvas,
 )
 
 
@@ -43,7 +44,6 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         **kwargs,
     ):
         # Resolve and check the canvas element
-        # todo: make canvas_element a private attr
         canvas_id = None
         if isinstance(canvas_element, str):
             canvas_id = canvas_element
@@ -59,15 +59,17 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             )
         self._canvas_element = canvas_element
 
+        # More variables
+        self._js_array = Uint8ClampedArray.new(0)  # buffer to store pixel data
+        self._offscreen_canvas = None
+
         # If size or title are not given, set them to None, so they are left as-is. This is usually preferred in html docs.
         kwargs["size"] = kwargs.get("size", None)
         kwargs["title"] = kwargs.get("title", None)
 
+        # Finalize init
         super().__init__(*args, **kwargs)
         self._setup_events()
-        self._js_array = Uint8ClampedArray.new(0)  # buffer to store pixel data
-        self._pending_image_bitmap = None
-        self._draw_is_requested = True
         self._final_canvas_init()
 
     @property
@@ -387,17 +389,14 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         }
 
     def _rc_request_draw(self):
-        # todo: use request animation frame!!
-        loop = self._rc_canvas_group.get_loop()
-        self._draw_is_requested = True
-        if self._pending_image_bitmap is None:
-            loop.call_soon(self._rc_force_draw)
+        window.requestAnimationFrame(
+            create_proxy(lambda _: self._draw_frame_and_present())
+        )
 
     def _rc_force_draw(self):
         # Not very clean to do this, and not sure if it works in a browser;
         # you can draw all you want, but the browser compositer only uses the last frame, I expect.
         # But that's ok, since force-drawing is not recomended in general.
-        self._draw_is_requested = False
         self._draw_frame_and_present()
 
     def _rc_present_bitmap(self, **kwargs):
@@ -407,6 +406,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         m = memoryview(data)
         h, w = m.shape[:2]
 
+        # Convert to a JS ImageData object
         if True:
             # Make sure that the array matches the number of pixels
             if self._js_array.length != m.nbytes:
@@ -425,39 +425,30 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             c = (ctypes.c_uint8 * m.nbytes).from_buffer(data)  # No copy
             array_uint8 = to_js(c)  # Makes a copy, and somehow mangles the data??
             array_uint8_clamped = Uint8ClampedArray.new(array_uint8.buffer)  # no-copy
-
         # Create image data
         image_data = ImageData.new(array_uint8_clamped, w, h)
 
-        # Convert to image bitmap.
-        # AK: I strongly suspect that this is actually a GPU texture. This would explain why creating an ImageBitmap is async.
-        size = self._canvas_element.width, self._canvas_element.height
-        promise = window.createImageBitmap(
-            image_data,
-            {
-                "resizeQuality": "pixelated",
-                "resizeWidth": int(size[0]),
-                "resizeHeight": int(size[1]),
-            },
-        )
-
-        # So now we wait for the ImageBitmap to be ready, and then present it in the animation frame
-
-        @create_proxy
-        def schedule_final_present(image_bitmap):
-            self._pending_image_bitmap = image_bitmap
-            window.requestAnimationFrame(create_proxy(self._present_final))
-
-        promise.then(schedule_final_present)
-
-    def _present_final(self, _timestamp=None):
-        if self._pending_image_bitmap is not None:
-            self._html_context.transferFromImageBitmap(self._pending_image_bitmap)
-            self._pending_image_bitmap.close()
-        self._pending_image_bitmap = None
-        # Maybe schedule a new draw
-        if self._draw_is_requested:
-            loop.call_soon(self._rc_force_draw)
+        # Now present the image data.
+        # For this we can blit the image into the canvas (i.e. no scaling). We can only use this is the image size matches
+        # the canvas size (in physical pixels). Otherwise we have to scale the image. For that we can use an ImageBitmap and
+        # draw that with CanvasRenderingContext2D.drawImage() or ImageBitmapRenderingContext.transferFromImageBitmap(),
+        # but creating an ImageBitmap is async, which complicates things. So we use an offscreen canvas as an in-between step.
+        cw, ch = self._canvas_element.width, self._canvas_element.height
+        if w == cw and h == ch:
+            # Quick blit
+            self._canvas_element.getContext("2d").putImageData(image_data, 0, 0)
+        else:
+            # Make sure that the offscreen canvas matches the data size
+            if self._offscreen_canvas is None:
+                self._offscreen_canvas = OffscreenCanvas.new(w, h)
+            if self._offscreen_canvas.width != w or self._offscreen_canvas.height != h:
+                self._offscreen_canvas.width = w
+                self._offscreen_canvas.height = h
+            # Blit to the offscreen canvas.
+            # This effectively uploads the image to a GPU texture (represented by the offscreen canvas).
+            self._offscreen_canvas.getContext("2d").putImageData(image_data, 0, 0)
+            # Then we draw the offscreen texture into the real texture, scaling is applied.
+            self._html_context.drawImage(self._offscreen_canvas, 0, 0, cw, ch)
 
     def _set_logical_size(self, width: float, height: float):
         self._canvas_element.style.width = f"{width}px"
@@ -479,7 +470,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         # hook onto this function so we get the "html_context" (js proxy) representation available...
         res = super().get_context(context_type)
         if context_type == "bitmap":
-            self._html_context = self._canvas_element.getContext("bitmaprenderer")
+            self._html_context = self._canvas_element.getContext("2d")
         elif context_type in ("wgpu", "webgpu"):
             self._html_context = self._canvas_element.getContext("webgpu")
         else:
