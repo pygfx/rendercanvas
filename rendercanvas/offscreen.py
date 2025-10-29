@@ -72,6 +72,7 @@ class OffscreenRenderCanvas(BaseRenderCanvas):
 
     def _rc_set_logical_size(self, width, height):
         logical_size = float(width), float(height)
+
         physical_size = (
             int(logical_size[0] * self._pixel_ratio),
             int(logical_size[1] * self._pixel_ratio),
@@ -93,6 +94,22 @@ class OffscreenRenderCanvas(BaseRenderCanvas):
     # %% events - there are no GUI events
 
     # %% Extra API
+
+    def set_pixel_ratio(self, pixel_ratio: float):
+        """Set the pixel ratio, changing the physical size of the canvas.
+
+        The logical size stays (approximately) the same. It is recalculated from
+        the new physical size and pixel ratio, and since the physical size is
+        integer (i.e. rounded) the logical size can change slightly.
+        """
+        self._pixel_ratio = float(pixel_ratio)
+        logical_size = self.get_logical_size()
+
+        physical_size = (
+            int(logical_size[0] * self._pixel_ratio),
+            int(logical_size[1] * self._pixel_ratio),
+        )
+        self._set_size_info(physical_size, self._pixel_ratio)
 
     def draw(self):
         """Perform a draw and get the resulting image.
