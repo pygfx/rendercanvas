@@ -1,7 +1,13 @@
 """
-Little script that:
+A little script that serves browser-based examples.
 
-* Builds the wheel.
+* Examples that run rendercanvas fully in the browser in Pyodide / PyScript.
+* Coming soon: examples that run on the server, with a client in the browser.
+
+
+What this script does:
+
+* Build the .whl for rendercanvas, so Pyodide can install the dev version.
 * Start a tiny webserver to host html files for a selection of examples.
 * Opens a webpage in the default browser.
 
@@ -28,14 +34,25 @@ py_examples = [
     "drag.html",
     "noise.html",
     "events.html",
-    "demo.html",
 ]
 
 # Examples that are already html
-html_examples = ["pyodide.html", "pyscript.html"]
+html_examples = [
+    "pyodide.html",
+    "pyscript.html",
+]
+
+
+root = os.path.abspath(os.path.join(__file__, "..", ".."))
+
+short_version = ".".join(str(i) for i in rendercanvas.version_info[:3])
+wheel_name = f"rendercanvas-{short_version}-py3-none-any.whl"
+# todo: dont hardcode version in html example
 
 
 def get_html_index():
+    """Create a landing page."""
+
     py_examples_list = [f"<li><a href='{name}'>{name}</a></li>" for name in py_examples]
     html_examples_list = [
         f"<li><a href='{name}'>{name}</a></li>" for name in html_examples
@@ -66,7 +83,8 @@ def get_html_index():
 html_index = get_html_index()
 
 
-html_template = """
+# An html template to show examples using pyscript.
+pyscript_template = """
 <!doctype html>
 <html>
 <head>
@@ -96,11 +114,6 @@ html_template = """
 </html>
 """
 
-root = os.path.abspath(os.path.join(__file__, "..", ".."))
-
-short_version = ".".join(str(i) for i in rendercanvas.version_info[:3])
-wheel_name = f"rendercanvas-{short_version}-py3-none-any.whl"
-# todo: dont hardcode version in html example
 
 if not (
     os.path.isfile(os.path.join(root, "rendercanvas", "__init__.py"))
@@ -140,7 +153,7 @@ class MyHandler(BaseHTTPRequestHandler):
             name = self.path.strip("/")
             if name in py_examples:
                 pyname = name.replace(".html", ".py")
-                html = html_template.replace("example.py", pyname)
+                html = pyscript_template.replace("example.py", pyname)
                 html = html.replace('"rendercanvas"', f'"./{wheel_name}"')
                 self.respond(200, html, "text/html")
             elif name in html_examples:
