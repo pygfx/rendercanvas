@@ -36,5 +36,5 @@ loop.run()
 #
 #     .. raw:: html
 #
-#         <iframe src="../_static/_pyodide_iframe.html"></iframe>
+#         <iframe src="../_static/_pyodide_iframe_whl.html"></iframe>
 #

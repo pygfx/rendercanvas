@@ -1,6 +1,8 @@
 # Special for this repo
 nogit/
 docs/gallery/
+docs/static/*_whl.html
+docs/static/*.whl
 docs/sg_execution_times.rst
 examples/screenshots/
 
