@@ -105,11 +105,6 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         self._setup_events()
         self._final_canvas_init()
 
-    @property
-    def html_context(self):
-        # this should only be accessed canvas.get_context("ctx_type") was called.
-        return self._html_context
-
     def _setup_events(self):
         el = self._canvas_element
         el.tabIndex = -1
@@ -408,16 +403,17 @@ class HtmlRenderCanvas(BaseRenderCanvas):
         pass  # Nothing to be done; the JS loop is always running (and Pyodide wraps that in a global asyncio loop)
 
     def _rc_get_present_methods(self):
-        # TODO: provide access to wgpu context
-        # TODO: that window id does not make sense
         return {
+            # Generic presentation
             "bitmap": {
                 "formats": ["rgba-u8"],
             },
-            "screen": {
-                "platform": "pyodide",
-                "window": self._canvas_element.js_id,  # is a number - doubt it's useful though...
-            },
+            # wgpu-specific presentation. The wgpu.backends.pyodide.GPUCanvasContext must be able to consume this.
+            # Turned off for now
+            # "screen": {
+            #     "platform": "pyodide",
+            #     "native_canvas_attribute": "_canvas_element",
+            # },
         }
 
     def _rc_request_draw(self):
@@ -480,7 +476,9 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             # This effectively uploads the image to a GPU texture (represented by the offscreen canvas).
             self._offscreen_canvas.getContext("2d").putImageData(image_data, 0, 0)
             # Then we draw the offscreen texture into the real texture, scaling is applied.
-            self._html_context.drawImage(self._offscreen_canvas, 0, 0, cw, ch)
+            self._canvas_element.getContext("2d").drawImage(
+                self._offscreen_canvas, 0, 0, cw, ch
+            )
 
     def _set_logical_size(self, width: float, height: float):
         self._canvas_element.style.width = f"{width}px"
@@ -517,19 +515,6 @@ class HtmlRenderCanvas(BaseRenderCanvas):
 
     def _rc_set_cursor(self, cursor: str):
         self._canvas_element.style.cursor = cursor
-
-    def get_context(self, context_type: str):
-        # hook onto this function so we get the "html_context" (js proxy) representation available...
-        res = super().get_context(context_type)
-        if context_type == "bitmap":
-            self._html_context = self._canvas_element.getContext("2d")
-        elif context_type in ("wgpu", "webgpu"):
-            self._html_context = self._canvas_element.getContext("webgpu")
-        else:
-            raise ValueError(
-                f"Unsupported context_type for html canvas: {context_type}"
-            )
-        return res
 
 
 # Make available under a name that is the same for all backends
