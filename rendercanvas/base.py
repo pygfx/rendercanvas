@@ -566,7 +566,13 @@ class BaseRenderCanvas:
     # implement the methods they can, but these features are likely not critical.
 
     def set_logical_size(self, width: float, height: float) -> None:
-        """Set the window size (in logical pixels)."""
+        """Set the window size (in logical pixels).
+
+        This changes the physical size of the canvas, such that the new logical
+        size matches the given width and height. Since the physical size is
+        integer (i.e. rounded), the re-calculated logical size may differ slightly
+        from the given width and height (depending on the pixel ratio).
+        """
         width, height = float(width), float(height)
         if width < 0 or height < 0:
             raise ValueError("Canvas width and height must not be negative")
