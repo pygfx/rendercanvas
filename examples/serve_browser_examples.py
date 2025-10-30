@@ -20,13 +20,8 @@ import sys
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+import flit
 import rendercanvas
-
-try:
-    from build.__main__ import main as build_main
-except ImportError:
-    msg = "This script needs the 'build' package. Get it with `pip install build` or similar."
-    raise ImportError(msg) from None
 
 
 # Examples to load as PyScript application
@@ -122,8 +117,8 @@ if not (
 
 
 def build_wheel():
-    # pip.main(["wheel", "-w", os.path.join(root, "dist"), root])
-    build_main(["-n", "-w", root])
+    toml_filename = os.path.join(root, "pyproject.toml")
+    flit.main(["-f", toml_filename, "build", "--no-use-vcs", "--format", "wheel"])
     wheel_filename = os.path.join(root, "dist", wheel_name)
     assert os.path.isfile(wheel_filename), f"{wheel_name} does not exist"
 

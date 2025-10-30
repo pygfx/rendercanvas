@@ -25,9 +25,9 @@ jupyter = ["jupyter_rfb>=0.4.2"]
 glfw = ["glfw>=1.9"]
 # For devs / ci
 lint = ["ruff", "pre-commit"]
-examples = ["build", "numpy", "wgpu", "glfw", "pyside6", "imageio", "pytest"]
+examples = ["flit", "numpy", "wgpu", "glfw", "pyside6", "imageio", "pytest"]
 docs = [
-    "build",
+    "flit",
     "sphinx>7.2",
     "sphinx_rtd_theme",
     "sphinx-gallery",

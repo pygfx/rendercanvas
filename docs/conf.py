@@ -14,7 +14,7 @@ import os
 import sys
 import shutil
 
-from build.__main__ import main as build_main
+import flit
 
 ROOT_DIR = os.path.abspath(os.path.join(__file__, "..", ".."))
 sys.path.insert(0, ROOT_DIR)
@@ -72,11 +72,13 @@ short_version = ".".join(str(i) for i in rendercanvas.version_info[:3])
 wheel_name = f"rendercanvas-{short_version}-py3-none-any.whl"
 
 # Build the wheel
-build_main(["-n", "-w", ROOT_DIR])
+toml_filename = os.path.join(ROOT_DIR, "pyproject.toml")
+flit.main(["-f", toml_filename, "build", "--no-use-vcs", "--format", "wheel"])
 wheel_filename = os.path.join(ROOT_DIR, "dist", wheel_name)
 assert os.path.isfile(wheel_filename), f"{wheel_name} does not exist"
 
 # Copy into static
+print("Copy wheel to static dir")
 shutil.copy(
     wheel_filename,
     os.path.join(ROOT_DIR, "docs", "static", wheel_name),
