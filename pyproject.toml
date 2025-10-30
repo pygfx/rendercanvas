@@ -25,8 +25,15 @@ jupyter = ["jupyter_rfb>=0.4.2"]
 glfw = ["glfw>=1.9"]
 # For devs / ci
 lint = ["ruff", "pre-commit"]
-examples = ["numpy", "wgpu", "glfw", "pyside6", "imageio", "pytest"]
-docs = ["sphinx>7.2", "sphinx_rtd_theme", "sphinx-gallery", "numpy", "wgpu"]
+examples = ["build", "numpy", "wgpu", "glfw", "pyside6", "imageio", "pytest"]
+docs = [
+    "build",
+    "sphinx>7.2",
+    "sphinx_rtd_theme",
+    "sphinx-gallery",
+    "numpy",
+    "wgpu",
+]
 tests = ["pytest", "numpy", "wgpu", "glfw", "trio"]
 dev = ["rendercanvas[lint,tests,examples,docs]"]
 
