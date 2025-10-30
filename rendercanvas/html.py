@@ -179,7 +179,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             # If the element does not set the size with its style, the canvas' width and height are used.
             # On hidpi screens this'd cause the canvas size to quickly increase with factors of 2 :)
             # Therefore we want to make sure that the style.width and style.height are set.
-            lsize = ratio * psize[0], ratio * psize[1]
+            lsize = psize[0] / ratio, psize[1] / ratio
             if not el.style.width:
                 el.style.width = f"{lsize[0]}px"
             if not el.style.height:
@@ -480,7 +480,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                 self._offscreen_canvas, 0, 0, cw, ch
             )
 
-    def _set_logical_size(self, width: float, height: float):
+    def _rc_set_logical_size(self, width: float, height: float):
         self._canvas_element.style.width = f"{width}px"
         self._canvas_element.style.height = f"{height}px"
 
