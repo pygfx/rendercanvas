@@ -47,7 +47,6 @@ root = os.path.abspath(os.path.join(__file__, "..", ".."))
 
 short_version = ".".join(str(i) for i in rendercanvas.version_info[:3])
 wheel_name = f"rendercanvas-{short_version}-py3-none-any.whl"
-# todo: dont hardcode version in html example
 
 
 def get_html_index():
