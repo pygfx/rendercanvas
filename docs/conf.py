@@ -14,13 +14,13 @@ import os
 import sys
 import shutil
 
+from build.__main__ import main as build_main
+
 ROOT_DIR = os.path.abspath(os.path.join(__file__, "..", ".."))
 sys.path.insert(0, ROOT_DIR)
 
 os.environ["RENDERCANVAS_FORCE_OFFSCREEN"] = "true"
 
-
-from build.__main__ import main as build_main
 
 # Load wgpu so autodoc can query docstrings
 import rendercanvas  # noqa: E402
@@ -42,10 +42,10 @@ release = rendercanvas.__version__
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    "sphinx_rtd_theme",
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
     "sphinx.ext.intersphinx",
-    "sphinx_rtd_theme",
     "sphinx_gallery.gen_gallery",
 ]
 
@@ -66,7 +66,7 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 master_doc = "index"
 
 
-# -- Build wheel so PyScript examples can use exactly this version of rendercanvas -----------------------------------------------------
+# -- Build wheel so Pyodide examples can use exactly this version of rendercanvas -----------------------------------------------------
 
 short_version = ".".join(str(i) for i in rendercanvas.version_info[:3])
 wheel_name = f"rendercanvas-{short_version}-py3-none-any.whl"
@@ -82,17 +82,64 @@ shutil.copy(
     os.path.join(ROOT_DIR, "docs", "static", wheel_name),
 )
 
-# Make a copy of the template file that uses the current rendercanvas wheel
-template_file1 = os.path.join(ROOT_DIR, "docs", "static", "_pyodide_iframe.html")
-template_file2 = os.path.join(ROOT_DIR, "docs", "static", "_pyodide_iframe_whl.html")
-with open(template_file1, "rb") as f:
-    html = f.read().decode()
-html = html.replace('"rendercanvas"', f'"../_static/{wheel_name}"')
-with open(template_file2, "wb") as f:
-    f.write(html.encode())
-
-
 # -- Sphinx Gallery -----------------------------------------------------
+
+
+iframe_placeholde_rst = """
+.. only:: html
+
+    Interactive example
+    ===================
+
+    This uses Pyodide. If this does not work, your browser may not have sufficient support for wasm/pyodide/wgpu (check your browser dev console).
+
+    .. raw:: html
+
+        <iframe src="pyodide.html#example.py"></iframe>
+"""
+
+
+python_files = {}
+
+
+def add_pyodide_to_examples(app):
+    gallery_dir = os.path.join(ROOT_DIR, "docs", "gallery")
+
+    for fname in os.listdir(gallery_dir):
+        filename = os.path.join(gallery_dir, fname)
+        if not fname.endswith(".py"):
+            continue
+        with open(filename, "rb") as f:
+            py = f.read().decode()
+        if fname in ["drag.py", "noise.py", "snake.py"]:
+            # todo: later we detect by using a special comment in the py file
+            print("Adding Pyodide example to", fname)
+            fname_rst = fname.replace(".py", ".rst")
+            # Update rst file
+            rst = iframe_placeholde_rst.replace("example.py", fname)
+            with open(os.path.join(gallery_dir, fname_rst), "ab") as f:
+                f.write(rst.encode())
+            python_files[fname] = py
+
+
+def add_files_to_run_pyodide_examples(app, exception):
+    gallery_build_dir = os.path.join(ROOT_DIR, "docs", "_build", "html", "gallery")
+
+    # Write html file that can load pyodide examples
+    with open(
+        os.path.join(ROOT_DIR, "docs", "static", "_pyodide_iframe.html"), "rb"
+    ) as f:
+        html = f.read().decode()
+    html = html.replace('"rendercanvas"', f'"../_static/{wheel_name}"')
+    with open(os.path.join(gallery_build_dir, "pyodide.html"), "wb") as f:
+        f.write(html.encode())
+
+    # Write the python files
+    for fname, py in python_files.items():
+        print("Writing", fname)
+        with open(os.path.join(gallery_build_dir, fname), "wb") as f:
+            f.write(py.encode())
+
 
 # Suppress "cannot cache unpickable configuration value" for sphinx_gallery_conf
 # See https://github.com/sphinx-doc/sphinx/issues/12300
@@ -103,9 +150,10 @@ sphinx_gallery_conf = {
     "gallery_dirs": "gallery",
     "backreferences_dir": "gallery/backreferences",
     "doc_module": ("rendercanvas",),
-    # "image_scrapers": (),,
+    "image_scrapers": (),
     "remove_config_comments": True,
     "examples_dirs": "../examples/",
+    "ignore_pattern": r"serve_browser_examples\.py",
 }
 
 # -- Options for HTML output -------------------------------------------------
@@ -120,3 +168,8 @@ html_theme = "sphinx_rtd_theme"
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["static"]
 html_css_files = ["custom.css"]
+
+
+def setup(app):
+    app.connect("builder-inited", add_pyodide_to_examples)
+    app.connect("build-finished", add_files_to_run_pyodide_examples)

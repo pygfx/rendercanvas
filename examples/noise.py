@@ -25,16 +25,3 @@ def animate():
 
 
 loop.run()
-
-# %%
-#
-# .. only:: html
-#
-#     Interactive example
-#     ===================
-#     This example can be run interactively in the browser using Pyodide.
-#
-#     .. raw:: html
-#
-#         <iframe src="../_static/_pyodide_iframe_whl.html"></iframe>
-#

@@ -64,16 +64,3 @@ def animate():
 
 
 loop.run()
-
-# %%
-#
-# .. only:: html
-#
-#     Interactive example
-#     ===================
-#     Keyboard events are supported in the browser. Use the arrow keys to control the snake!
-#
-#     .. raw:: html
-#
-#         <iframe src="../_static/_pyodide_iframe_whl.html"></iframe>
-#
