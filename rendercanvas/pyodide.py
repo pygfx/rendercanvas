@@ -425,11 +425,11 @@ class PyodideRenderCanvas(BaseRenderCanvas):
                 "formats": ["rgba-u8"],
             },
             # wgpu-specific presentation. The wgpu.backends.pyodide.GPUCanvasContext must be able to consume this.
-            # Turned off for now
-            # "screen": {
-            #     "platform": "pyodide",
-            #     "native_canvas_attribute": "_canvas_element",
-            # },
+            # Most importantly, it will need to access the gpu context. I want to avoid storing a heavy object in this dict, so let's just store the name of the attribute.
+            "screen": {
+                "platform": "browser",
+                "native_canvas_attribute": "_canvas_element",
+            },
         }
 
     def _rc_request_draw(self):
