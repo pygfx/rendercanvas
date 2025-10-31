@@ -93,8 +93,10 @@ class PyodideRenderCanvas(BaseRenderCanvas):
             )
         self._canvas_element = canvas_element
 
-        # More variables
-        self._js_array = Uint8ClampedArray.new(0)  # buffer to store pixel data
+        # We need a buffer to store pixel data, until we figure out how we can map a Python memoryview to a JS ArrayBuffer without making a copy.
+        self._js_array = Uint8ClampedArray.new(0)
+
+        # We use an offscreen canvas when the bitmap texture does not match the physical pixels. You should see it as a GPU texture.
         self._offscreen_canvas = None
 
         # If size or title are not given, set them to None, so they are left as-is. This is usually preferred in html docs.
@@ -107,6 +109,8 @@ class PyodideRenderCanvas(BaseRenderCanvas):
         self._final_canvas_init()
 
     def _setup_events(self):
+        # Idea: Implement this event logic in JavaScript, so we can re-use it across all backends that render in the browser.
+
         el = self._canvas_element
         el.tabIndex = -1
 
@@ -467,6 +471,9 @@ class PyodideRenderCanvas(BaseRenderCanvas):
             array_uint8_clamped = Uint8ClampedArray.new(array_uint8.buffer)  # no-copy
         # Create image data
         image_data = ImageData.new(array_uint8_clamped, w, h)
+
+        # Idea: use wgpu or webgl to upload to a texture and then render that.
+        # I'm pretty sure the below does essentially the same thing, but I am not sure about the ammount of overhead.
 
         # Now present the image data.
         # For this we can blit the image into the canvas (i.e. no scaling). We can only use this is the image size matches

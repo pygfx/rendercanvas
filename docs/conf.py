@@ -157,7 +157,7 @@ sphinx_gallery_conf = {
     "gallery_dirs": "gallery",
     "backreferences_dir": "gallery/backreferences",
     "doc_module": ("rendercanvas",),
-    "image_scrapers": (),
+    # "image_scrapers": (),
     "remove_config_comments": True,
     "examples_dirs": "../examples/",
     "ignore_pattern": r"serve_browser_examples\.py",

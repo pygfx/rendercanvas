@@ -1,9 +1,8 @@
 """
-A little script that serves browser-based examples.
+A little script that serves browser-based example, using a wheel from the local rendercanvas.
 
 * Examples that run rendercanvas fully in the browser in Pyodide / PyScript.
 * Coming soon: examples that run on the server, with a client in the browser.
-
 
 What this script does:
 
