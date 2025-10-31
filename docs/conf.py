@@ -105,6 +105,9 @@ python_files = {}
 
 
 def add_pyodide_to_examples(app):
+    if app.builder.name != "html":
+        return
+
     gallery_dir = os.path.join(ROOT_DIR, "docs", "gallery")
 
     for fname in os.listdir(gallery_dir):
@@ -125,6 +128,9 @@ def add_pyodide_to_examples(app):
 
 
 def add_files_to_run_pyodide_examples(app, exception):
+    if app.builder.name != "html":
+        return
+
     gallery_build_dir = os.path.join(ROOT_DIR, "docs", "_build", "html", "gallery")
 
     # Write html file that can load pyodide examples
