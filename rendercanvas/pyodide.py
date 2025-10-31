@@ -1,11 +1,12 @@
 """
-Support to run rendercanvas on the webbrowser via Pyodide.
+Support to run rendercanvas in a webbrowser via Pyodide.
 
-We expect to have a HTMLCanvas element with the id "canvas".
-It is not required to set the default sdl2 canvas as the Pyodide docs describe.
+User code must provide a canvas that is in the dom, by passing the canvas
+element or its id. By default it searcges an element with id "rendercanvas". It
+is not required to set the default sdl2 canvas as the Pyodide docs describe.
 """
 
-__all__ = ["HtmlRenderCanvas", "RenderCanvas", "loop"]
+__all__ = ["PyodideRenderCanvas", "RenderCanvas", "loop"]
 
 import sys
 import time
@@ -61,14 +62,14 @@ def buttons_mask_to_tuple(mask) -> tuple[int, ...]:
 
 
 # The canvas group manages canvases of the type we define below. In general we don't have to implement anything here.
-class HtmlCanvasGroup(BaseCanvasGroup):
+class PyodideCanvasGroup(BaseCanvasGroup):
     pass
 
 
-class HtmlRenderCanvas(BaseRenderCanvas):
-    """An html canvas providing a render canvas."""
+class PyodideRenderCanvas(BaseRenderCanvas):
+    """An HTMLCanvasElement providing a render canvas."""
 
-    _rc_canvas_group = HtmlCanvasGroup(loop)
+    _rc_canvas_group = PyodideCanvasGroup(loop)
 
     def __init__(
         self,
@@ -198,7 +199,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
 
         # Note: there is no concept of an element being 'closed' in the DOM.
 
-        def _html_pointer_down(ev):
+        def _js_pointer_down(ev):
             nonlocal last_buttons
             focus_element.focus({"preventScroll": True, "focusVisble": False})
             el.setPointerCapture(ev.pointerId)
@@ -220,7 +221,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                 ev.preventDefault()
             self.submit_event(event)
 
-        def _html_pointer_lost(ev):
+        def _js_pointer_lost(ev):
             nonlocal last_buttons
             # This happens on pointer-up or pointer-cancel. We threat them the same.
             modifiers = tuple([v for k, v in KEY_MOD_MAP.items() if getattr(ev, k)])
@@ -239,7 +240,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             }
             self.submit_event(event)
 
-        def _html_pointer_move(ev):
+        def _js_pointer_move(ev):
             # If this pointer is not down, but other pointers are, don't emit an event.
             if pointers and ev.pointerId not in pointers:
                 return
@@ -258,7 +259,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             }
             self.submit_event(event)
 
-        def _html_pointer_enter(ev):
+        def _js_pointer_enter(ev):
             # If this pointer is not down, but other pointers are, don't emit an event.
             if pointers and ev.pointerId not in pointers:
                 return
@@ -277,7 +278,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             }
             self.submit_event(event)
 
-        def _html_pointer_leave(ev):
+        def _js_pointer_leave(ev):
             # If this pointer is not down, but other pointers are, don't emit an event.
             if pointers and ev.pointerId not in pointers:
                 return
@@ -296,7 +297,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             }
             self.submit_event(event)
 
-        def _html_double_click(ev):
+        def _js_double_click(ev):
             modifiers = tuple([v for k, v in KEY_MOD_MAP.items() if getattr(ev, k)])
             buttons = buttons_mask_to_tuple(ev.buttons)
             event = {
@@ -313,7 +314,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                 ev.preventDefault()
             self.submit_event(event)
 
-        def _html_wheel(ev):
+        def _js_wheel(ev):
             if window.document.activeElement.js_id != focus_element.js_id:
                 return
             scales = [1 / window.devicePixelRatio, 16, 600]  # pixel, line, page
@@ -333,7 +334,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
                 ev.preventDefault()
             self.submit_event(event)
 
-        def _html_key_down(ev):
+        def _js_key_down(ev):
             if ev.repeat:
                 return  # don't repeat keys
             modifiers = tuple([v for k, v in KEY_MOD_MAP.items() if getattr(ev, k)])
@@ -350,7 +351,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             # we need events like arrow keys, backspace, and delete, with modifiers, and with repeat.
             # Also see comment in jupyter_rfb
 
-        def _html_key_up(ev):
+        def _js_key_up(ev):
             modifiers = tuple([v for k, v in KEY_MOD_MAP.items() if getattr(ev, k)])
             event = {
                 "event_type": "key_up",
@@ -360,7 +361,7 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             }
             self.submit_event(event)
 
-        def _html_char(ev):
+        def _js_char(ev):
             event = {
                 "event_type": "char",
                 "data": ev.data,
@@ -373,29 +374,29 @@ class HtmlRenderCanvas(BaseRenderCanvas):
             if not ev.isComposing:
                 focus_element.value = ""  # Prevent the text box from growing
 
-        add_event_listener(el, "pointerdown", _html_pointer_down)
-        add_event_listener(el, "lostpointercapture", _html_pointer_lost)
-        add_event_listener(el, "pointermove", _html_pointer_move)
-        add_event_listener(el, "pointerenter", _html_pointer_enter)
-        add_event_listener(el, "pointerleave", _html_pointer_leave)
-        add_event_listener(el, "dblclick", _html_double_click)
-        add_event_listener(el, "wheel", _html_wheel)
-        add_event_listener(focus_element, "keydown", _html_key_down)  # or document?
-        add_event_listener(focus_element, "keyup", _html_key_up)
-        add_event_listener(focus_element, "input", _html_char)
+        add_event_listener(el, "pointerdown", _js_pointer_down)
+        add_event_listener(el, "lostpointercapture", _js_pointer_lost)
+        add_event_listener(el, "pointermove", _js_pointer_move)
+        add_event_listener(el, "pointerenter", _js_pointer_enter)
+        add_event_listener(el, "pointerleave", _js_pointer_leave)
+        add_event_listener(el, "dblclick", _js_double_click)
+        add_event_listener(el, "wheel", _js_wheel)
+        add_event_listener(focus_element, "keydown", _js_key_down)  # or document?
+        add_event_listener(focus_element, "keyup", _js_key_up)
+        add_event_listener(focus_element, "input", _js_char)
 
         def unregister_events():
             self._resize_observer.disconnect()
-            remove_event_listener(el, "pointerdown", _html_pointer_down)
-            remove_event_listener(el, "lostpointercapture", _html_pointer_lost)
-            remove_event_listener(el, "pointermove", _html_pointer_move)
-            remove_event_listener(el, "pointerenter", _html_pointer_enter)
-            remove_event_listener(el, "pointerleave", _html_pointer_leave)
-            remove_event_listener(el, "dblclick", _html_double_click)
-            remove_event_listener(el, "wheel", _html_wheel)
-            remove_event_listener(focus_element, "keydown", _html_key_down)
-            remove_event_listener(focus_element, "keyup", _html_key_up)
-            remove_event_listener(focus_element, "input", _html_char)
+            remove_event_listener(el, "pointerdown", _js_pointer_down)
+            remove_event_listener(el, "lostpointercapture", _js_pointer_lost)
+            remove_event_listener(el, "pointermove", _js_pointer_move)
+            remove_event_listener(el, "pointerenter", _js_pointer_enter)
+            remove_event_listener(el, "pointerleave", _js_pointer_leave)
+            remove_event_listener(el, "dblclick", _js_double_click)
+            remove_event_listener(el, "wheel", _js_wheel)
+            remove_event_listener(focus_element, "keydown", _js_key_down)
+            remove_event_listener(focus_element, "keyup", _js_key_up)
+            remove_event_listener(focus_element, "input", _js_char)
 
         self._unregister_events = unregister_events
 
@@ -519,4 +520,4 @@ class HtmlRenderCanvas(BaseRenderCanvas):
 
 # Make available under a name that is the same for all backends
 loop = loop  # must set loop variable to pass meta tests
-RenderCanvas = HtmlRenderCanvas
+RenderCanvas = PyodideRenderCanvas

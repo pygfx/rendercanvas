@@ -46,11 +46,11 @@ The table below gives an overview of the names in the different ``rendercanvas``
           | ``loop``
         - | Create a standalone canvas using wx, or
           | integrate a render canvas in a wx application.
-    *   - ``html``
-        - | ``HTMLRenderCanvas`` (toplevel)
+    *   - ``pyodide``
+        - | ``PyodideRenderCanvas`` (toplevel)
           | ``RenderCanvas`` (alias)
           | ``loop`` (an ``AsyncioLoop``)
-        - | A canvas that runs in a web browser, using Pyodide.
+        - | Backend for Python running in the browser (via Pyodide).
 
 
 There are also three loop-backends. These are mainly intended for use with the glfw backend:
@@ -272,46 +272,57 @@ subclass implementing a remote frame-buffer. There are also some `wgpu examples 
 
 Support for HTMLCanvas in Pyodide
 ---------------------------------
-When Python is running in the browser using Pyodide, the auto backend selects the ``rendercanvas.html.HTMLRenderCanvas`` class.
-It expects a HTMLCanvasElement to be present in the DOM. It requires no additional dependencies, as rendercanvas can be installed from micropip.
+
+When Python is running in the browser using Pyodide, the auto backend selects
+the ``rendercanvas.pyodide.PyodideRenderCanvas`` class. This backend requires no
+additional dependencies. It expects a HTMLCanvasElement to be present in the
+DOM. By default it connects to the canvas with id "rendercanvas", but a
+different id or element can also be provided.
 
 .. code-block:: html
 
     <!DOCTYPE html>
     <html>
     <head>
+        <meta name="viewport" content="width=device-width,initial-scale=1.0">
         <script src="https://cdn.jsdelivr.net/pyodide/v0.29.0/full/pyodide.js"></script>
     </head>
     <body>
-    ...
-    <canvas id="canvas" width="640" height="480"></canvas>
-    <script type="text/javascript">
-        async function main(){
-            pythonCode = `
-                # Use python script as normally
-                from rendercanvas.auto import RenderCanvas, loop
-                canvas = RenderCanvas(title="Example")
-                context = canvas.get_context("bitmap")
-                bitmap = memoryview(b"HTMLRenderCanvas"[::-1]).cast("B", shape=(2, 2, 4))
-                context.set_bitmap(bitmap)
-                canvas.force_draw()
-            `
-        // load Pyodide and install Rendercanvas
-        let pyodide = await loadPyodide();
-        await pyodide.loadPackage("micropip");
-        const micropip = pyodide.pyimport("micropip");
-        await micropip.install("rendercanvas");
-        // have to call as runPythonAsync
-        pyodide.runPythonAsync(pythonCode);
-        }
-    main();
-    </script>
+        ...
+        <canvas id="rendercanvas" width="640" height="480"></canvas>
+        <script type="text/javascript">
+            async function main(){
+                pythonCode = `
+                    # Use python script as normally
+                    import numpy as np
+                    from rendercanvas.auto import RenderCanvas, loop
+
+                    canvas = RenderCanvas()
+                    context = canvas.get_context("bitmap")
+                    data = np.random.uniform(127, 255, size=(24, 32, 4)).astype(np.uint8)
+
+                    @canvas.request_draw
+                    def animate():
+                        context.set_bitmap(data)
+                `
+            // load Pyodide and install Rendercanvas
+            let pyodide = await loadPyodide();
+            await pyodide.loadPackage("micropip");
+            const micropip = pyodide.pyimport("micropip");
+            await micropip.install("rendercanvas");
+            // have to call as runPythonAsync
+            pyodide.runPythonAsync(pythonCode);
+            }
+        main();
+        </script>
     </body>
     </html>
 
 
 Currently only presenting a bitmap is supported, as shown in the examples :doc:`noise.py <gallery/noise>` and :doc:`snake.py <gallery/snake>`.
 Support for wgpu is a work in progress.
+
+TODO also mention pyscript
 
 
 .. _env_vars:

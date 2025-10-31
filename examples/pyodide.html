@@ -44,7 +44,6 @@
                 green_data[..., 1] = 255
                 green_data[..., 3] = 255
 
-
                 @canvas_red.request_draw
                 def animate_red():
                     context_red.set_bitmap(red_data)
@@ -53,6 +52,7 @@
                 def animate_green():
                     context_green.set_bitmap(green_data)
 
+                # The loop.run() is not required in Pyodide, but you can include it so that the code works on both desktop and Pyodide.
                 loop.run()
             `
 

@@ -248,12 +248,12 @@ def test_glfw_module():
     assert m.names["loop"]
 
 
-def test_html_module():
-    m = Module("html")
+def test_pyodide_module():
+    m = Module("pyodide")
 
     canvas_class = m.get_canvas_class()
     m.check_canvas(canvas_class)
-    assert canvas_class.name == "HtmlRenderCanvas"
+    assert canvas_class.name == "PyodideRenderCanvas"
 
 
 def test_jupyter_module():
