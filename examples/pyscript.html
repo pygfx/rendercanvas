@@ -1,5 +1,4 @@
 <!doctype html>
-<!--- Warning, some IDE's, like VSCode will screw up the Python formatting when saved! --->
 <html>
 
 <head>
@@ -20,18 +19,17 @@
     </script>
 
     <p>
-    This example demonstrates using PyScript. It needs to be acced through
-    a web-server for it to access the Python file.
+        This example demonstrates using PyScript. It needs to be acced through
+        a web-server for it to access the Python file.
     </p>
     <p>
-    This uses the latest release from rendercanvas. To run this with the dev version,
-    run the <i>serve_pyodide.py</i> script and select the example from there.
+        This uses the latest release from rendercanvas. To run this with the dev version,
+        run the <i>serve_pyodide.py</i> script and select the example from there.
     </p>
 
     <canvas id='rendercanvas' style="background:#aaa; width: 90%; height: 500px;"></canvas>
     <br>
-    <script type="py" src="drag.py" ,
-        config='{"packages": ["numpy", "sniffio", "rendercanvas"]}'>
+    <script type="py" src="drag.py" config='{"packages": ["numpy", "sniffio", "rendercanvas"]}'>
     </script>
 </body>
 

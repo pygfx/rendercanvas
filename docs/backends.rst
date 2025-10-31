@@ -50,7 +50,8 @@ The table below gives an overview of the names in the different ``rendercanvas``
         - | ``PyodideRenderCanvas`` (toplevel)
           | ``RenderCanvas`` (alias)
           | ``loop`` (an ``AsyncioLoop``)
-        - | Backend for Python running in the browser (via Pyodide).
+        - | Backend when Python is running in the browser,
+          | via Pyodide or PyScript.
 
 
 There are also three loop-backends. These are mainly intended for use with the glfw backend:
@@ -270,14 +271,39 @@ subclass implementing a remote frame-buffer. There are also some `wgpu examples 
     canvas  # Use as cell output
 
 
-Support for HTMLCanvas in Pyodide
----------------------------------
+Support for Pyodide
+-------------------
 
 When Python is running in the browser using Pyodide, the auto backend selects
 the ``rendercanvas.pyodide.PyodideRenderCanvas`` class. This backend requires no
-additional dependencies. It expects a HTMLCanvasElement to be present in the
+additional dependencies. Currently only presenting a bitmap is supported, as
+shown in the examples :doc:`noise.py <gallery/noise>` and :doc:`snake.py<gallery/snake>`.
+Support for wgpu is underway.
+
+An HTMLCanvasElement to be assumed to be present in the
 DOM. By default it connects to the canvas with id "rendercanvas", but a
-different id or element can also be provided.
+different id or element can also be provided using ``RenderCanvas(canvas_element)``.
+
+An example using PyScript (which uses Pyodide):
+
+.. code-block:: html
+
+    <!doctype html>
+    <html>
+    <head>
+        <meta name="viewport" content="width=device-width,initial-scale=1.0">
+        <script type="module" src="https://pyscript.net/releases/2025.10.3/core.js"></script>
+    </head>
+    <body>
+        <canvas id='rendercanvas' style="background:#aaa; width: 640px; height: 480px;"></canvas>
+        <br>
+        <script type="py" src="yourcode.py" config='{"packages": ["numpy", "sniffio", "rendercanvas"]}'>
+        </script>
+    </body>
+    </html>
+
+
+An example using Pyodide directly:
 
 .. code-block:: html
 
@@ -288,7 +314,6 @@ different id or element can also be provided.
         <script src="https://cdn.jsdelivr.net/pyodide/v0.29.0/full/pyodide.js"></script>
     </head>
     <body>
-        ...
         <canvas id="rendercanvas" width="640" height="480"></canvas>
         <script type="text/javascript">
             async function main(){
@@ -317,12 +342,6 @@ different id or element can also be provided.
         </script>
     </body>
     </html>
-
-
-Currently only presenting a bitmap is supported, as shown in the examples :doc:`noise.py <gallery/noise>` and :doc:`snake.py <gallery/snake>`.
-Support for wgpu is a work in progress.
-
-TODO also mention pyscript
 
 
 .. _env_vars:

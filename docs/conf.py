@@ -84,8 +84,8 @@ shutil.copy(
     os.path.join(ROOT_DIR, "docs", "static", wheel_name),
 )
 
-# -- Sphinx Gallery -----------------------------------------------------
 
+# -- Sphinx Gallery -----------------------------------------------------
 
 iframe_placeholde_rst = """
 .. only:: html
@@ -99,7 +99,6 @@ iframe_placeholde_rst = """
 
         <iframe src="pyodide.html#example.py"></iframe>
 """
-
 
 python_files = {}
 
@@ -131,7 +130,7 @@ def add_files_to_run_pyodide_examples(app, exception):
     if app.builder.name != "html":
         return
 
-    gallery_build_dir = os.path.join(ROOT_DIR, "docs", "_build", "html", "gallery")
+    gallery_build_dir = os.path.join(app.outdir, "gallery")
 
     # Write html file that can load pyodide examples
     with open(
