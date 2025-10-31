@@ -138,7 +138,7 @@ class PyodideRenderCanvas(BaseRenderCanvas):
         focus_element_container.appendChild(focus_element)
 
         pointers = {}
-        last_buttons = []
+        last_buttons = ()
 
         # Prevent context menu
         def _on_context_menu(ev):
@@ -200,17 +200,22 @@ class PyodideRenderCanvas(BaseRenderCanvas):
         # Note: there is no concept of an element being 'closed' in the DOM.
 
         def _js_pointer_down(ev):
+            # When points is down, set focus to the focus-element, and capture the pointing device.
+            # Because we capture the event, there will be no other events when buttons are pressed down,
+            # although they will end up in the 'buttons'. The lost/release will only get fired when all buttons
+            # are released/lost. Which is why we look up the original button in our `pointers` list.
             nonlocal last_buttons
             focus_element.focus({"preventScroll": True, "focusVisble": False})
             el.setPointerCapture(ev.pointerId)
+            button = MOUSE_BUTTON_MAP.get(ev.button, ev.button)
+            pointers[ev.pointerId] = (button,)
+            last_buttons = buttons = tuple(pointer[0] for pointer in pointers.values())
             modifiers = tuple([v for k, v in KEY_MOD_MAP.items() if getattr(ev, k)])
-            last_buttons = buttons = buttons_mask_to_tuple(ev.buttons)
-            pointers[ev.pointerId] = ev
             event = {
                 "event_type": "pointer_down",
                 "x": ev.offsetX,
                 "y": ev.offsetY,
-                "button": MOUSE_BUTTON_MAP.get(ev.button, ev.button),
+                "button": button,
                 "buttons": buttons,
                 "modifiers": modifiers,
                 "ntouches": 0,  # TODO later: maybe via https://developer.mozilla.org/en-US/docs/Web/API/TouchEvent
@@ -222,16 +227,21 @@ class PyodideRenderCanvas(BaseRenderCanvas):
             self.submit_event(event)
 
         def _js_pointer_lost(ev):
-            nonlocal last_buttons
             # This happens on pointer-up or pointer-cancel. We threat them the same.
+            # According to the spec, the .button is -1, so we retrieve the button from the stored pointer.
+            nonlocal last_buttons
+            last_buttons = ()
+            down_tuple = pointers.pop(ev.pointerId, None)
+            button = MOUSE_BUTTON_MAP.get(ev.button, ev.button)
+            if down_tuple is not None:
+                button = down_tuple[0]
+            buttons = buttons_mask_to_tuple(ev.buttons)
             modifiers = tuple([v for k, v in KEY_MOD_MAP.items() if getattr(ev, k)])
-            last_buttons = buttons = buttons_mask_to_tuple(ev.buttons)
-            pointers.pop(ev.pointerId, None)
             event = {
                 "event_type": "pointer_up",
                 "x": ev.offsetX,
                 "y": ev.offsetY,
-                "button": MOUSE_BUTTON_MAP.get(ev.button, ev.button),
+                "button": button,
                 "buttons": buttons,
                 "modifiers": modifiers,
                 "ntouches": 0,
@@ -242,10 +252,11 @@ class PyodideRenderCanvas(BaseRenderCanvas):
 
         def _js_pointer_move(ev):
             # If this pointer is not down, but other pointers are, don't emit an event.
+            nonlocal last_buttons
             if pointers and ev.pointerId not in pointers:
                 return
             modifiers = tuple([v for k, v in KEY_MOD_MAP.items() if getattr(ev, k)])
-            buttons = buttons_mask_to_tuple(ev.buttons)
+            last_buttons = buttons = buttons_mask_to_tuple(ev.buttons)
             event = {
                 "event_type": "pointer_move",
                 "x": ev.offsetX,
