@@ -87,7 +87,7 @@ shutil.copy(
 
 # -- Sphinx Gallery -----------------------------------------------------
 
-iframe_placeholde_rst = """
+iframe_placeholder_rst = """
 .. only:: html
 
     Interactive example
@@ -120,7 +120,7 @@ def add_pyodide_to_examples(app):
             print("Adding Pyodide example to", fname)
             fname_rst = fname.replace(".py", ".rst")
             # Update rst file
-            rst = iframe_placeholde_rst.replace("example.py", fname)
+            rst = iframe_placeholder_rst.replace("example.py", fname)
             with open(os.path.join(gallery_dir, fname_rst), "ab") as f:
                 f.write(rst.encode())
             python_files[fname] = py

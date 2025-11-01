@@ -334,6 +334,8 @@ An example using Pyodide directly:
             let pyodide = await loadPyodide();
             await pyodide.loadPackage("micropip");
             const micropip = pyodide.pyimport("micropip");
+            await micropip.install("numpy");
+            await micropip.install("sniffio");
             await micropip.install("rendercanvas");
             // have to call as runPythonAsync
             pyodide.runPythonAsync(pythonCode);
