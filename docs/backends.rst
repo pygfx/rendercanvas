@@ -281,7 +281,7 @@ shown in the examples :doc:`noise.py <gallery/noise>` and :doc:`snake.py<gallery
 Support for wgpu is underway.
 
 An HTMLCanvasElement is assumed to be present in the
-DOM. By default it connects to the canvas with id "rendercanvas", but a
+DOM. By default it connects to the canvas with id "canvas", but a
 different id or element can also be provided using ``RenderCanvas(canvas_element)``.
 
 An example using PyScript (which uses Pyodide):
@@ -295,7 +295,7 @@ An example using PyScript (which uses Pyodide):
         <script type="module" src="https://pyscript.net/releases/2025.10.3/core.js"></script>
     </head>
     <body>
-        <canvas id='rendercanvas' style="background:#aaa; width: 640px; height: 480px;"></canvas>
+        <canvas id='canvas' style="background:#aaa; width: 640px; height: 480px;"></canvas>
         <br>
         <script type="py" src="yourcode.py" config='{"packages": ["numpy", "sniffio", "rendercanvas"]}'>
         </script>
@@ -314,7 +314,7 @@ An example using Pyodide directly:
         <script src="https://cdn.jsdelivr.net/pyodide/v0.29.0/full/pyodide.js"></script>
     </head>
     <body>
-        <canvas id="rendercanvas" width="640" height="480"></canvas>
+        <canvas id="canvas" width="640" height="480"></canvas>
         <script type="text/javascript">
             async function main(){
                 pythonCode = `

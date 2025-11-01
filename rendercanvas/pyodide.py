@@ -2,7 +2,7 @@
 Support to run rendercanvas in a webbrowser via Pyodide.
 
 User code must provide a canvas that is in the dom, by passing the canvas
-element or its id. By default it selects an element with id "rendercanvas". It
+element or its id. By default it selects an element with id "canvas". It
 is not required to set the default sdl2 canvas as the Pyodide docs describe.
 """
 
@@ -73,7 +73,7 @@ class PyodideRenderCanvas(BaseRenderCanvas):
 
     def __init__(
         self,
-        canvas_element: str = "rendercanvas",
+        canvas_element: str = "canvas",
         *args,
         **kwargs,
     ):

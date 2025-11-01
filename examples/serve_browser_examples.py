@@ -98,7 +98,7 @@ pyscript_template = """
         loading.showModal();
     </script>
 
-    <canvas id='rendercanvas' style="background:#aaa; width: 90%; height: 500px;"></canvas>
+    <canvas id="canvas" style="background:#aaa; width: 90%; height: 500px;"></canvas>
     <script type="py" src="example.py" ,
         config='{"packages": ["numpy", "sniffio", "rendercanvas"]}'>
     </script>
