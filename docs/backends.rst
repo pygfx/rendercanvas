@@ -280,7 +280,7 @@ additional dependencies. Currently only presenting a bitmap is supported, as
 shown in the examples :doc:`noise.py <gallery/noise>` and :doc:`snake.py<gallery/snake>`.
 Support for wgpu is underway.
 
-An HTMLCanvasElement to be assumed to be present in the
+An HTMLCanvasElement is assumed to be present in the
 DOM. By default it connects to the canvas with id "rendercanvas", but a
 different id or element can also be provided using ``RenderCanvas(canvas_element)``.
 

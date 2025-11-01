@@ -2,7 +2,7 @@
 Support to run rendercanvas in a webbrowser via Pyodide.
 
 User code must provide a canvas that is in the dom, by passing the canvas
-element or its id. By default it searcges an element with id "rendercanvas". It
+element or its id. By default it selects an element with id "rendercanvas". It
 is not required to set the default sdl2 canvas as the Pyodide docs describe.
 """
 
@@ -115,7 +115,7 @@ class PyodideRenderCanvas(BaseRenderCanvas):
         el.tabIndex = -1
 
         # Obtain container to put our hidden focus element.
-        # Putting the focus_element as a child of the canvas prevents chrome van emitting input events.
+        # Putting the focus_element as a child of the canvas prevents chrome from emitting input events.
         focus_element_container_id = "rendercanvas-focus-element-container"
         focus_element_container = document.getElementById(focus_element_container_id)
         if not focus_element_container:
@@ -155,7 +155,7 @@ class PyodideRenderCanvas(BaseRenderCanvas):
 
         def _resize_callback(entries, _=None):
             # The physical size is easy. The logical size can be much more tricky
-            # to obtain due to all the CSS stuff. But the base class will just calcualte that
+            # to obtain due to all the CSS stuff. But the base class will just calculate that
             # from the physical size and the pixel ratio.
 
             # Select entry
@@ -209,7 +209,7 @@ class PyodideRenderCanvas(BaseRenderCanvas):
             # although they will end up in the 'buttons'. The lost/release will only get fired when all buttons
             # are released/lost. Which is why we look up the original button in our `pointers` list.
             nonlocal last_buttons
-            focus_element.focus({"preventScroll": True, "focusVisble": False})
+            focus_element.focus({"preventScroll": True, "focusVisible": False})
             el.setPointerCapture(ev.pointerId)
             button = MOUSE_BUTTON_MAP.get(ev.button, ev.button)
             pointers[ev.pointerId] = (button,)
@@ -231,7 +231,7 @@ class PyodideRenderCanvas(BaseRenderCanvas):
             self.submit_event(event)
 
         def _js_pointer_lost(ev):
-            # This happens on pointer-up or pointer-cancel. We threat them the same.
+            # This happens on pointer-up or pointer-cancel. We treat them the same.
             # According to the spec, the .button is -1, so we retrieve the button from the stored pointer.
             nonlocal last_buttons
             last_buttons = ()
@@ -440,7 +440,7 @@ class PyodideRenderCanvas(BaseRenderCanvas):
     def _rc_force_draw(self):
         # Not very clean to do this, and not sure if it works in a browser;
         # you can draw all you want, but the browser compositer only uses the last frame, I expect.
-        # But that's ok, since force-drawing is not recomended in general.
+        # But that's ok, since force-drawing is not recommended in general.
         self._draw_frame_and_present()
 
     def _rc_present_bitmap(self, **kwargs):
@@ -473,7 +473,7 @@ class PyodideRenderCanvas(BaseRenderCanvas):
         image_data = ImageData.new(array_uint8_clamped, w, h)
 
         # Idea: use wgpu or webgl to upload to a texture and then render that.
-        # I'm pretty sure the below does essentially the same thing, but I am not sure about the ammount of overhead.
+        # I'm pretty sure the below does essentially the same thing, but I am not sure about the amount of overhead.
 
         # Now present the image data.
         # For this we can blit the image into the canvas (i.e. no scaling). We can only use this is the image size matches
@@ -527,7 +527,7 @@ class PyodideRenderCanvas(BaseRenderCanvas):
         return self._canvas_element is None
 
     def _rc_set_title(self, title: str):
-        # A canvas element doens't have a title directly.
+        # A canvas element doesn't have a title directly.
         # We assume that when the canvas sets a title it's the only one, and we set the title of the document.
         # Maybe we want a mechanism to prevent this at some point, we'll see.
         document.title = title
