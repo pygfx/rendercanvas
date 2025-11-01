@@ -8,6 +8,7 @@ is not required to set the default sdl2 canvas as the Pyodide docs describe.
 
 __all__ = ["PyodideRenderCanvas", "RenderCanvas", "loop"]
 
+import re
 import sys
 import time
 import ctypes
@@ -27,6 +28,7 @@ from js import (
     window,
     ResizeObserver,
     OffscreenCanvas,
+    navigator,
 )
 
 KEYMAP = {
@@ -59,6 +61,11 @@ def buttons_mask_to_tuple(mask) -> tuple[int, ...]:
         if v == "1":
             res += (MOUSE_BUTTON_MAP.get(i, i),)
     return res
+
+
+looks_like_mobile = bool(
+    re.search(r"mobi|android|iphone|ipad|ipod|tablet", str(navigator.userAgent).lower())
+)
 
 
 # The canvas group manages canvases of the type we define below. In general we don't have to implement anything here.
@@ -209,7 +216,8 @@ class PyodideRenderCanvas(BaseRenderCanvas):
             # although they will end up in the 'buttons'. The lost/release will only get fired when all buttons
             # are released/lost. Which is why we look up the original button in our `pointers` list.
             nonlocal last_buttons
-            focus_element.focus({"preventScroll": True, "focusVisible": False})
+            if not looks_like_mobile:
+                focus_element.focus({"preventScroll": True, "focusVisible": False})
             el.setPointerCapture(ev.pointerId)
             button = MOUSE_BUTTON_MAP.get(ev.button, ev.button)
             pointers[ev.pointerId] = (button,)
