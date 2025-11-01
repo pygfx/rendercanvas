@@ -12,7 +12,7 @@ import numpy as np
 from rendercanvas.auto import RenderCanvas, loop
 
 
-canvas = RenderCanvas(present_method=None, update_mode="continuous")
+canvas = RenderCanvas(present_method=None, size=(640, 480), update_mode="continuous")
 
 context = canvas.get_context("bitmap")
 
