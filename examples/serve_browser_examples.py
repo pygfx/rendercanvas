@@ -27,6 +27,7 @@ import rendercanvas
 py_examples = [
     "drag.html",
     "noise.html",
+    "snake.html",
     "events.html",
 ]
 
@@ -89,6 +90,9 @@ pyscript_template = """
 <body>
     <a href="/">Back to list</a><br><br>
 
+    <p>
+    docstring
+    </p>
     <dialog id="loading" style='outline: none; border: none; background: transparent;'>
         <h1>Loading...</h1>
     </dialog>
@@ -122,6 +126,29 @@ def build_wheel():
     assert os.path.isfile(wheel_filename), f"{wheel_name} does not exist"
 
 
+def get_docstring_from_py_file(fname):
+    filename = os.path.join(root, "examples", fname)
+    docstate = 0
+    doc = ""
+    with open(filename, "rb") as f:
+        while True:
+            line = f.readline().decode()
+            if docstate == 0:
+                if line.lstrip().startswith('"""'):
+                    docstate = 1
+            else:
+                if docstate == 1 and line.lstrip().startswith(("---", "===")):
+                    docstate = 2
+                    doc = ""
+                elif '"""' in line:
+                    doc += line.partition('"""')[0]
+                    break
+                else:
+                    doc += line
+
+    return doc.replace("\n\n", "<br><br>")
+
+
 class MyHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/":
@@ -148,6 +175,7 @@ class MyHandler(BaseHTTPRequestHandler):
                 pyname = name.replace(".html", ".py")
                 html = pyscript_template.replace("example.py", pyname)
                 html = html.replace('"rendercanvas"', f'"./{wheel_name}"')
+                html = html.replace("docstring", get_docstring_from_py_file(pyname))
                 self.respond(200, html, "text/html")
             elif name in html_examples:
                 filename = os.path.join(root, "examples", name)
