@@ -70,6 +70,7 @@ def on_pointer_down(event):
             bx, by = block[:2]
             if bx - hs < x < bx + hs and by - hs < y < by + hs:
                 dragging = i, (bx, by), (x, y)
+                block[2] = block_size + 6
                 canvas.set_cursor("pointer")
                 break
 
@@ -107,7 +108,10 @@ def on_pointer_up(event):
 
     global dragging
     if event["button"] == 1:
+        if dragging is not None:
+            blocks[dragging[0]][2] = block_size
         dragging = None
+
         canvas.set_cursor("default")
 
 
@@ -118,7 +122,12 @@ def on_key(event):
         blocks[:] = [block.copy() for block in initial_blocks]
     elif key == " ":
         blocks.append(
-            [block_size // 2 + 10, block_size // 2 + 10, (255, 255, 255, 255)]
+            [
+                block_size // 2 + 10,
+                block_size // 2 + 10,
+                block_size,
+                (255, 255, 255, 255),
+            ]
         )
 
 
