@@ -182,6 +182,9 @@ class MyHandler(BaseHTTPRequestHandler):
                 with open(filename, "rb") as f:
                     html = f.read().decode()
                 html = html.replace('"rendercanvas"', f'"./{wheel_name}"')
+                html = html.replace(
+                    "<body>", "<body><a href='/'>Back to list</a><br><br>"
+                )
                 self.respond(200, html, "text/html")
             else:
                 self.respond(404, "example not found")
