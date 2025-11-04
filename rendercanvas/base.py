@@ -550,25 +550,6 @@ class BaseRenderCanvas:
         """
         return self.__size_info["total_pixel_ratio"]
 
-    def get_zoom(self) -> float:
-        """Get the zoom factor.
-
-        The zoom factor is similar to the zoom setting in browsers; it's a
-        fraction (in browsers it's a percentage) that can be used to enlarge
-        rendered objects that are sized in logical pixels. Increasing the zoom
-        factor reduces the logical size of the canvas.
-
-        More technically, the zoom factor represents a canvas-specific
-        pixel-ratio, which is multiplied with the backend-specified pixel-ratio
-        (which usually matches the OS pixel ratio).
-        """
-        return self.__size_info["canvas_pixel_ratio"]
-
-    def set_zoom(self, zoom: float) -> None:
-        """Set the zoom factor."""
-        self.__size_info["canvas_pixel_ratio"] = float(zoom)
-        self.__resolve_total_pixel_ratio_and_logical_size()
-
     def close(self) -> None:
         """Close the canvas."""
         # Clear the draw-function, to avoid it holding onto e.g. wgpu objects.
