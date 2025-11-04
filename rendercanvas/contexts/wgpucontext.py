@@ -169,6 +169,12 @@ class WgpuContextPlain(WgpuContext):
     def _get_current_texture(self) -> object:
         return self._wgpu_context.get_current_texture()
 
+    def _rc_set_physical_size(self, width: int, height: int) -> None:
+        width, height = int(width), int(height)
+        self._physical_size = width, height
+        if self._wgpu_context_is_new_style:
+            self._wgpu_context.set_physical_size(width, height)
+
     def _rc_present(self) -> None:
         self._wgpu_context.present()
         return {"method": "screen"}
@@ -272,8 +278,7 @@ class WgpuContextToBitmap(WgpuContext):
         if self._texture is None:
             import wgpu
 
-            canvas = self.canvas  # TODO: physical size must be set by canvas!
-            width, height = canvas.get_physical_size()
+            width, height = self._physical_size
             width, height = max(width, 1), max(height, 1)
 
             # Note that the label 'present' is used by read_texture() to determine

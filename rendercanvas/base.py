@@ -160,6 +160,7 @@ class BaseRenderCanvas:
             "logical_size": (0.0, 0.0),
         }
         self.__need_size_event = False
+        self.__need_context_resize = False
 
         # Events and scheduler
         self._events = EventEmitter()
@@ -366,6 +367,7 @@ class BaseRenderCanvas:
         self.__size_info["total_pixel_ratio"] = total_pixel_ratio
         self.__size_info["logical_size"] = logical_size
         self.__need_size_event = True
+        self.__need_context_resize = True
 
     def add_event_handler(
         self, *args: EventTypeEnum | EventHandlerFunction, order: float = 0
@@ -531,6 +533,13 @@ class BaseRenderCanvas:
 
             # Make sure that the user-code is up-to-date with the current size before it draws.
             self.__maybe_emit_resize_event()
+
+            # Also update the context's size
+            if self.__need_context_resize:
+                self.__need_context_resize = False
+                self._canvas_context._rc_set_physical_size(
+                    *self.__size_info["physical_size"]
+                )
 
             # Emit before-draw
             self._events.emit({"event_type": "before_draw"})

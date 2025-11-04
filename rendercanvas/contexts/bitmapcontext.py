@@ -132,7 +132,8 @@ class BitmapContextToWgpu(BitmapContext):
         self._wgpu_context_is_configured = False
 
     def _rc_set_physical_size(self, width: int, height: int) -> None:
-        super()._rc_set_physical_size(width, height)
+        width, height = int(width), int(height)
+        self._physical_size = width, height
         if self._wgpu_context_is_new_style:
             self._wgpu_context.set_physical_size(width, height)
 
