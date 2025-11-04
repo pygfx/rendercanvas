@@ -1,3 +1,4 @@
+import sys
 import weakref
 
 __all__ = ["BaseContext"]
@@ -32,6 +33,14 @@ class BaseContext:
         """The associated RenderCanvas object (internally stored as a weakref)."""
         return self._canvas_ref()
 
+    def _get_wgpu_native_context_class(self):
+        # Create sub context, support both the old and new wgpu-py API
+        # TODO: let's add/use hook in wgpu to get the context in a less hacky way
+        import wgpu
+
+        backend_module = wgpu.gpu.__module__
+        return sys.modules[backend_module].GPUCanvasContext  # noqa: N806
+
     def _rc_set_physical_size(self, width: int, height: int) -> None:
         """Called by the BaseRenderCanvas to set the physical size."""
         self._physical_size = int(width), int(height)
@@ -63,6 +72,6 @@ class BaseContext:
         # This is a stub
         return {"method": "skip"}
 
-    def _rc_release(self):
+    def _rc_release(self):  # todo: rename to _rc_close
         """Release resources. Called by the canvas when it's closed."""
         pass

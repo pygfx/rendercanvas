@@ -21,7 +21,9 @@ class WgpuContext(BaseContext):
     def __new__(cls, canvas: object, present_info: dict):
         # Instantiating this class actually produces a subclass
         present_method = present_info["method"]
-        if present_method == "wgpu":
+        if cls is not WgpuContext:
+            return super().__new__(cls)  # Use canvas that is explicitly instantiated
+        elif present_method == "wgpu":
             return super().__new__(WgpuContextPlain)
         elif present_method == "bitmap":
             return super().__new__(WgpuContextToBitmap)
@@ -142,14 +144,9 @@ class WgpuContextPlain(WgpuContext):
 
     def __init__(self, canvas: object, present_info: dict):
         super().__init__(canvas, present_info)
+        assert self._present_info["method"] == "wgpu"
 
-        import wgpu
-
-        # Create sub context, support both the old and new wgpu-py API
-        # TODO: let's add/use hook in wgpu to get the context in a less hacky way
-        backend_module = wgpu.gpu.__module__
-        CanvasContext = sys.modules[backend_module].GPUCanvasContext  # noqa: N806
-
+        CanvasContext = self._get_wgpu_native_context_class()
         if hasattr(CanvasContext, "set_physical_size"):
             self._wgpu_context_is_new_style = True
             self._wgpu_context = CanvasContext(present_info)

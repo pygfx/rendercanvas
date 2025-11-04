@@ -254,7 +254,7 @@ class BaseRenderCanvas:
         # Resolve the context type name
         resolved_context_type = context_type_map.get(context_type, context_type)
         if resolved_context_type not in ("bitmap", "wgpu"):
-            raise ValueError(
+            raise TypeError(
                 "The given context type is invalid: {context_type!r} is not 'bitmap' or 'wgpu'."
             )
 
