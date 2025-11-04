@@ -124,17 +124,17 @@ class BitmapContextToWgpu(BitmapContext):
         CanvasContext = sys.modules[backend_module].GPUCanvasContext  # noqa: N806
 
         if hasattr(CanvasContext, "set_physical_size"):
-            self._sub_context_is_new_style = True
-            self._sub_context = CanvasContext(present_info)
+            self._wgpu_context_is_new_style = True
+            self._wgpu_context = CanvasContext(present_info)
         else:
-            self._sub_context_is_new_style = False
-            self._sub_context = CanvasContext(canvas, {"screen": present_info})
-        self._sub_context_is_configured = False
+            self._wgpu_context_is_new_style = False
+            self._wgpu_context = CanvasContext(canvas, {"screen": present_info})
+        self._wgpu_context_is_configured = False
 
     def _rc_set_physical_size(self, width: int, height: int) -> None:
         super()._rc_set_physical_size(width, height)
-        if self._sub_context_is_new_style:
-            self._sub_context.set_physical_size(width, height)
+        if self._wgpu_context_is_new_style:
+            self._wgpu_context.set_physical_size(width, height)
 
     def _rc_present(self):
         if self._bitmap_and_format is None:
@@ -146,18 +146,18 @@ class BitmapContextToWgpu(BitmapContext):
         bitmap = self._bitmap_and_format[0]
         self._texture_helper.set_texture_data(bitmap)
 
-        if not self._sub_context_is_configured:
-            format = self._sub_context.get_preferred_format(self._device.adapter)
+        if not self._wgpu_context_is_configured:
+            format = self._wgpu_context.get_preferred_format(self._device.adapter)
             # We don't want an srgb texture, because we assume the input bitmap is already srgb.
             # AFAIK contexts always support both the regular and the srgb texture format variants
             if format.endswith("-srgb"):
                 format = format[:-5]
-            self._sub_context.configure(device=self._device, format=format)
+            self._wgpu_context.configure(device=self._device, format=format)
 
-        target = self._sub_context.get_current_texture().create_view()
+        target = self._wgpu_context.get_current_texture().create_view()
         command_encoder = self._device.create_command_encoder()
         self._texture_helper.draw(command_encoder, target)
         self._device.queue.submit([command_encoder.finish()])
 
-        self._sub_context.present()
+        self._wgpu_context.present()
         return {"method": "delegated"}

@@ -1,180 +1,352 @@
-from .basecontext import BaseRenderCanvasContext
+import sys
+from typing import Sequence
 
-import wgpu
+from .basecontext import BaseContext
 
-# TODO: A weird thing about this is that I am replicatinh wgpu._classes.GPUCanvasContext, which feels rather strange indeed. Also in terms of keeping the API up to date??
+# todo: wgpu should not be imported by default. Add a test for this!
 
 
-class WgpuRenderCanvasContext(BaseRenderCanvasContext):
-    """A context that to render wgpu."""
+__all__ = ["WgpuContext", "WgpuContextPlain", "WgpuContextToBitmap"]
 
-    # todo: use __new__ and produce different classes as to connect context to the present method?
-    def __init__(self, canvas, present_methods):
-        super().__init__(canvas, present_methods)
-        self._present_method = "screen" if "screen" in present_methods else "bitmap"
 
-        if self._present_method == "screen":
-            # todo: pass all present methods?
-            self._real_canvas_context = wgpu.rendercanvas_context_hook(
-                canvas, present_methods
-            )
+class WgpuContext(BaseContext):
+    """A context that provides an API that provides a GPU texture to render to.
+
+    This is inspired by JS' ``GPUCanvasContext``, and the more performant approach for rendering to a ``rendercanvas``.
+
+    Users typically don't instantiate contexts directly, but use ``canvas.get_context("wgpu")``,
+    which returns a subclass of this class, depending on the needs of the canvas.
+    """
+
+    def __new__(cls, canvas: object, present_info: dict):
+        # Instantiating this class actually produces a subclass
+        present_method = present_info["method"]
+        if present_method == "wgpu":
+            return super().__new__(WgpuContextPlain)
+        elif present_method == "bitmap":
+            return super().__new__(WgpuContextToBitmap)
         else:
-            pass  # we fake it.
+            raise TypeError("Unexpected present_method {present_method!r}")
 
-        self._capabilities = None
+    def __init__(self, canvas: object, present_info: dict):
+        super().__init__(canvas, present_info)
+        # Configuration dict from the user, set via self.configure()
         self._config = None
 
-    def _get_capabilities(self):
-        """Get dict of capabilities and cache the result."""
-        if self._capabilities is None:
-            self._capabilities = {}
-            # Query format capabilities from the info provided by the canvas
-            formats = []
-            for format in self._present_methods["bitmap"]["formats"]:
-                channels, _, fmt = format.partition("-")
-                channels = {"i": "r", "ia": "rg"}.get(channels, channels)
-                fmt = {
-                    "u8": "8unorm",
-                    "u16": "16uint",
-                    "f16": "16float",
-                    "f32": "32float",
-                }.get(fmt, fmt)
-                wgpu_format = channels + fmt
-                wgpu_format_srgb = wgpu_format + "-srgb"
-                if wgpu_format_srgb in enums.TextureFormat:
-                    formats.append(wgpu_format_srgb)
-                formats.append(wgpu_format)
-            # Assume alpha modes for now
-            alpha_modes = [enums.CanvasAlphaMode.opaque]
-            # Build capabilitied dict
-            self._capabilities = {
-                "formats": formats,
-                "usages": 0xFF,
-                "alpha_modes": alpha_modes,
-            }
-            # Derived defaults
-            if "view_formats" not in self._capabilities:
-                self._capabilities["view_formats"] = self._capabilities["formats"]
-
-        return self._capabilities
-
-    def get_preferred_format(self, adapter: GPUAdapter) -> enums.TextureFormatEnum:
+    def get_preferred_format(self, adapter: object) -> str:
         """Get the preferred surface texture format."""
-        capabilities = self._get_capabilities()
-        formats = capabilities["formats"]
-        return formats[0] if formats else "bgra8-unorm"
+        return self._get_preferred_format(adapter)
 
-    def get_configuration(self) -> dict:
+    def _get_preferred_format(self, adapter: object) -> str:
+        raise NotImplementedError()
+
+    def get_configuration(self) -> dict | None:
         """Get the current configuration (or None if the context is not yet configured)."""
         return self._config
 
     def configure(
         self,
         *,
-        device: GPUDevice,
-        format: enums.TextureFormatEnum,
-        usage: flags.TextureUsageFlags = 0x10,
-        view_formats: Sequence[enums.TextureFormatEnum] = (),
-        color_space: str = "srgb",
-        tone_mapping: structs.CanvasToneMappingStruct | None = None,
-        alpha_mode: enums.CanvasAlphaModeEnum = "opaque",
+        device: object,
+        format: str,
+        usage: str | int = "RENDER_ATTACHMENT",
+        view_formats: Sequence[str] = (),
+        # color_space: str = "srgb",  - not yet implemented
+        # tone_mapping: str | None = None,  - not yet implemented
+        alpha_mode: str = "opaque",
     ) -> None:
         """Configures the presentation context for the associated canvas.
         Destroys any textures produced with a previous configuration.
-        This clears the drawing buffer to transparent black.
 
         Arguments:
             device (WgpuDevice): The GPU device object to create compatible textures for.
-            format (enums.TextureFormat): The format that textures returned by
+            format (wgpu.TextureFormat): The format that textures returned by
                 ``get_current_texture()`` will have. Must be one of the supported context
                 formats. Can be ``None`` to use the canvas' preferred format.
-            usage (flags.TextureUsage): Default ``TextureUsage.OUTPUT_ATTACHMENT``.
-            view_formats (list[enums.TextureFormat]): The formats that views created
+            usage (wgpu.TextureUsage): Default "RENDER_ATTACHMENT".
+            view_formats (list[wgpu.TextureFormat]): The formats that views created
                 from textures returned by ``get_current_texture()`` may use.
-            color_space (PredefinedColorSpace): The color space that values written
-                into textures returned by ``get_current_texture()`` should be displayed with.
-                Default "srgb". Not yet supported.
-            tone_mapping (enums.CanvasToneMappingMode): Not yet supported.
-            alpha_mode (structs.CanvasAlphaMode): Determines the effect that alpha values
+            alpha_mode (wgpu.CanvasAlphaMode): Determines the effect that alpha values
                 will have on the content of textures returned by ``get_current_texture()``
                 when read, displayed, or used as an image source. Default "opaque".
         """
-        # Check types
-        tone_mapping = {} if tone_mapping is None else tone_mapping
+        import wgpu
 
-        if not isinstance(device, GPUDevice):
+        # Basic checks
+        if not isinstance(device, wgpu.GPUDevice):
             raise TypeError("Given device is not a device.")
-
         if format is None:
             format = self.get_preferred_format(device.adapter)
-        if format not in enums.TextureFormat:
-            raise ValueError(f"Configure: format {format} not in {enums.TextureFormat}")
+        if format not in wgpu.TextureFormat:
+            raise ValueError(f"Configure: format {format} not in {wgpu.TextureFormat}")
+        if isinstance(usage, str):
+            usage_bits = usage.replace("|", " ").split()
+            usage = 0
+            for usage_bit in usage_bits:
+                usage |= wgpu.TextureUsage[usage_bit]
+        elif not isinstance(usage, int):
+            raise TypeError("Texture usage must be str or int")
 
-        if not isinstance(usage, int):
-            usage = str_flag_to_int(flags.TextureUsage, usage)
-
-        color_space  # noqa - not really supported, just assume srgb for now
-        tone_mapping  # noqa - not supported yet
-
-        # Allow more than the IDL modes, see https://github.com/pygfx/wgpu-py/pull/719
-        extra_alpha_modes = ["auto", "unpremultiplied", "inherit"]  # from webgpu.h
-        all_alpha_modes = [*enums.CanvasAlphaMode, *extra_alpha_modes]
-        if alpha_mode not in all_alpha_modes:
-            raise ValueError(
-                f"Configure: alpha_mode {alpha_mode} not in {enums.CanvasAlphaMode}"
-            )
-
-        # Check against capabilities
-
-        capabilities = self._get_capabilities(device.adapter)
-
-        if format not in capabilities["formats"]:
-            raise ValueError(
-                f"Configure: unsupported texture format: {format} not in {capabilities['formats']}"
-            )
-
-        if not usage & capabilities["usages"]:
-            raise ValueError(
-                f"Configure: unsupported texture usage: {usage} not in {capabilities['usages']}"
-            )
-
-        for view_format in view_formats:
-            if view_format not in capabilities["view_formats"]:
-                raise ValueError(
-                    f"Configure: unsupported view format: {view_format} not in {capabilities['view_formats']}"
-                )
-
-        if alpha_mode not in capabilities["alpha_modes"]:
-            raise ValueError(
-                f"Configure: unsupported alpha-mode: {alpha_mode} not in {capabilities['alpha_modes']}"
-            )
-
-        # Store
-
-        self._config = {
+        # Build config dict
+        config = {
             "device": device,
             "format": format,
             "usage": usage,
             "view_formats": view_formats,
-            "color_space": color_space,
-            "tone_mapping": tone_mapping,
+            # "color_space": color_space,
+            # "tone_mapping": tone_mapping,
             "alpha_mode": alpha_mode,
         }
 
-        if self._present_method == "screen":
-            self._configure_screen(**self._config)
+        # Let subclass finnish the configuration, then store the config
+        self._configure(config)
+        self._config = config
+
+    def _configure(self, config: dict):
+        raise NotImplementedError()
 
     def unconfigure(self) -> None:
-        """Removes the presentation context configuration.
-        Destroys any textures produced while configured.
-        """
-        if self._present_method == "screen":
-            self._unconfigure_screen()
+        """Removes the presentation context configuration."""
         self._config = None
+        self._unconfigure()
+
+    def _unconfigure(self) -> None:
+        raise NotImplementedError()
+
+    def get_current_texture(self) -> object:
+        """Get the ``GPUTexture`` that will be composited to the canvas next."""
+        if not self._config:
+            raise RuntimeError(
+                "Canvas context must be configured before calling get_current_texture()."
+            )
+        return self._get_current_texture()
+
+    def _get_current_texture(self):
+        raise NotImplementedError()
+
+    def _rc_present(self) -> None:
+        """Hook for the canvas to present the rendered result.
+
+        Present what has been drawn to the current texture, by compositing it to the
+        canvas.This is called automatically by the canvas.
+        """
+        raise NotImplementedError()
+
+
+class WgpuContextPlain(WgpuContext):
+    """A wgpu context that present directly to a ``wgpu.GPUCanvasContext``.
+
+    In most cases this means the image is rendered to a native OS surface, i.e. rendered to screen.
+    When running in Pyodide, it means it renders directly to a ``<canvas>``.
+    """
+
+    def __init__(self, canvas: object, present_info: dict):
+        super().__init__(canvas, present_info)
+
+        import wgpu
+
+        # Create sub context, support both the old and new wgpu-py API
+        # TODO: let's add/use hook in wgpu to get the context in a less hacky way
+        backend_module = wgpu.gpu.__module__
+        CanvasContext = sys.modules[backend_module].GPUCanvasContext  # noqa: N806
+
+        if hasattr(CanvasContext, "set_physical_size"):
+            self._wgpu_context_is_new_style = True
+            self._wgpu_context = CanvasContext(present_info)
+        else:
+            self._wgpu_context_is_new_style = False
+            self._wgpu_context = CanvasContext(canvas, {"screen": present_info})
+
+    def _get_preferred_format(self, adapter: object) -> str:
+        return self._wgpu_context.get_preferred_format(adapter)
+
+    def _configure(self, config):
+        self._wgpu_context.configure(**config)
+
+    def _unconfigure(self) -> None:
+        self._wgpu_context.unconfigure()
+
+    def _get_current_texture(self) -> object:
+        return self._wgpu_context.get_current_texture()
+
+    def _rc_present(self) -> None:
+        self._wgpu_context.present()
+        return {"method": "screen"}
+
+
+class WgpuContextToBitmap(WgpuContext):
+    """A wgpu context that downloads the image from the texture, and presents that bitmap to the canvas.
+
+    This is less performant than rendering directly to screen, but once we make the changes such that the
+    downloading is be done asynchronously, the difference in performance is not
+    actually that big.
+    """
+
+    def __init__(self, canvas: object, present_info: dict):
+        super().__init__(canvas, present_info)
+
+        # Canvas capabilities. Stored the first time it is obtained
+        self._capabilities = self._get_capabilities()
+
+        # The last used texture
+        self._texture = None
+
+    def _get_capabilities(self):
+        """Get dict of capabilities and cache the result."""
+
+        import wgpu
+
+        capabilities = {}
+
+        # Query format capabilities from the info provided by the canvas
+        formats = []
+        for format in self._present_info["formats"]:
+            channels, _, fmt = format.partition("-")
+            channels = {"i": "r", "ia": "rg"}.get(channels, channels)
+            fmt = {
+                "u8": "8unorm",
+                "u16": "16uint",
+                "f16": "16float",
+                "f32": "32float",
+            }.get(fmt, fmt)
+            wgpu_format = channels + fmt
+            wgpu_format_srgb = wgpu_format + "-srgb"
+            if wgpu_format_srgb in wgpu.TextureFormat:
+                formats.append(wgpu_format_srgb)
+            formats.append(wgpu_format)
+
+        # Assume alpha modes for now
+        alpha_modes = ["opaque"]
+
+        # Build capabilitied dict
+        capabilities = {
+            "formats": formats,
+            "view_formats": formats,
+            "usages": 0xFF,
+            "alpha_modes": alpha_modes,
+        }
+        return capabilities
+
+    def _drop_texture(self):
+        if self._texture is not None:
+            self._texture._release()  # not destroy, because it may be in use.
+            self._texture = None
+
+    def _get_preferred_format(self, adapter: object) -> str:
+        formats = self._capabilities["formats"]
+        return formats[0] if formats else "bgra8-unorm"
+
+    def _configure(self, config: dict):
+        # Get cababilities
+        cap_formats = self._capabilities["formats"]
+        cap_view_formats = self._capabilities["view_formats"]
+        cap_alpha_modes = self._capabilities["alpha_modes"]
+
+        # Check against capabilities
+        format = config["format"]
+        if format not in cap_formats:
+            raise ValueError(
+                f"Configure: unsupported texture format: {format} not in {cap_formats}"
+            )
+        for view_format in config["view_formats"]:
+            if view_format not in cap_view_formats:
+                raise ValueError(
+                    f"Configure: unsupported view format: {view_format} not in {cap_view_formats}"
+                )
+        alpha_mode = config["alpha_mode"]
+        if alpha_mode not in cap_alpha_modes:
+            raise ValueError(
+                f"Configure: unsupported alpha-mode: {alpha_mode} not in {cap_alpha_modes}"
+            )
+
+    def _unconfigure(self) -> None:
         self._drop_texture()
 
-    def get_current_texture(self) -> GPUTexture:
-        pass
+    def _get_current_texture(self):
+        # When the texture is active right now, we could either:
+        # * return the existing texture
+        # * warn about it, and create a new one
+        # * raise an error
+        # Right now we return the existing texture, so user can retrieve it in different render passes that write to the same frame.
 
-    def _rc_present(self):
-        pass
+        if self._texture is None:
+            import wgpu
+
+            canvas = self.canvas  # TODO: physical size must be set by canvas!
+            width, height = canvas.get_physical_size()
+            width, height = max(width, 1), max(height, 1)
+
+            # Note that the label 'present' is used by read_texture() to determine
+            # that it can use a shared copy buffer.
+            device = self._config["device"]
+            self._texture = device.create_texture(
+                label="present",
+                size=(width, height, 1),
+                format=self._config["format"],
+                usage=self._config["usage"] | wgpu.TextureUsage.COPY_SRC,
+            )
+
+        return self._texture
+
+    def _rc_present(self) -> None:
+        if not self._texture:
+            return {"method": "skip"}
+
+        bitmap = self._get_bitmap()
+        result = {"method": "bitmap", "format": "rgba-u8", "data": bitmap}
+
+        self._drop_texture()
+        return result
+
+    def _get_bitmap(self):
+        texture = self._texture
+        device = texture._device
+
+        size = texture.size
+        format = texture.format
+        nchannels = 4  # we expect rgba or bgra
+        if not format.startswith(("rgba", "bgra")):
+            raise RuntimeError(f"Image present unsupported texture format {format}.")
+        if "8" in format:
+            bytes_per_pixel = nchannels
+        elif "16" in format:
+            bytes_per_pixel = nchannels * 2
+        elif "32" in format:
+            bytes_per_pixel = nchannels * 4
+        else:
+            raise RuntimeError(
+                f"Image present unsupported texture format bitdepth {format}."
+            )
+
+        data = device.queue.read_texture(
+            {
+                "texture": texture,
+                "mip_level": 0,
+                "origin": (0, 0, 0),
+            },
+            {
+                "offset": 0,
+                "bytes_per_row": bytes_per_pixel * size[0],
+                "rows_per_image": size[1],
+            },
+            size,
+        )
+
+        # Derive struct dtype from wgpu texture format
+        memoryview_type = "B"
+        if "float" in format:
+            memoryview_type = "e" if "16" in format else "f"
+        else:
+            if "32" in format:
+                memoryview_type = "I"
+            elif "16" in format:
+                memoryview_type = "H"
+            else:
+                memoryview_type = "B"
+            if "sint" in format:
+                memoryview_type = memoryview_type.lower()
+
+        # Represent as memory object to avoid numpy dependency
+        # Equivalent: np.frombuffer(data, np.uint8).reshape(size[1], size[0], nchannels)
+
+        return data.cast(memoryview_type, (size[1], size[0], nchannels))

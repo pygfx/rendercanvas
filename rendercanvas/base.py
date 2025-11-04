@@ -320,7 +320,7 @@ class BaseRenderCanvas:
         if resolved_context_type == "bitmap":
             context = contexts.BitmapContext(self, present_info)
         else:
-            context = contexts.WGpuContext(self, present_info)
+            context = contexts.WgpuContext(self, present_info)
 
         # Done
         self._canvas_context = context
