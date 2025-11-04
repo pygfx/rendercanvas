@@ -151,8 +151,14 @@ class BaseRenderCanvas:
             if (self._rc_canvas_group and self._rc_canvas_group.get_loop())
             else "no-loop",
         }
-        self._set_size_info((0, 0), 1.0)  # Init self.__size_info
-        self.__size_info["need_event"] = False
+        self.__size_info = {
+            "physical_size": (0, 0),
+            "native_pixel_ratio": 1.0,
+            "canvas_pixel_ratio": 1.0,
+            "total_pixel_ratio": 1.0,
+            "logical_size": (0.0, 0.0),
+        }
+        self.__need_size_event = False
 
         # Events and scheduler
         self._events = EventEmitter()
@@ -298,18 +304,29 @@ class BaseRenderCanvas:
 
         The subclass must call this when the actual viewport has changed. So not in ``_rc_set_logical_size()``,
         but e.g. when the underlying GUI layer fires a resize event, and maybe on init.
-        """
-        w, h = physical_size
 
-        psize = int(w), int(h)
-        pixel_ratio = float(pixel_ratio)
-        lsize = psize[0] / pixel_ratio, psize[1] / pixel_ratio
-        self.__size_info = {
-            "physical_size": psize,
-            "logical_size": lsize,
-            "pixel_ratio": pixel_ratio,
-            "need_event": True,
-        }
+        The given pixel-ratio represents the 'native' pixel ratio. The canvas'
+        zoom factor is multiplied with it to obtain the final pixel-ratio for
+        this canvas.
+        """
+        self.__size_info["physical_size"] = int(physical_size[0]), int(physical_size[1])
+        self.__size_info["native_pixel_ratio"] = float(pixel_ratio)
+        self.__resolve_total_pixel_ratio_and_logical_size()
+
+    def __resolve_total_pixel_ratio_and_logical_size(self):
+        physical_size = self.__size_info["physical_size"]
+        native_pixel_ratio = self.__size_info["native_pixel_ratio"]
+        canvas_pixel_ratio = self.__size_info["canvas_pixel_ratio"]
+
+        total_pixel_ratio = native_pixel_ratio * canvas_pixel_ratio
+        logical_size = (
+            physical_size[0] / total_pixel_ratio,
+            physical_size[1] / total_pixel_ratio,
+        )
+
+        self.__size_info["total_pixel_ratio"] = total_pixel_ratio
+        self.__size_info["logical_size"] = logical_size
+        self.__need_size_event = True
 
     def add_event_handler(
         self, *args: EventTypeEnum | EventHandlerFunction, order: float = 0
@@ -332,15 +349,15 @@ class BaseRenderCanvas:
     # %% Scheduling and drawing
 
     def __maybe_emit_resize_event(self):
-        if self.__size_info["need_event"]:
-            self.__size_info["need_event"] = False
+        if self.__need_size_event:
+            self.__need_size_event = False
             lsize = self.__size_info["logical_size"]
             self._events.emit(
                 {
                     "event_type": "resize",
                     "width": lsize[0],
                     "height": lsize[1],
-                    "pixel_ratio": self.__size_info["pixel_ratio"],
+                    "pixel_ratio": self.__size_info["total_pixel_ratio"],
                     # Would be nice to have more details. But as it is now, PyGfx errors if we add fields it does not know, so let's do later.
                     # "logical_size": self.__size_info["logical_size"],
                     # "physical_size": self.__size_info["physical_size"],
@@ -531,7 +548,7 @@ class BaseRenderCanvas:
         pixel ratio >= 2.0. On MacOS (with a Retina screen) the pixel ratio is
         always 2.0.
         """
-        return self.__size_info["pixel_ratio"]
+        return self.__size_info["total_pixel_ratio"]
 
     def close(self) -> None:
         """Close the canvas."""
