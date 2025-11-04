@@ -6,13 +6,13 @@ __all__ = ["BitmapContext", "BitmapContextPlain", "BitmapContextToWgpu"]
 
 
 class BitmapContext(BaseContext):
-    """A context that provides an API that takes a (grayscale or rgba) images bitmap.
+    """A context that exposes an API that takes a (grayscale or rgba) images bitmap.
 
     This is loosely inspired by JS' ``ImageBitmapRenderingContext``. Rendering
     bitmaps is a simple way to use ``rendercanvas``, but usually not as
     performant as a wgpu context.
 
-    Users typically don't instantiate contexts directly, but use ``canvas.get_context("bitmap")``,
+    Users typically don't instantiate contexts directly, but use ``canvas.get_bitmap_context()``,
     which returns a subclass of this class, depending on the needs of the canvas.
     """
 

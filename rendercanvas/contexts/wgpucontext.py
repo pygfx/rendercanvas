@@ -10,11 +10,11 @@ __all__ = ["WgpuContext", "WgpuContextPlain", "WgpuContextToBitmap"]
 
 
 class WgpuContext(BaseContext):
-    """A context that provides an API that provides a GPU texture to render to.
+    """A context that exposes an API that provides a GPU texture to render to.
 
     This is inspired by JS' ``GPUCanvasContext``, and the more performant approach for rendering to a ``rendercanvas``.
 
-    Users typically don't instantiate contexts directly, but use ``canvas.get_context("wgpu")``,
+    Users typically don't instantiate contexts directly, but use ``canvas.get_wgpu_context()``,
     which returns a subclass of this class, depending on the needs of the canvas.
     """
 

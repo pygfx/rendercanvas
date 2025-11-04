@@ -50,7 +50,7 @@ Rendering using bitmaps:
 
 .. code-block:: py
 
-    context = canvas.get_context("bitmap")
+    context = canvas.get_bitmap_context()
 
     @canvas.request_draw
     def animate():
@@ -61,7 +61,7 @@ Rendering with wgpu:
 
 .. code-block:: py
 
-    context = canvas.get_context("wgpu")
+    context = canvas.get_wgpu_context()
     context.configure(device)
 
     @canvas.request_draw

@@ -61,7 +61,7 @@ import numpy as np
 from rendercanvas.auto import RenderCanvas, loop
 
 canvas = RenderCanvas(update_mode="continuous")
-context = canvas.get_context("bitmap")
+context = canvas.get_bitmap_context()
 
 @canvas.request_draw
 def animate():

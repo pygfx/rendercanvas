@@ -14,7 +14,7 @@ from rendercanvas.auto import RenderCanvas, loop
 
 canvas = RenderCanvas(present_method=None, update_mode="continuous")
 
-context = canvas.get_context("bitmap")
+context = canvas.get_bitmap_context()
 
 world = np.zeros((120, 160), np.uint8)
 pos = [100, 100]

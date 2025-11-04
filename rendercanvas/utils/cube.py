@@ -63,7 +63,7 @@ async def setup_drawing_async(canvas, limits=None, format=None):
 
 
 def get_render_pipeline_kwargs(canvas, device, pipeline_layout, render_texture_format):
-    context = canvas.get_context("wgpu")
+    context = canvas.get_wgpu_context()
     if render_texture_format is None:
         render_texture_format = context.get_preferred_format(device.adapter)
     context.configure(device=device, format=render_texture_format)

@@ -17,7 +17,7 @@ from rendercanvas.auto import RenderCanvas, loop
 
 canvas = RenderCanvas(present_method=None, update_mode="continuous")
 
-context = canvas.get_context("bitmap")
+context = canvas.get_bitmap_context()
 
 
 # The size of the blocks: hw is half the block width
