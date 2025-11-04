@@ -1,25 +1,28 @@
-"""
-Provide a simple context class to support ``canvas.get_context('bitmap')``.
-"""
-
 import sys
 
 from .basecontext import BaseContext
 
+__all__ = ["BitmapContext", "BitmapContextPlain", "BitmapContextToWgpu"]
+
 
 class BitmapContext(BaseContext):
-    """A context that supports rendering by generating grayscale or rgba images.
+    """A context that provides an API that takes a (grayscale or rgba) images bitmap.
 
-    This is inspired by JS ``get_context('bitmaprenderer')`` which returns a ``ImageBitmapRenderingContext``.
-    It is a relatively simple context to implement, and provides a easy entry to using ``rendercanvas``.
+    This is loosely inspired by JS' ``ImageBitmapRenderingContext``. Rendering
+    bitmaps is a simple way to use ``rendercanvas``, but usually not as
+    performant as a wgpu context.
+
+    Users typically don't instantiate contexts directly, but use ``canvas.get_context("bitmap")``,
+    which returns a subclass of this class, depending on the needs of the canvas.
     """
 
     def __new__(cls, canvas: object, present_info: dict):
+        # Instantiating this class actually produces a subclass
         present_method = present_info["method"]
         if present_method == "bitmap":
-            return super().__new__(BitmapToBitmapContext)
+            return super().__new__(BitmapContextPlain)
         elif present_method == "wgpu":
-            return super().__new__(BitmapToWgpuContext)
+            return super().__new__(BitmapContextToWgpu)
         else:
             raise TypeError("Unexpected present_method {present_method!r}")
 
@@ -66,8 +69,8 @@ class BitmapContext(BaseContext):
         self._bitmap_and_format = m, format
 
 
-class BitmapToBitmapContext(BitmapContext):
-    """A BitmapContext that presents a bitmap to the canvas."""
+class BitmapContextPlain(BitmapContext):
+    """A BitmapContext that just presents the bitmap to the canvas."""
 
     def __init__(self, canvas, present_info):
         super().__init__(canvas, present_info)
@@ -97,11 +100,10 @@ class BitmapToBitmapContext(BitmapContext):
         }
 
 
-class BitmapToWgpuContext(BitmapContext):
-    """A BitmapContext that presents via a wgpu.GPUCanvasContext.
+class BitmapContextToWgpu(BitmapContext):
+    """A BitmapContext that uploads to a texture and present that to a ``wgpu.GPUCanvasContext``.
 
-    This adapter can be used by context objects that want to present a bitmap, when the
-    canvas only supports presenting to screen.
+    This is uses for canvases that do not support presenting a bitmap.
     """
 
     def __init__(self, canvas, present_info):

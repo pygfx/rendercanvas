@@ -1,11 +1,21 @@
 import weakref
 
+__all__ = ["BaseContext"]
+
 
 class BaseContext:
-    """A context that supports rendering by generating grayscale or rgba images.
+    """The base class for context objects in ``rendercanvas``.
 
-    This is inspired by JS ``get_context('bitmaprenderer')`` which returns a ``ImageBitmapRenderingContext``.
-    It is a relatively simple context to implement, and provides a easy entry to using ``rendercanvas``.
+    A context provides an API to provide a rendered image, and implements a
+    mechanism to present that image to the another system for display. The
+    concept of a context is heavily inspired by the canvas and its contexts in
+    the browser.
+
+    In ``rendercanvas``, there are two types of contexts: the *bitmap* context
+    provides an API that takes image bitmaps in RAM, and the *wgpu* context
+    provides an API that takes provides image textures on the GPU to render to.
+    Each type of context has multiple subclasses to connect it to various
+    subsystems.
     """
 
     def __init__(self, canvas: object, present_info: dict):
