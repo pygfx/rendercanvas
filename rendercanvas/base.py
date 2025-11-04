@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import sys
 import weakref
-import importlib
 from typing import TYPE_CHECKING
 
 from ._enums import (
@@ -215,24 +214,28 @@ class BaseRenderCanvas:
         except Exception:
             pass
 
-    # %% Implement WgpuCanvasInterface
-
     _canvas_context = None  # set in get_context()
 
     def get_physical_size(self) -> Tuple[int, int]:
         """Get the physical size of the canvas in integer pixels."""
         return self.__size_info["physical_size"]
 
-    def get_context(self, context_type: str) -> object:
+    def get_bitmap_context(self) -> contexts.BitmapContext:
+        """Get the ``BitmapContext`` to render to this canvas."""
+        return self.get_context("bitmap")
+
+    def get_wgpu_context(self) -> contexts.WgpuContext:
+        """Get the ``WgpuContext`` to render to this canvas."""
+        return self.get_context("wgpu")
+
+    def get_context(self, context_type: str) -> contexts.BaseContext:
         """Get a context object that can be used to render to this canvas.
 
         The context takes care of presenting the rendered result to the canvas.
         Different types of contexts are available:
 
-        * "wgpu": get a ``WgpuCanvasContext`` provided by the ``wgpu`` library.
-        * "bitmap": get a ``BitmapRenderingContext`` provided by the ``rendercanvas`` library.
-        * "another.module": other libraries may provide contexts too. We've only listed the ones we know of.
-        * "your.module:ContextClass": Explicit name.
+        * "wgpu": get a ``WgpuContext``
+        * "bitmap": get a ``BitmapContext``
 
         Later calls to this method, with the same context_type argument, will return
         the same context instance as was returned the first time the method was
@@ -240,12 +243,12 @@ class BaseRenderCanvas:
         one has been created.
         """
 
-        # Note that this method is analog to HtmlCanvas.getContext(), except
-        # the context_type is different, since contexts are provided by other projects.
+        # Note that this method is analog to HtmlCanvas.getContext(), except with different context types.
 
         if not isinstance(context_type, str):
             raise TypeError("context_type must be str.")
 
+        # The 'screen' and 'wgpu' method mean the same
         present_method_map = context_type_map = {"screen": "wgpu"}
 
         # Resolve the context type name
@@ -264,37 +267,7 @@ class BaseRenderCanvas:
                     f"Cannot get context for '{context_type}': a context of type '{self._canvas_context._context_type}' is already set."
                 )
 
-        # # Load module
-        # module_name, _, class_name = resolved_context_type.partition(":")
-        # try:
-        #     module = importlib.import_module(module_name)
-        # except ImportError as err:
-        #     raise ValueError(
-        #         f"Cannot get context for '{context_type}': {err}. Known valid values are {set(known_types)}"
-        #     ) from None
-
-        # # Obtain factory to produce context
-        # factory_name = class_name or "rendercanvas_context_hook"
-        # try:
-        #     factory_func = getattr(module, factory_name)
-        # except AttributeError:
-        #     raise ValueError(
-        #         f"Cannot get context for '{context_type}': could not find `{factory_name}` in '{module.__name__}'"
-        #     ) from None
-
-        # # Create the context
-        # context = factory_func(self, self._rc_get_present_methods())
-
-        # # Quick checks to make sure the context has the correct API
-        # if not (hasattr(context, "canvas") and context.canvas is self):
-        #     raise RuntimeError(
-        #         "The context does not have a canvas attribute that refers to this canvas."
-        #     )
-        # if not (hasattr(context, "present") and callable(context.present)):
-        #     raise RuntimeError("The context does not have a present method.")
-
         # Select present_method
-        # todo: does the canvas present_method arg override this in the appropriate way?
         present_methods = self._rc_get_present_methods()
         present_method = None
         if resolved_context_type == "bitmap":

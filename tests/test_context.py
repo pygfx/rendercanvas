@@ -28,7 +28,7 @@ def get_test_bitmap(width, height):
 hook_call_count = 0
 
 
-def rendercanvas_context_hook(canvas, present_methods):
+def rendercanvas_context_hook(canvas, present_methods):  # TODO: clean
     global hook_call_count
     hook_call_count += 1
     return SpecialAdapterNoop(canvas, present_methods)
