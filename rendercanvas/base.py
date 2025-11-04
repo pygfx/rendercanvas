@@ -15,6 +15,7 @@ from ._enums import (
     CursorShape,
     CursorShapeEnum,
 )
+from . import contexts
 from ._events import EventEmitter
 from ._loop import BaseLoop
 from ._scheduler import Scheduler
@@ -238,12 +239,14 @@ class BaseRenderCanvas:
         if not isinstance(context_type, str):
             raise TypeError("context_type must be str.")
 
+        present_method_map = context_type_map = {"screen": "wgpu"}
+
         # Resolve the context type name
-        known_types = {
-            "wgpu": "wgpu",
-            "bitmap": "rendercanvas.utils.bitmaprenderingcontext",
-        }
-        resolved_context_type = known_types.get(context_type, context_type)
+        resolved_context_type = context_type_map.get(context_type, context_type)
+        if resolved_context_type not in ("bitmap", "wgpu"):
+            raise ValueError(
+                "The given context type is invalid: {context_type!r} is not 'bitmap' or 'wgpu'."
+            )
 
         # Is the context already set?
         if self._canvas_context is not None:
@@ -254,34 +257,70 @@ class BaseRenderCanvas:
                     f"Cannot get context for '{context_type}': a context of type '{self._canvas_context._context_type}' is already set."
                 )
 
-        # Load module
-        module_name, _, class_name = resolved_context_type.partition(":")
-        try:
-            module = importlib.import_module(module_name)
-        except ImportError as err:
-            raise ValueError(
-                f"Cannot get context for '{context_type}': {err}. Known valid values are {set(known_types)}"
-            ) from None
+        # # Load module
+        # module_name, _, class_name = resolved_context_type.partition(":")
+        # try:
+        #     module = importlib.import_module(module_name)
+        # except ImportError as err:
+        #     raise ValueError(
+        #         f"Cannot get context for '{context_type}': {err}. Known valid values are {set(known_types)}"
+        #     ) from None
 
-        # Obtain factory to produce context
-        factory_name = class_name or "rendercanvas_context_hook"
-        try:
-            factory_func = getattr(module, factory_name)
-        except AttributeError:
-            raise ValueError(
-                f"Cannot get context for '{context_type}': could not find `{factory_name}` in '{module.__name__}'"
-            ) from None
+        # # Obtain factory to produce context
+        # factory_name = class_name or "rendercanvas_context_hook"
+        # try:
+        #     factory_func = getattr(module, factory_name)
+        # except AttributeError:
+        #     raise ValueError(
+        #         f"Cannot get context for '{context_type}': could not find `{factory_name}` in '{module.__name__}'"
+        #     ) from None
 
-        # Create the context
-        context = factory_func(self, self._rc_get_present_methods())
+        # # Create the context
+        # context = factory_func(self, self._rc_get_present_methods())
 
-        # Quick checks to make sure the context has the correct API
-        if not (hasattr(context, "canvas") and context.canvas is self):
+        # # Quick checks to make sure the context has the correct API
+        # if not (hasattr(context, "canvas") and context.canvas is self):
+        #     raise RuntimeError(
+        #         "The context does not have a canvas attribute that refers to this canvas."
+        #     )
+        # if not (hasattr(context, "present") and callable(context.present)):
+        #     raise RuntimeError("The context does not have a present method.")
+
+        # Select present_method
+        # todo: does the canvas present_method arg override this in the appropriate way?
+        present_methods = self._rc_get_present_methods()
+        present_method = None
+        if resolved_context_type == "bitmap":
+            for name in ("bitmap", "wgpu", "screen"):
+                if name in present_methods:
+                    present_method = name
+                    break
+        else:
+            for name in ("wgpu", "screen", "bitmap"):
+                if name in present_methods:
+                    present_method = name
+                    break
+
+        # This should never happen, unless there's a bug
+        if present_method is None:
             raise RuntimeError(
-                "The context does not have a canvas attribute that refers to this canvas."
+                "Could not select present_method for context_type {context_type!r} from present_methods {present_methods!r}"
             )
-        if not (hasattr(context, "present") and callable(context.present)):
-            raise RuntimeError("The context does not have a present method.")
+
+        # Select present_info
+        present_info = dict(present_methods[present_method])
+        assert "method" not in present_info, (
+            "the field 'method' is reserved in present_methods dicts"
+        )
+        present_info = {
+            "method": present_method_map.get(present_method, present_method),
+            **present_info,
+        }
+
+        if resolved_context_type == "bitmap":
+            context = contexts.BitmapContext(self, present_info)
+        else:
+            context = contexts.WGpuContext(self, present_info)
 
         # Done
         self._canvas_context = context
@@ -498,9 +537,9 @@ class BaseRenderCanvas:
                 # Note: if vsync is used, this call may wait a little (happens down at the level of the driver or OS)
                 context = self._canvas_context
                 if context:
-                    result = context.present()
+                    result = context._rc_present()
                     method = result.pop("method")
-                    if method in ("skip", "screen"):
+                    if method in ("skip", "screen", "delegated"):
                         pass  # nothing we need to do
                     elif method == "fail":
                         raise RuntimeError(result.get("message", "") or "present error")
