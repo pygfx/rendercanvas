@@ -179,6 +179,17 @@ class WgpuContextPlain(WgpuContext):
         self._wgpu_context.present()
         return {"method": "screen"}
 
+    def _rc_release(self):
+        if self._wgpu_context is not None:
+            if self._wgpu_context_is_new_style:
+                self._wgpu_context.close()  # TODO: make sure this is compatible
+            else:
+                try:
+                    self._wgpu_context._release()  # private method
+                except Exception:
+                    pass
+            self._wgpu_context = None
+
 
 class WgpuContextToBitmap(WgpuContext):
     """A wgpu context that downloads the image from the texture, and presents that bitmap to the canvas.
@@ -235,7 +246,10 @@ class WgpuContextToBitmap(WgpuContext):
 
     def _drop_texture(self):
         if self._texture is not None:
-            self._texture._release()  # not destroy, because it may be in use.
+            try:
+                self._texture._release()  # private method. Not destroy, because it may be in use.
+            except Exception:
+                pass
             self._texture = None
 
     def _get_preferred_format(self, adapter: object) -> str:
@@ -298,10 +312,8 @@ class WgpuContextToBitmap(WgpuContext):
             return {"method": "skip"}
 
         bitmap = self._get_bitmap()
-        result = {"method": "bitmap", "format": "rgba-u8", "data": bitmap}
-
         self._drop_texture()
-        return result
+        return {"method": "bitmap", "format": "rgba-u8", "data": bitmap}
 
     def _get_bitmap(self):
         texture = self._texture
@@ -355,3 +367,6 @@ class WgpuContextToBitmap(WgpuContext):
         # Equivalent: np.frombuffer(data, np.uint8).reshape(size[1], size[0], nchannels)
 
         return data.cast(memoryview_type, (size[1], size[0], nchannels))
+
+    def _rc_release(self):
+        self._drop_texture()

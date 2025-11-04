@@ -63,6 +63,6 @@ class BaseContext:
         # This is a stub
         return {"method": "skip"}
 
-    def _release(self):
+    def _rc_release(self):
         """Release resources. Called by the canvas when it's closed."""
-        pass  # TODO: need this? prefix _rc_?
+        pass

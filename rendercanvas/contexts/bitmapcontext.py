@@ -99,6 +99,9 @@ class BitmapContextPlain(BitmapContext):
             "format": format,
         }
 
+    def _rc_release(self):
+        self._bitmap_and_format = None
+
 
 class BitmapContextToWgpu(BitmapContext):
     """A BitmapContext that uploads to a texture and present that to a ``wgpu.GPUCanvasContext``.
@@ -162,3 +165,15 @@ class BitmapContextToWgpu(BitmapContext):
 
         self._wgpu_context.present()
         return {"method": "delegated"}
+
+    def _rc_release(self):
+        self._bitmap_and_format = None
+        if self._wgpu_context is not None:
+            if self._wgpu_context_is_new_style:
+                self._wgpu_context.close()  # TODO: make sure this is compatible
+            else:
+                try:
+                    self._wgpu_context._release()  # private method
+                except Exception:
+                    pass
+            self._wgpu_context = None
