@@ -70,8 +70,8 @@ Rendering with wgpu:
         # ... wgpu code
 
 
-Physical, logical size, and pixel-ratio
----------------------------------------
+Physical size, logical size, and pixel-ratio
+--------------------------------------------
 
 The context has properties for the logical size, physical size, and the
 pixel-ratio.
