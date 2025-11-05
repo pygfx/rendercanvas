@@ -1,4 +1,3 @@
-import sys
 from typing import Sequence
 
 from .basecontext import BaseContext
@@ -18,7 +17,7 @@ class WgpuContext(BaseContext):
     which returns a subclass of this class, depending on the needs of the canvas.
     """
 
-    def __new__(cls, canvas: object, present_info: dict):
+    def __new__(cls, present_info: dict):
         # Instantiating this class actually produces a subclass
         present_method = present_info["method"]
         if cls is not WgpuContext:
@@ -30,8 +29,8 @@ class WgpuContext(BaseContext):
         else:
             raise TypeError("Unexpected present_method {present_method!r}")
 
-    def __init__(self, canvas: object, present_info: dict):
-        super().__init__(canvas, present_info)
+    def __init__(self, present_info: dict):
+        super().__init__(present_info)
         # Configuration dict from the user, set via self.configure()
         self._config = None
 
@@ -142,17 +141,13 @@ class WgpuContextPlain(WgpuContext):
     When running in Pyodide, it means it renders directly to a ``<canvas>``.
     """
 
-    def __init__(self, canvas: object, present_info: dict):
-        super().__init__(canvas, present_info)
+    def __init__(self, present_info: dict):
+        super().__init__(present_info)
         assert self._present_info["method"] == "wgpu"
 
-        CanvasContext = self._get_wgpu_native_context_class()
-        if hasattr(CanvasContext, "set_physical_size"):
-            self._wgpu_context_is_new_style = True
-            self._wgpu_context = CanvasContext(present_info)
-        else:
-            self._wgpu_context_is_new_style = False
-            self._wgpu_context = CanvasContext(canvas, {"screen": present_info})
+        self._wgpu_context, self._wgpu_context_is_new_style = (
+            self._get_wgpu_py_context()
+        )
 
     def _get_preferred_format(self, adapter: object) -> str:
         return self._wgpu_context.get_preferred_format(adapter)
@@ -176,7 +171,7 @@ class WgpuContextPlain(WgpuContext):
         self._wgpu_context.present()
         return {"method": "screen"}
 
-    def _rc_release(self):
+    def _rc_close(self):
         if self._wgpu_context is not None:
             if self._wgpu_context_is_new_style:
                 self._wgpu_context.close()  # TODO: make sure this is compatible
@@ -196,8 +191,8 @@ class WgpuContextToBitmap(WgpuContext):
     actually that big.
     """
 
-    def __init__(self, canvas: object, present_info: dict):
-        super().__init__(canvas, present_info)
+    def __init__(self, present_info: dict):
+        super().__init__(present_info)
 
         # Canvas capabilities. Stored the first time it is obtained
         self._capabilities = self._get_capabilities()
@@ -365,5 +360,5 @@ class WgpuContextToBitmap(WgpuContext):
 
         return data.cast(memoryview_type, (size[1], size[0], nchannels))
 
-    def _rc_release(self):
+    def _rc_close(self):
         self._drop_texture()

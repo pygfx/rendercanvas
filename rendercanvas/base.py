@@ -298,9 +298,9 @@ class BaseRenderCanvas:
         }
 
         if resolved_context_type == "bitmap":
-            context = contexts.BitmapContext(self, present_info)
+            context = contexts.BitmapContext(present_info)
         else:
-            context = contexts.WgpuContext(self, present_info)
+            context = contexts.WgpuContext(present_info)
 
         # Done
         self._canvas_context = context
@@ -577,7 +577,7 @@ class BaseRenderCanvas:
         self._draw_frame = None  # type: ignore
         # Clear the canvas context too.
         try:
-            self._canvas_context._rc_release()  # type: ignore
+            self._canvas_context._rc_close()  # type: ignore
         except Exception:
             pass
         self._canvas_context = None

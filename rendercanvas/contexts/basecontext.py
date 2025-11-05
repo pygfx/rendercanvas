@@ -1,5 +1,4 @@
 import sys
-import weakref
 
 __all__ = ["BaseContext"]
 
@@ -19,8 +18,7 @@ class BaseContext:
     subsystems.
     """
 
-    def __init__(self, canvas: object, present_info: dict):
-        self._canvas_ref = weakref.ref(canvas)
+    def __init__(self, present_info: dict):
         self._present_info = present_info
         assert present_info["method"] in ("bitmap", "wgpu")  # internal sanity check
         self._physical_size = 0, 0
@@ -28,18 +26,32 @@ class BaseContext:
     def __repr__(self):
         return f"<rendercanvas.contexts.{self.__class__.__name__} object at {hex(id(self))}>"
 
-    @property
-    def canvas(self) -> object:
-        """The associated RenderCanvas object (internally stored as a weakref)."""
-        return self._canvas_ref()
+    def _get_wgpu_py_context(self) -> tuple[object, bool]:
+        """Create a wgpu.GPUCanvasContext
 
-    def _get_wgpu_native_context_class(self):
-        # Create sub context, support both the old and new wgpu-py API
+        Returns the context object and a flag whether it uses the new-style API.
+        """
         # TODO: let's add/use hook in wgpu to get the context in a less hacky way
         import wgpu
 
         backend_module = wgpu.gpu.__module__
-        return sys.modules[backend_module].GPUCanvasContext  # noqa: N806
+        CanvasContext = sys.modules[backend_module].GPUCanvasContext  # noqa: N806
+
+        if hasattr(CanvasContext, "set_physical_size"):
+            wgpu_context_is_new_style = True
+            wgpu_context = CanvasContext(self._present_info)
+        else:
+            wgpu_context_is_new_style = False
+            pseudo_canvas = self  # must be anything that has a get_physical_size
+            wgpu_context = CanvasContext(pseudo_canvas, {"screen": self._present_info})
+
+        return wgpu_context, wgpu_context_is_new_style
+
+    def get_physical_size(self):
+        """Get the physical size."""
+        return self._physical_size
+
+    # TODO: also expose logical size (and pixel ratio maybe). These are all that a renderer needs to render into a context (no need for canvas)
 
     def _rc_set_physical_size(self, width: int, height: int) -> None:
         """Called by the BaseRenderCanvas to set the physical size."""
@@ -72,6 +84,6 @@ class BaseContext:
         # This is a stub
         return {"method": "skip"}
 
-    def _rc_release(self):  # todo: rename to _rc_close
-        """Release resources. Called by the canvas when it's closed."""
+    def _rc_close(self):
+        """Close context and release resources. Called by the canvas when it's closed."""
         pass

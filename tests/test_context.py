@@ -30,30 +30,28 @@ def get_test_bitmap(width, height):
     return bitmap
 
 
-class WgpuContextToBitmapWithNativeAPI(WgpuContextToBitmap):
-    """A WgpuContextToBitmap with an API like (the new) wgpu.GPUCanvasContext."""
+class WgpuContextToBitmapLookLikeWgpuPy(WgpuContextToBitmap):
+    """A WgpuContextToBitmap with an API like (the new) wgpu.GPUCanvasContext.
 
-    def __init__(self, present_info):
-        super().__init__(None, present_info)
+    The API's look close enough that we can mimic it with this. This allows
+    testing a workflow that goes from bitmap -> wgpu -> wgpu -> bitmap
+    """
 
     def set_physical_size(self, w, h):
-        self._rc_set_physical_size(self, w, h)
+        self._rc_set_physical_size(w, h)
 
     def present(self):
-        self._rc_present()
+        return self._rc_present()
 
     def close(self):
-        self._rc_release()
+        self._rc_close()
 
 
 class BitmapContextToWgpuAndBackToBimap(BitmapContextToWgpu):
     """A bitmap context that takes a detour via wgpu :)"""
 
-    def _get_wgpu_native_context_class(self):
-        return WgpuContextToBitmapWithNativeAPI
-
-    def _rc_present(self):
-        return self._wgpu_context._rc_present()
+    def _get_wgpu_py_context(self):
+        return WgpuContextToBitmapLookLikeWgpuPy(self._present_info), True
 
 
 # %%
@@ -160,7 +158,7 @@ def test_wgpu_context():
     # Create canvas and attach our special adapter canvas
     canvas = ManualOffscreenRenderCanvas()
     context = BitmapContextToWgpuAndBackToBimap(
-        canvas, {"method": "bitmap", "formats": ["rgba-u8"]}
+        {"method": "bitmap", "formats": ["rgba-u8"]}
     )
     canvas._canvas_context = context
     assert isinstance(context, BitmapContext)

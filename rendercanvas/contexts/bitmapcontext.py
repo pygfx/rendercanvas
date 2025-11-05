@@ -1,5 +1,3 @@
-import sys
-
 from .basecontext import BaseContext
 
 __all__ = ["BitmapContext", "BitmapContextPlain", "BitmapContextToWgpu"]
@@ -16,7 +14,7 @@ class BitmapContext(BaseContext):
     which returns a subclass of this class, depending on the needs of the canvas.
     """
 
-    def __new__(cls, canvas: object, present_info: dict):
+    def __new__(cls, present_info: dict):
         # Instantiating this class actually produces a subclass
         present_method = present_info["method"]
         if cls is not BitmapContext:
@@ -28,8 +26,8 @@ class BitmapContext(BaseContext):
         else:
             raise TypeError("Unexpected present_method {present_method!r}")
 
-    def __init__(self, canvas, present_info):
-        super().__init__(canvas, present_info)
+    def __init__(self, present_info):
+        super().__init__(present_info)
         self._bitmap_and_format = None
 
     def set_bitmap(self, bitmap):
@@ -74,8 +72,8 @@ class BitmapContext(BaseContext):
 class BitmapContextPlain(BitmapContext):
     """A BitmapContext that just presents the bitmap to the canvas."""
 
-    def __init__(self, canvas, present_info):
-        super().__init__(canvas, present_info)
+    def __init__(self, present_info):
+        super().__init__(present_info)
         assert self._present_info["method"] == "bitmap"
         self._bitmap_and_format = None
 
@@ -101,7 +99,7 @@ class BitmapContextPlain(BitmapContext):
             "format": format,
         }
 
-    def _rc_release(self):
+    def _rc_close(self):
         self._bitmap_and_format = None
 
 
@@ -111,8 +109,8 @@ class BitmapContextToWgpu(BitmapContext):
     This is uses for canvases that do not support presenting a bitmap.
     """
 
-    def __init__(self, canvas, present_info):
-        super().__init__(canvas, present_info)
+    def __init__(self, present_info):
+        super().__init__(present_info)
 
         # Init wgpu
         import wgpu
@@ -123,14 +121,9 @@ class BitmapContextToWgpu(BitmapContext):
 
         self._texture_helper = FullscreenTexture(device)
 
-        # Create sub context, support both the old and new wgpu-py API
-        CanvasContext = self._get_wgpu_native_context_class()
-        if hasattr(CanvasContext, "set_physical_size"):
-            self._wgpu_context_is_new_style = True
-            self._wgpu_context = CanvasContext(present_info)
-        else:
-            self._wgpu_context_is_new_style = False
-            self._wgpu_context = CanvasContext(canvas, {"screen": present_info})
+        self._wgpu_context, self._wgpu_context_is_new_style = (
+            self._get_wgpu_py_context()
+        )
         self._wgpu_context_is_configured = False
 
     def _rc_set_physical_size(self, width: int, height: int) -> None:
@@ -162,10 +155,13 @@ class BitmapContextToWgpu(BitmapContext):
         self._texture_helper.draw(command_encoder, target)
         self._device.queue.submit([command_encoder.finish()])
 
-        self._wgpu_context.present()
-        return {"method": "delegated"}
+        present_feedback = self._wgpu_context.present()
 
-    def _rc_release(self):
+        if present_feedback is None:
+            present_feedback = {"method": "delegated"}
+        return present_feedback
+
+    def _rc_close(self):
         self._bitmap_and_format = None
         if self._wgpu_context is not None:
             if self._wgpu_context_is_new_style:
