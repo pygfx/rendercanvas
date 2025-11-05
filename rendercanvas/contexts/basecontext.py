@@ -4,19 +4,7 @@ __all__ = ["BaseContext"]
 
 
 class BaseContext:
-    """The base class for context objects in ``rendercanvas``.
-
-    A context provides an API to provide a rendered image, and implements a
-    mechanism to present that image to the another system for display. The
-    concept of a context is heavily inspired by the canvas and its contexts in
-    the browser.
-
-    In ``rendercanvas``, there are two types of contexts: the *bitmap* context
-    provides an API that takes image bitmaps in RAM, and the *wgpu* context
-    provides an API that takes provides image textures on the GPU to render to.
-    Each type of context has multiple subclasses to connect it to various
-    subsystems.
-    """
+    """The base class for context objects in ``rendercanvas``."""
 
     def __init__(self, present_info: dict):
         self._present_info = present_info

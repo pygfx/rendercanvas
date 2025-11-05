@@ -248,6 +248,7 @@ class BaseRenderCanvas:
         if not isinstance(context_type, str):
             raise TypeError("context_type must be str.")
 
+        # todo: decide on 'screen' vs 'wgpu'
         # The 'screen' and 'wgpu' method mean the same
         present_method_map = context_type_map = {"screen": "wgpu"}
 

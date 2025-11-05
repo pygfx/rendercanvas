@@ -70,7 +70,6 @@ Rendering with wgpu:
         # ... wgpu code
 
 
-
 .. _async:
 
 Async
