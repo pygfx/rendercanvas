@@ -508,7 +508,7 @@ class BaseRenderCanvas:
             self.__maybe_emit_resize_event()
 
             # Also update the context's size
-            if self.__need_context_resize:
+            if self.__need_context_resize and self._canvas_context is not None:
                 self.__need_context_resize = False
                 self._canvas_context._rc_set_physical_size(
                     *self.__size_info["physical_size"]
