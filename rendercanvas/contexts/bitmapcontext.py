@@ -121,16 +121,8 @@ class BitmapContextToWgpu(BitmapContext):
 
         self._texture_helper = FullscreenTexture(device)
 
-        self._wgpu_context, self._wgpu_context_is_new_style = (
-            self._get_wgpu_py_context()
-        )
+        self._create_wgpu_py_context()  # sets self._wgpu_context
         self._wgpu_context_is_configured = False
-
-    def _rc_set_physical_size(self, width: int, height: int) -> None:
-        width, height = int(width), int(height)
-        self._physical_size = width, height
-        if self._wgpu_context_is_new_style:
-            self._wgpu_context.set_physical_size(width, height)
 
     def _rc_present(self):
         if self._bitmap_and_format is None:
@@ -164,11 +156,13 @@ class BitmapContextToWgpu(BitmapContext):
     def _rc_close(self):
         self._bitmap_and_format = None
         if self._wgpu_context is not None:
-            if self._wgpu_context_is_new_style:
-                self._wgpu_context.close()  # TODO: make sure this is compatible
+            if hasattr(self._wgpu_context, "close"):
+                try:
+                    self._wgpu_context.close()  # TODO: make sure this is compatible
+                except Exception:
+                    pass
             else:
                 try:
                     self._wgpu_context._release()  # private method
                 except Exception:
                     pass
-            self._wgpu_context = None

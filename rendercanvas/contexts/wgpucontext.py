@@ -144,10 +144,7 @@ class WgpuContextPlain(WgpuContext):
     def __init__(self, present_info: dict):
         super().__init__(present_info)
         assert self._present_info["method"] == "wgpu"
-
-        self._wgpu_context, self._wgpu_context_is_new_style = (
-            self._get_wgpu_py_context()
-        )
+        self._create_wgpu_py_context()  # sets self._wgpu_context
 
     def _get_preferred_format(self, adapter: object) -> str:
         return self._wgpu_context.get_preferred_format(adapter)
@@ -161,26 +158,22 @@ class WgpuContextPlain(WgpuContext):
     def _get_current_texture(self) -> object:
         return self._wgpu_context.get_current_texture()
 
-    def _rc_set_physical_size(self, width: int, height: int) -> None:
-        width, height = int(width), int(height)
-        self._physical_size = width, height
-        if self._wgpu_context_is_new_style:
-            self._wgpu_context.set_physical_size(width, height)
-
     def _rc_present(self) -> None:
         self._wgpu_context.present()
         return {"method": "screen"}
 
     def _rc_close(self):
         if self._wgpu_context is not None:
-            if self._wgpu_context_is_new_style:
-                self._wgpu_context.close()  # TODO: make sure this is compatible
+            if hasattr(self._wgpu_context, "close"):
+                try:
+                    self._wgpu_context.close()  # TODO: make sure this is compatible
+                except Exception:
+                    pass
             else:
                 try:
                     self._wgpu_context._release()  # private method
                 except Exception:
                     pass
-            self._wgpu_context = None
 
 
 class WgpuContextToBitmap(WgpuContext):
@@ -284,7 +277,7 @@ class WgpuContextToBitmap(WgpuContext):
         if self._texture is None:
             import wgpu
 
-            width, height = self._physical_size
+            width, height = self.physical_size
             width, height = max(width, 1), max(height, 1)
 
             # Note that the label 'present' is used by read_texture() to determine

@@ -38,7 +38,13 @@ class WgpuContextToBitmapLookLikeWgpuPy(WgpuContextToBitmap):
     """
 
     def set_physical_size(self, w, h):
-        self._rc_set_physical_size(w, h)
+        size_info = {
+            "physical_size": (w, h),
+            "native_pixel_ratio": 1.0,
+            "total_pixel_ratio": 1.0,
+            "logical_size": (float(w), float(h)),
+        }
+        self._rc_set_size_info(size_info)
 
     def present(self):
         return self._rc_present()
@@ -50,8 +56,8 @@ class WgpuContextToBitmapLookLikeWgpuPy(WgpuContextToBitmap):
 class BitmapContextToWgpuAndBackToBimap(BitmapContextToWgpu):
     """A bitmap context that takes a detour via wgpu :)"""
 
-    def _get_wgpu_py_context(self):
-        return WgpuContextToBitmapLookLikeWgpuPy(self._present_info), True
+    def _create_wgpu_py_context(self):
+        self._wgpu_context = WgpuContextToBitmapLookLikeWgpuPy(self._present_info)
 
 
 # %%
