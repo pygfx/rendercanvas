@@ -115,7 +115,7 @@ This means that the pixel-ratio can indeed be fractional:
     |     |     |           Logical pixels, pixel-ratio ± 1.2
     +-----+-----+
 
-Side note: on MacOS with a Retina display, the pixel-ratio is fixed to 2.0. (The OS level
+Side note: on MacOS, the pixel-ratio is fixed to either 1.0 or 2.0, usually the latter on a Retina display with reasonable resolution settings. (The OS level
 zooming is implemented by rendering the whole screen to an offscreen buffer with
 a different size than the physical screen, and then up/down-scaling that to the
 screen.)
