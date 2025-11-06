@@ -112,7 +112,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install .[tests]
-        pip uninstall wgpu
+        pip uninstall -y wgpu
         rm -r rendercanvas
     - name: Unit tests
       run: |
