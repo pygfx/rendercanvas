@@ -1,10 +1,13 @@
 import numpy as np
-from rendercanvas.utils.bitmappresentadapter import BitmapPresentAdapter
-from rendercanvas.utils.bitmaprenderingcontext import BitmapRenderingContext
-from rendercanvas.offscreen import OffscreenRenderCanvas as ManualOffscreenRenderCanvas
-
 from testutils import can_use_wgpu_lib, run_tests
 import pytest
+
+
+from rendercanvas.offscreen import OffscreenRenderCanvas as ManualOffscreenRenderCanvas
+from rendercanvas.utils.bitmaprenderingcontext import BitmapRenderingContext
+
+if can_use_wgpu_lib:
+    from rendercanvas.utils.bitmappresentadapter import BitmapPresentAdapter
 
 
 def get_test_bitmap(width, height):
