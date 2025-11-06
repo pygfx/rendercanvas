@@ -112,13 +112,14 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install .[tests]
+        pip remove wgpu
         rm -r rendercanvas
     - name: Unit tests
       run: |
         python -c "
         try:
             import wgpu
-            raise RuntimeError('wgpu could be imported')
+            raise RuntimeError('wgpu could be imported, but this is the no-wgpu test build')
         except ImportError:
             print('wgpu is (intentionally) not available')
         "
