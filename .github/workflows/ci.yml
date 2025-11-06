@@ -118,7 +118,7 @@ jobs:
         python -c "
         try:
             import wgpu
-            raise RuntimError('wgpu could be imported')
+            raise RuntimeError('wgpu could be imported')
         except ImportError:
             print('wgpu is (intentionally) not available')
         "
