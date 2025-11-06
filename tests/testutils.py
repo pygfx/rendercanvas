@@ -5,8 +5,6 @@ import logging
 import subprocess
 from io import StringIO
 
-import wgpu
-
 
 class LogCaptureHandler(logging.StreamHandler):
     _ANSI_ESCAPE_SEQ = re.compile(r"\x1b\[[\d;]+m")
@@ -62,6 +60,10 @@ def run_tests(scope):
 
 def get_default_adapter_summary():
     """Get description of adapter, or None when no adapter is available."""
+    try:
+        import wgpu
+    except ImportError:
+        return None  # wgpu not installed
     try:
         adapter = wgpu.gpu.request_adapter_sync()
     except RuntimeError:
