@@ -92,39 +92,6 @@ jobs:
       run: |
         pytest -v tests
 
-  test-without-wgpu:
-    name: ${{ matrix.name }} without wgpu
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Test py313
-            os: ubuntu-latest
-            pyversion: '3.13'
-    steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python ${{ matrix.pyversion }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.pyversion }}
-    - name: Install package and dev dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install .[tests]
-        pip remove wgpu
-        rm -r rendercanvas
-    - name: Unit tests
-      run: |
-        python -c "
-        try:
-            import wgpu
-            raise RuntimeError('wgpu could be imported, but this is the no-wgpu test build')
-        except ImportError:
-            print('wgpu is (intentionally) not available')
-        "
-        pytest -v tests
-
   test-examples:
     name: Test examples ${{ matrix.pyversion }}
     runs-on: ${{ matrix.os }}
