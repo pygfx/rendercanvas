@@ -5,6 +5,7 @@ import pytest
 
 from rendercanvas.offscreen import OffscreenRenderCanvas as ManualOffscreenRenderCanvas
 from rendercanvas.utils.bitmaprenderingcontext import BitmapRenderingContext
+
 if can_use_wgpu_lib:
     from rendercanvas.utils.bitmappresentadapter import BitmapPresentAdapter
 
