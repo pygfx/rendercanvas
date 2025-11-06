@@ -1,6 +1,6 @@
 from .basecontext import BaseContext
 
-__all__ = ["BitmapContext", "BitmapContextPlain", "BitmapContextToWgpu"]
+__all__ = ["BitmapContext", "BitmapContextToBitmap", "BitmapContextToScreen"]
 
 
 class BitmapContext(BaseContext):
@@ -20,9 +20,9 @@ class BitmapContext(BaseContext):
         if cls is not BitmapContext:
             return super().__new__(cls)  # Use canvas that is explicitly instantiated
         elif present_method == "bitmap":
-            return super().__new__(BitmapContextPlain)
-        elif present_method == "wgpu":
-            return super().__new__(BitmapContextToWgpu)
+            return super().__new__(BitmapContextToBitmap)
+        elif present_method == "screen":
+            return super().__new__(BitmapContextToScreen)
         else:
             raise TypeError("Unexpected present_method {present_method!r}")
 
@@ -69,7 +69,7 @@ class BitmapContext(BaseContext):
         self._bitmap_and_format = m, format
 
 
-class BitmapContextPlain(BitmapContext):
+class BitmapContextToBitmap(BitmapContext):
     """A BitmapContext that just presents the bitmap to the canvas."""
 
     def __init__(self, present_info):
@@ -103,7 +103,7 @@ class BitmapContextPlain(BitmapContext):
         self._bitmap_and_format = None
 
 
-class BitmapContextToWgpu(BitmapContext):
+class BitmapContextToScreen(BitmapContext):
     """A BitmapContext that uploads to a texture and present that to a ``wgpu.GPUCanvasContext``.
 
     This is uses for canvases that do not support presenting a bitmap.

@@ -40,7 +40,7 @@ This texture is then downloaded to a bitmap on the CPU that can be passed to the
                 └─────────┘                     └────────┘
                               download to CPU
 
-With the ``BitmapContextToWgpu`` context, the bitmap is uploaded to a GPU texture,
+With the ``BitmapContextToScreen`` context, the bitmap is uploaded to a GPU texture,
 which is then rendered to screen using the lower-level canvas-context from ``wgpu``.
 
 .. code-block::

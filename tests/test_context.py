@@ -3,7 +3,7 @@ from rendercanvas.contexts import (
     BaseContext,
     BitmapContext,
     WgpuContext,
-    BitmapContextToWgpu,
+    BitmapContextToScreen,
     WgpuContextToBitmap,
 )
 from rendercanvas.offscreen import OffscreenRenderCanvas as ManualOffscreenRenderCanvas
@@ -53,7 +53,7 @@ class WgpuContextToBitmapLookLikeWgpuPy(WgpuContextToBitmap):
         self._rc_close()
 
 
-class BitmapContextToWgpuAndBackToBimap(BitmapContextToWgpu):
+class BitmapContextToWgpuAndBackToBimap(BitmapContextToScreen):
     """A bitmap context that takes a detour via wgpu :)"""
 
     def _create_wgpu_py_context(self):

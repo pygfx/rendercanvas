@@ -8,7 +8,7 @@ class BaseContext:
 
     def __init__(self, present_info: dict):
         self._present_info = present_info
-        assert present_info["method"] in ("bitmap", "wgpu")  # internal sanity check
+        assert present_info["method"] in ("bitmap", "screen")  # internal sanity check
         self._size_info = {
             "physical_size": (0, 0),
             "native_pixel_ratio": 1.0,
@@ -74,8 +74,7 @@ class BaseContext:
 
         The pixel ratio is typically 1.0 for normal screens and 2.0 for HiDPI
         screens, but fractional values are also possible if the system
-        display-scale is set to e.g. 125%. On MacOS (with a Retina screen) the
-        pixel ratio is always 2.0.
+        display-scale is set to e.g. 125%.
         """
         return self._size_info["total_pixel_ratio"]
 

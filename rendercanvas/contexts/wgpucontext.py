@@ -5,7 +5,7 @@ from .basecontext import BaseContext
 # todo: wgpu should not be imported by default. Add a test for this!
 
 
-__all__ = ["WgpuContext", "WgpuContextPlain", "WgpuContextToBitmap"]
+__all__ = ["WgpuContext", "WgpuContextToBitmap", "WgpuContextToScreen"]
 
 
 class WgpuContext(BaseContext):
@@ -22,8 +22,8 @@ class WgpuContext(BaseContext):
         present_method = present_info["method"]
         if cls is not WgpuContext:
             return super().__new__(cls)  # Use canvas that is explicitly instantiated
-        elif present_method == "wgpu":
-            return super().__new__(WgpuContextPlain)
+        elif present_method == "screen":
+            return super().__new__(WgpuContextToScreen)
         elif present_method == "bitmap":
             return super().__new__(WgpuContextToBitmap)
         else:
@@ -134,7 +134,7 @@ class WgpuContext(BaseContext):
         raise NotImplementedError()
 
 
-class WgpuContextPlain(WgpuContext):
+class WgpuContextToScreen(WgpuContext):
     """A wgpu context that present directly to a ``wgpu.GPUCanvasContext``.
 
     In most cases this means the image is rendered to a native OS surface, i.e. rendered to screen.
@@ -143,7 +143,7 @@ class WgpuContextPlain(WgpuContext):
 
     def __init__(self, present_info: dict):
         super().__init__(present_info)
-        assert self._present_info["method"] == "wgpu"
+        assert self._present_info["method"] == "screen"
         self._create_wgpu_py_context()  # sets self._wgpu_context
 
     def _get_preferred_format(self, adapter: object) -> str:
