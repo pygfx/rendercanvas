@@ -2,8 +2,6 @@ from typing import Sequence
 
 from .basecontext import BaseContext
 
-# todo: wgpu should not be imported by default. Add a test for this!
-
 
 __all__ = ["WgpuContext", "WgpuContextToBitmap", "WgpuContextToScreen"]
 

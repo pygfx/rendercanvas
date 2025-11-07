@@ -70,6 +70,51 @@ Rendering with wgpu:
         # ... wgpu code
 
 
+Physical size, logical size, and pixel-ratio
+--------------------------------------------
+
+The context has properties for the logical size, physical size, and the
+pixel-ratio.
+
+* The physical size represent the actual number of "harware pixels" of the canvas surface.
+* The logical size represents the size in "virtual pixels", which is used to scale elements like text, points, line thickness etc.
+* The pixel-ratio represents the factor between the physical size and the logical size.
+
+On regular screens, the physical size and logical size are often equal:
+
+.. code-block::
+    +----+----+----+----+
+    |    |    |    |    |   Physical pixels
+    +----+----+----+----+
+    +----+----+
+    |    |    |             Logical pixels, pixel-ratio 1.0
+    +----+----+
+On HiDPI / Retina displays, there are many more pixels, but they are much smaller. To prevent things like text to become tiny,
+the logical pixels are made larger, i.e. pixel-ratio is increased (by the operating system), usually by a factor 2:
+
+.. code-block::
+    +--+--+--+--+
+    |  |  |  |  |   Physical pixels
+    +--+--+--+--+
+    +-----+-----+
+    |     |     |    Logical pixels, pixel-ratio 2.0
+    +-----+-----+
+Other operating system may increase the pixel-ratio as a global zoom factor, to increase the size of elements such as text in all applications.
+This means that the pixel-ratio can indeed be fractional:
+
+.. code-block::
+    +----+----+----+----+
+    |    |    |    |    |   Physical pixels
+    +----+----+----+----+
+    +-----+-----+
+    |     |     |           Logical pixels, pixel-ratio ± 1.2
+    +-----+-----+
+Side note: on MacOS, the pixel-ratio is fixed to either 1.0 or 2.0, usually the latter on a Retina display with reasonable resolution settings. (The OS level
+zooming is implemented by rendering the whole screen to an offscreen buffer with
+a different size than the physical screen, and then up/down-scaling that to the
+screen.)
+
+
 .. _async:
 
 Async
