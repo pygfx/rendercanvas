@@ -149,8 +149,11 @@ class BitmapContextToScreen(BitmapContext):
 
         present_feedback = self._wgpu_context.present()
 
+        # We actually allow the _wgpu_context to return present_feedback, because we have a test in which
+        # we mimick a GPUCanvasContext with a WgpuContextToBitmap to cover a full round-trip to wgpu.
         if present_feedback is None:
-            present_feedback = {"method": "delegated"}
+            present_feedback = {"method": "screen"}
+
         return present_feedback
 
     def _rc_close(self):

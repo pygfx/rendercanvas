@@ -229,7 +229,9 @@ class BaseRenderCanvas:
         """Get the ``WgpuContext`` to render to this canvas."""
         return self.get_context("wgpu")
 
-    def get_context(self, context_type: str) -> contexts.BaseContext:
+    def get_context(
+        self, context_type: Literal["bitmap", "wgpu"]
+    ) -> contexts.BaseContext:
         """Get a context object that can be used to render to this canvas.
 
         The context takes care of presenting the rendered result to the canvas.
@@ -541,7 +543,7 @@ class BaseRenderCanvas:
                 if context:
                     result = context._rc_present()
                     method = result.pop("method")
-                    if method in ("skip", "screen", "delegated"):
+                    if method in ("skip", "screen"):
                         pass  # nothing we need to do
                     elif method == "fail":
                         raise RuntimeError(result.get("message", "") or "present error")
@@ -665,7 +667,7 @@ class BaseRenderCanvas:
         field containing the window id. On Linux there should also be ``platform``
         field to distinguish between "wayland" and "x11", and a ``display`` field
         for the display id. This information is used by wgpu to obtain the required
-        surface id.
+        surface id. For Pyodide the required info is different.
 
         With method "bitmap", the context will present the result as an image
         bitmap. For the `WgpuContext`, the result will first be rendered to texture,

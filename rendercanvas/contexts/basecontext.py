@@ -4,7 +4,15 @@ __all__ = ["BaseContext"]
 
 
 class BaseContext:
-    """The base class for context objects in ``rendercanvas``."""
+    """The base class for context objects in ``rendercanvas``.
+
+    All contexts provide detailed size information. A rendering system should
+    generally be capable to perform the rendering with just the context object;
+    without a reference to the canvas. With this, we try to promote a clear
+    separation of concern, where one system listens to events from the canvas to
+    update a certain state, and the renderer uses this state and the context to
+    render the image.
+    """
 
     def __init__(self, present_info: dict):
         self._present_info = present_info
@@ -89,24 +97,19 @@ class BaseContext:
         """Called by BaseRenderCanvas to collect the result. Subclasses must implement this.
 
         The implementation should always return a present-result dict, which
-        should have at least a field 'method'. The value of 'method' must be
-        one of the methods that the canvas supports, i.e. it must be in ``present_methods``.
+        should have at least a field 'method'.
 
         * If there is nothing to present, e.g. because nothing was rendered yet:
             * return ``{"method": "skip"}`` (special case).
         * If presentation could not be done for some reason:
             * return ``{"method": "fail", "message": "xx"}`` (special case).
         * If ``present_method`` is "screen":
-            * Render to screen using the info in ``present_methods['screen']``).
+            * Render to screen using the present info.
             * Return ``{"method", "screen"}`` as confirmation.
         * If ``present_method`` is "bitmap":
             * Return ``{"method": "bitmap", "data": data, "format": format}``.
             * 'data' is a memoryview, or something that can be converted to a memoryview, like a numpy array.
-            * 'format' is the format of the bitmap, must be in ``present_methods['bitmap']['formats']`` ("rgba-u8" is always supported).
-        * If ``present_method`` is something else:
-            * Return ``{"method": "xx", ...}``.
-            * It's the responsibility of the context to use a render method that is supported by the canvas,
-              and that the appropriate arguments are supplied.
+            * 'format' is the format of the bitmap, must be in ``present_info['formats']`` ("rgba-u8" is always supported).
         """
 
         # This is a stub
