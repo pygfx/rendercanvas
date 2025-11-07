@@ -164,16 +164,7 @@ class WgpuContextToScreen(WgpuContext):
 
     def _rc_close(self):
         if self._wgpu_context is not None:
-            if hasattr(self._wgpu_context, "close"):
-                try:
-                    self._wgpu_context.close()  # TODO: make sure this is compatible
-                except Exception:
-                    pass
-            else:
-                try:
-                    self._wgpu_context._release()  # private method
-                except Exception:
-                    pass
+            self._wgpu_context.unconfigure()
 
 
 class WgpuContextToBitmap(WgpuContext):

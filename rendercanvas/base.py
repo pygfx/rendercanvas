@@ -96,7 +96,7 @@ class BaseRenderCanvas:
         max_fps (float): A maximal frames-per-second to use when the ``update_mode`` is 'ondemand'
             or 'continuous'. The default is 30, which is usually enough.
         vsync (bool): Whether to sync the draw with the monitor update. Helps
-            against screen tearing, but can reduce fps. Default True.
+            against screen tearing, but limits the fps. Default True.
         present_method (str | None): Override the method to present the rendered result.
             Can be set to 'screen' or 'bitmap'. Default None, which means that the method is selected
             based on what the canvas supports and what the context prefers.
@@ -267,9 +267,10 @@ class BaseRenderCanvas:
         # Select present_method
         present_methods = self._rc_get_present_methods()
         invalid_methods = set(present_methods.keys()) - {"screen", "bitmap"}
-        logger.warning(
-            f"{self.__class__.__name__} reports unknown present methods {invalid_methods!r}"
-        )
+        if invalid_methods:
+            logger.warning(
+                f"{self.__class__.__name__} reports unknown present methods {invalid_methods!r}"
+            )
         present_method = None
         if context_type == "bitmap":
             if "bitmap" in present_methods:
@@ -289,13 +290,15 @@ class BaseRenderCanvas:
             )
 
         # Select present_info
-        present_info = dict(present_methods[present_method])
+        present_info = present_methods[present_method]
         assert "method" not in present_info, (
             "the field 'method' is reserved in present_methods dicts"
         )
         present_info = {
             "method": present_method,
+            "source": self.__class__.__name__,
             **present_info,
+            "vsync": self._vsync,
         }
 
         if context_type == "bitmap":

@@ -24,17 +24,15 @@ class BaseContext:
 
     def _create_wgpu_py_context(self) -> object:
         """Create a wgpu.GPUCanvasContext"""
-        # TODO: let's add/use hook in wgpu to get the context in a less hacky way
         import wgpu
 
-        backend_module = wgpu.gpu.__module__
-        CanvasContext = sys.modules[backend_module].GPUCanvasContext  # noqa: N806
-
-        if hasattr(CanvasContext, "set_physical_size"):
+        if hasattr(wgpu.gpu, "get_canvas_context"):
             # New style wgpu-py API
-            self._wgpu_context = CanvasContext(self._present_info)
+            self._wgpu_context = wgpu.gpu.get_canvas_context(self._present_info)
         else:
             # Old style wgpu-py API
+            backend_module = wgpu.gpu.__module__
+            CanvasContext = sys.modules[backend_module].GPUCanvasContext  # noqa: N806
             self._object_with_physical_size = pseudo_canvas = PseudoCanvasForWgpuPy()
             self._wgpu_context = CanvasContext(
                 pseudo_canvas, {"screen": self._present_info}
