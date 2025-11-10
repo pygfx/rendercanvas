@@ -9,6 +9,7 @@ Welcome to the rendercanvas docs!
 
     start
     api
+    contexts
     backends
     utils
     Gallery <gallery/index.rst>

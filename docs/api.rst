@@ -1,5 +1,5 @@
-API
-===
+Canvas API
+==========
 
 These are the classes that make up the rendercanvas API:
 

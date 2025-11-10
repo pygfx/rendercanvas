@@ -25,8 +25,7 @@ os.environ["RENDERCANVAS_FORCE_OFFSCREEN"] = "true"
 # Load wgpu so autodoc can query docstrings
 import rendercanvas  # noqa: E402
 import rendercanvas.stub  # noqa: E402 - we use the stub backend to generate docs
-import rendercanvas._context  # noqa: E402 - we use the ContextInterface to generate docs
-import rendercanvas.utils.bitmappresentadapter  # noqa: E402
+
 
 # -- Project information -----------------------------------------------------
 

@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import sys
 import weakref
-import importlib
 from typing import TYPE_CHECKING
 
 from ._enums import (
@@ -15,13 +14,14 @@ from ._enums import (
     CursorShape,
     CursorShapeEnum,
 )
+from . import contexts
 from ._events import EventEmitter
 from ._loop import BaseLoop
 from ._scheduler import Scheduler
 from ._coreutils import logger, log_exception
 
 if TYPE_CHECKING:
-    from typing import Callable, List, Optional, Tuple
+    from typing import Callable, List, Literal, Optional, Tuple
 
     EventHandlerFunction = Callable[[dict], None]
     DrawFunction = Callable[[], None]
@@ -96,9 +96,10 @@ class BaseRenderCanvas:
         max_fps (float): A maximal frames-per-second to use when the ``update_mode`` is 'ondemand'
             or 'continuous'. The default is 30, which is usually enough.
         vsync (bool): Whether to sync the draw with the monitor update. Helps
-            against screen tearing, but can reduce fps. Default True.
+            against screen tearing, but limits the fps. Default True.
         present_method (str | None): Override the method to present the rendered result.
-            Can be set to e.g. 'screen' or 'bitmap'. Default None (auto-select).
+            Can be set to 'screen' or 'bitmap'. Default None, which means that the method is selected
+            based on what the canvas supports and what the context prefers.
 
     """
 
@@ -128,7 +129,7 @@ class BaseRenderCanvas:
         min_fps: float = 0.0,
         max_fps: float = 30.0,
         vsync: bool = True,
-        present_method: Optional[str] = None,
+        present_method: Literal["bitmap", "screen", None] = None,
         **kwargs,
     ):
         # Initialize superclass. Note that super() can be e.g. a QWidget, RemoteFrameBuffer, or object.
@@ -159,6 +160,7 @@ class BaseRenderCanvas:
             "logical_size": (0.0, 0.0),
         }
         self.__need_size_event = False
+        self.__need_context_resize = True  # True bc context may be created later
 
         # Events and scheduler
         self._events = EventEmitter()
@@ -217,24 +219,30 @@ class BaseRenderCanvas:
         except Exception:
             pass
 
-    # %% Implement WgpuCanvasInterface
-
     _canvas_context = None  # set in get_context()
 
     def get_physical_size(self) -> Tuple[int, int]:
         """Get the physical size of the canvas in integer pixels."""
         return self.__size_info["physical_size"]
 
-    def get_context(self, context_type: str) -> object:
+    def get_bitmap_context(self) -> contexts.BitmapContext:
+        """Get the ``BitmapContext`` to render to this canvas."""
+        return self.get_context("bitmap")
+
+    def get_wgpu_context(self) -> contexts.WgpuContext:
+        """Get the ``WgpuContext`` to render to this canvas."""
+        return self.get_context("wgpu")
+
+    def get_context(
+        self, context_type: Literal["bitmap", "wgpu"]
+    ) -> contexts.BaseContext:
         """Get a context object that can be used to render to this canvas.
 
         The context takes care of presenting the rendered result to the canvas.
         Different types of contexts are available:
 
-        * "wgpu": get a ``WgpuCanvasContext`` provided by the ``wgpu`` library.
-        * "bitmap": get a ``BitmapRenderingContext`` provided by the ``rendercanvas`` library.
-        * "another.module": other libraries may provide contexts too. We've only listed the ones we know of.
-        * "your.module:ContextClass": Explicit name.
+        * "wgpu": get a ``WgpuContext``
+        * "bitmap": get a ``BitmapContext``
 
         Later calls to this method, with the same context_type argument, will return
         the same context instance as was returned the first time the method was
@@ -242,60 +250,74 @@ class BaseRenderCanvas:
         one has been created.
         """
 
-        # Note that this method is analog to HtmlCanvas.getContext(), except
-        # the context_type is different, since contexts are provided by other projects.
+        # Note that this method is analog to HtmlCanvas.getContext(), except with different context types.
 
         if not isinstance(context_type, str):
             raise TypeError("context_type must be str.")
 
         # Resolve the context type name
-        known_types = {
-            "wgpu": "wgpu",
-            "bitmap": "rendercanvas.utils.bitmaprenderingcontext",
-        }
-        resolved_context_type = known_types.get(context_type, context_type)
+        if context_type not in ("bitmap", "wgpu"):
+            raise TypeError(
+                "The given context type is invalid: {context_type!r} is not 'bitmap' or 'wgpu'."
+            )
 
         # Is the context already set?
         if self._canvas_context is not None:
-            if resolved_context_type == self._canvas_context._context_type:
+            if context_type == self._canvas_context._context_type:
                 return self._canvas_context
             else:
                 raise RuntimeError(
                     f"Cannot get context for '{context_type}': a context of type '{self._canvas_context._context_type}' is already set."
                 )
 
-        # Load module
-        module_name, _, class_name = resolved_context_type.partition(":")
-        try:
-            module = importlib.import_module(module_name)
-        except ImportError as err:
-            raise ValueError(
-                f"Cannot get context for '{context_type}': {err}. Known valid values are {set(known_types)}"
-            ) from None
-
-        # Obtain factory to produce context
-        factory_name = class_name or "rendercanvas_context_hook"
-        try:
-            factory_func = getattr(module, factory_name)
-        except AttributeError:
-            raise ValueError(
-                f"Cannot get context for '{context_type}': could not find `{factory_name}` in '{module.__name__}'"
-            ) from None
-
-        # Create the context
-        context = factory_func(self, self._rc_get_present_methods())
-
-        # Quick checks to make sure the context has the correct API
-        if not (hasattr(context, "canvas") and context.canvas is self):
-            raise RuntimeError(
-                "The context does not have a canvas attribute that refers to this canvas."
+        # Get available present methods.
+        # Take care not to hold onto this dict, it may contain objects that we don't want to unnecessarily reference.
+        present_methods = self._rc_get_present_methods()
+        invalid_methods = set(present_methods.keys()) - {"screen", "bitmap"}
+        if invalid_methods:
+            logger.warning(
+                f"{self.__class__.__name__} reports unknown present methods {invalid_methods!r}"
             )
-        if not (hasattr(context, "present") and callable(context.present)):
-            raise RuntimeError("The context does not have a present method.")
+
+        # Select present_method
+        present_method = None
+        if context_type == "bitmap":
+            if "bitmap" in present_methods:
+                present_method = "bitmap"
+            elif "screen" in present_methods:
+                present_method = "screen"
+        else:
+            if "screen" in present_methods:
+                present_method = "screen"
+            elif "bitmap" in present_methods:
+                present_method = "bitmap"
+
+        # This should never happen, unless there's a bug
+        if present_method is None:
+            raise RuntimeError(
+                "Could not select present_method for context_type {context_type!r} from present_methods {present_methods!r}"
+            )
+
+        # Select present_info, and shape it into what the contexts need.
+        present_info = present_methods[present_method]
+        assert "method" not in present_info, (
+            "the field 'method' is reserved in present_methods dicts"
+        )
+        present_info = {
+            "method": present_method,
+            "source": self.__class__.__name__,
+            **present_info,
+            "vsync": self._vsync,
+        }
+
+        if context_type == "bitmap":
+            context = contexts.BitmapContext(present_info)
+        else:
+            context = contexts.WgpuContext(present_info)
 
         # Done
         self._canvas_context = context
-        self._canvas_context._context_type = resolved_context_type
+        self._canvas_context._context_type = context_type
         return self._canvas_context
 
     # %% Events
@@ -331,6 +353,7 @@ class BaseRenderCanvas:
         self.__size_info["total_pixel_ratio"] = total_pixel_ratio
         self.__size_info["logical_size"] = logical_size
         self.__need_size_event = True
+        self.__need_context_resize = True
 
     def add_event_handler(
         self, *args: EventTypeEnum | EventHandlerFunction, order: float = 0
@@ -353,6 +376,12 @@ class BaseRenderCanvas:
     # %% Scheduling and drawing
 
     def __maybe_emit_resize_event(self):
+        # Keep context up-to-date
+        if self.__need_context_resize and self._canvas_context is not None:
+            self.__need_context_resize = False
+            self._canvas_context._rc_set_size_info(self.__size_info)
+
+        # Keep event listeners up-to-date
         if self.__need_size_event:
             self.__need_size_event = False
             lsize = self.__size_info["logical_size"]
@@ -440,7 +469,7 @@ class BaseRenderCanvas:
 
         This function does not perform a draw directly, but schedules a draw at
         a suitable moment in time. At that time the draw function is called, and
-        the resulting rendered image is presented to screen.
+        the resulting rendered image is presented to the canvas.
 
         Only affects drawing with schedule-mode 'ondemand'.
 
@@ -519,7 +548,7 @@ class BaseRenderCanvas:
                 # Note: if vsync is used, this call may wait a little (happens down at the level of the driver or OS)
                 context = self._canvas_context
                 if context:
-                    result = context.present()
+                    result = context._rc_present()
                     method = result.pop("method")
                     if method in ("skip", "screen"):
                         pass  # nothing we need to do
@@ -536,7 +565,7 @@ class BaseRenderCanvas:
     # %% Primary canvas management methods
 
     def get_logical_size(self) -> Tuple[float, float]:
-        """Get the logical size (width, height) in float pixels.
+        """Get the logical size (width, height) of the canvas in float pixels.
 
         The logical size can be smaller than the physical size, e.g. on HiDPI
         monitors or when the user's system has the display-scale set to e.g. 125%.
@@ -549,8 +578,7 @@ class BaseRenderCanvas:
         The pixel ratio is typically 1.0 for normal screens and 2.0 for HiDPI
         screens, but fractional values are also possible if the system
         display-scale is set to e.g. 125%. An HiDPI screen can be assumed if the
-        pixel ratio >= 2.0. On MacOS (with a Retina screen) the pixel ratio is
-        always 2.0.
+        pixel ratio >= 2.0.
         """
         return self.__size_info["total_pixel_ratio"]
 
@@ -559,12 +587,10 @@ class BaseRenderCanvas:
         # Clear the draw-function, to avoid it holding onto e.g. wgpu objects.
         self._draw_frame = None  # type: ignore
         # Clear the canvas context too.
-        if hasattr(self._canvas_context, "_release"):
-            # ContextInterface (and GPUCanvasContext) has _release()
-            try:
-                self._canvas_context._release()  # type: ignore
-            except Exception:
-                pass
+        try:
+            self._canvas_context._rc_close()  # type: ignore
+        except Exception:
+            pass
         self._canvas_context = None
         # Clean events. Should already have happened in loop, but the loop may not be running.
         self._events._release()
@@ -648,11 +674,11 @@ class BaseRenderCanvas:
         field containing the window id. On Linux there should also be ``platform``
         field to distinguish between "wayland" and "x11", and a ``display`` field
         for the display id. This information is used by wgpu to obtain the required
-        surface id.
+        surface id. For Pyodide the required info is different.
 
         With method "bitmap", the context will present the result as an image
-        bitmap. On GPU-based contexts, the result will first be rendered to an
-        offscreen texture, and then downloaded to RAM. The sub-dict must have a
+        bitmap. For the `WgpuContext`, the result will first be rendered to texture,
+        and then downloaded to RAM. The sub-dict must have a
         field 'formats': a list of supported image formats. Examples are "rgba-u8"
         and "i-u8". A canvas must support at least "rgba-u8". Note that srgb mapping
         is assumed to be handled by the canvas.

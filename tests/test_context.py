@@ -1,13 +1,15 @@
 import numpy as np
+from rendercanvas.contexts import (
+    BaseContext,
+    BitmapContext,
+    WgpuContext,
+    BitmapContextToScreen,
+    WgpuContextToBitmap,
+)
+from rendercanvas.offscreen import OffscreenRenderCanvas as ManualOffscreenRenderCanvas
+
 from testutils import can_use_wgpu_lib, run_tests
 import pytest
-
-
-from rendercanvas.offscreen import OffscreenRenderCanvas as ManualOffscreenRenderCanvas
-from rendercanvas.utils.bitmaprenderingcontext import BitmapRenderingContext
-
-if can_use_wgpu_lib:
-    from rendercanvas.utils.bitmappresentadapter import BitmapPresentAdapter
 
 
 def get_test_bitmap(width, height):
@@ -28,60 +30,47 @@ def get_test_bitmap(width, height):
     return bitmap
 
 
-hook_call_count = 0
+class WgpuContextToBitmapLookLikeWgpuPy(WgpuContextToBitmap):
+    """A WgpuContextToBitmap with an API like (the new) wgpu.GPUCanvasContext.
 
-
-def rendercanvas_context_hook(canvas, present_methods):
-    global hook_call_count
-    hook_call_count += 1
-    return SpecialAdapterNoop(canvas, present_methods)
-
-
-class SpecialAdapterNoop:
-    def __init__(self, canvas, present_methods):
-        self.canvas = canvas
-
-    def present(self):
-        return {"method": "skip"}
-
-
-class SpecialAdapterFail1:
-    def __init__(self, canvas, present_methods):
-        1 / 0  # noqa
-
-
-class SpecialAdapterFail2:
-    # does not have a present method
-    def __init__(self, canvas, present_methods):
-        self.canvas = canvas
-
-
-class SpecialContextWithWgpuAdapter:
-    """This looks a lot like the BitmapPresentAdapter,
-    except it will *always* use the adapter, so that we can touch that code path.
+    The API's look close enough that we can mimic it with this. This allows
+    testing a workflow that goes from bitmap -> wgpu -> wgpu -> bitmap
     """
 
-    def __init__(self, canvas, present_methods):
-        self.adapter = BitmapPresentAdapter(canvas, present_methods)
-        self.canvas = canvas
-
-    def set_bitmap(self, bitmap):
-        self.bitmap = bitmap
+    def set_physical_size(self, w, h):
+        size_info = {
+            "physical_size": (w, h),
+            "native_pixel_ratio": 1.0,
+            "total_pixel_ratio": 1.0,
+            "logical_size": (float(w), float(h)),
+        }
+        self._rc_set_size_info(size_info)
 
     def present(self):
-        return self.adapter.present_bitmap(self.bitmap)
+        return self._rc_present()
+
+    def close(self):
+        self._rc_close()
+
+
+class BitmapContextToWgpuAndBackToBimap(BitmapContextToScreen):
+    """A bitmap context that takes a detour via wgpu :)"""
+
+    def _create_wgpu_py_context(self):
+        self._wgpu_context = WgpuContextToBitmapLookLikeWgpuPy(self._present_info)
 
 
 # %%
 
 
-def test_context_selection11():
+def test_context_selection_bitmap():
     # Select our builtin bitmap context
 
     canvas = ManualOffscreenRenderCanvas()
 
     context = canvas.get_context("bitmap")
-    assert isinstance(context, BitmapRenderingContext)
+    assert isinstance(context, BitmapContext)
+    assert isinstance(context, BaseContext)
 
     # Cannot select another context now
     with pytest.raises(RuntimeError):
@@ -91,55 +80,32 @@ def test_context_selection11():
     context2 = canvas.get_context("bitmap")
     assert context2 is context
 
-
-def test_context_selection12():
-    # Select bitmap context using full module name
-
-    canvas = ManualOffscreenRenderCanvas()
-
-    context = canvas.get_context("rendercanvas.utils.bitmaprenderingcontext")
-    assert isinstance(context, BitmapRenderingContext)
-
-    # Same thing
-    context2 = canvas.get_context("bitmap")
+    # And this also works
+    context2 = canvas.get_bitmap_context()
     assert context2 is context
 
 
-def test_context_selection13():
-    # Select bitmap context using full path to class.
+@pytest.mark.skipif(not can_use_wgpu_lib, reason="Needs wgpu lib")
+def test_context_selection_wgpu():
+    # Select our builtin bitmap context
+
     canvas = ManualOffscreenRenderCanvas()
 
-    context = canvas.get_context(
-        "rendercanvas.utils.bitmaprenderingcontext:BitmapRenderingContext"
-    )
-    assert isinstance(context, BitmapRenderingContext)
+    context = canvas.get_context("wgpu")
+    assert isinstance(context, WgpuContext)
+    assert isinstance(context, BaseContext)
 
-    # Same thing ... but get_context cannot know
+    # Cannot select another context now
     with pytest.raises(RuntimeError):
         canvas.get_context("bitmap")
 
+    # But can select the same one
+    context2 = canvas.get_context("wgpu")
+    assert context2 is context
 
-def test_context_selection22():
-    # Select bitmap context using full module name, and the hook
-
-    canvas = ManualOffscreenRenderCanvas()
-
-    count = hook_call_count
-    context = canvas.get_context(__name__)
-    assert hook_call_count == count + 1  # hook is called
-
-    assert isinstance(context, SpecialAdapterNoop)
-
-
-def test_context_selection23():
-    # Select bitmap context using full path to class.
-    canvas = ManualOffscreenRenderCanvas()
-
-    count = hook_call_count
-    context = canvas.get_context(__name__ + ":SpecialAdapterNoop")
-    assert hook_call_count == count  # hook is not called
-
-    assert isinstance(context, SpecialAdapterNoop)
+    # And this also works
+    context2 = canvas.get_wgpu_context()
+    assert context2 is context
 
 
 def test_context_selection_fails():
@@ -152,39 +118,20 @@ def test_context_selection_fails():
 
     # Must be a string
     with pytest.raises(TypeError) as err:
-        canvas.get_context(BitmapRenderingContext)
+        canvas.get_context(BitmapContext)
     assert "must be str" in str(err)
 
-    # Must be a valid module
-    with pytest.raises(ValueError) as err:
-        canvas.get_context("thisisnotavalidmodule")
-    assert "no module named" in str(err).lower()
-
-    # Must be a valid module
-    with pytest.raises(ValueError) as err:
-        canvas.get_context("thisisnot.avalidmodule.either")
-    assert "no module named" in str(err).lower()
-
-    # The module must have a hook
-    with pytest.raises(ValueError) as err:
-        canvas.get_context("rendercanvas._coreutils")
-    assert "could not find" in str(err)
-
-    # Error on instantiation
-    with pytest.raises(ZeroDivisionError):
-        canvas.get_context(__name__ + ":SpecialAdapterFail1")
-
-    # Class does not look like a context
-    with pytest.raises(RuntimeError) as err:
-        canvas.get_context(__name__ + ":SpecialAdapterFail2")
-    assert "does not have a present method." in str(err)
+    # Must be a valid string
+    with pytest.raises(TypeError) as err:
+        canvas.get_context("notacontexttype")
+    assert "context type is invalid" in str(err)
 
 
 def test_bitmap_context():
     # Create canvas, and select the rendering context
     canvas = ManualOffscreenRenderCanvas()
     context = canvas.get_context("bitmap")
-    assert isinstance(context, BitmapRenderingContext)
+    assert isinstance(context, BitmapContext)
 
     # Create and set bitmap
     bitmap = get_test_bitmap(*canvas.get_physical_size())
@@ -213,19 +160,21 @@ def test_bitmap_context():
 
 
 @pytest.mark.skipif(not can_use_wgpu_lib, reason="Needs wgpu lib")
-def test_bitmap_present_adapter():
+def test_wgpu_context():
     # Create canvas and attach our special adapter canvas
     canvas = ManualOffscreenRenderCanvas()
-    context = canvas.get_context(__name__ + ":SpecialContextWithWgpuAdapter")
+    context = BitmapContextToWgpuAndBackToBimap(
+        {"method": "bitmap", "formats": ["rgba-u8"]}
+    )
+    canvas._canvas_context = context
+    assert isinstance(context, BitmapContext)
 
     # Create and set bitmap
     bitmap = get_test_bitmap(*canvas.get_physical_size())
     context.set_bitmap(bitmap)
 
-    # Draw! This will call SpecialContextWithWgpuAdapter.present(), which will
-    # invoke the adapter to render the bitmap to a texture. The GpuCanvasContext.present()
-    # method will also be called, which will download the texture to a bitmap,
-    # and that's what we receive as the result.
+    # Draw! The primary context will upload the bitmap to a wgpu texture,
+    # and the wrapped context will then download it to a bitmap again.
     # So this little line here touches quite a lot of code. In the end, the bitmap
     # should be unchanged, because the adapter assumes that the incoming bitmap
     # is in the sRGB colorspace.

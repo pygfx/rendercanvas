@@ -76,7 +76,7 @@ class MyOffscreenCanvas(rendercanvas.BaseRenderCanvas):
     def __init__(self):
         super().__init__()
         self.frame_count = 0
-        self.physical_size = 100, 100
+        self._set_size_info((100, 100), 1)
 
     def _rc_get_present_methods(self):
         return {
@@ -88,15 +88,6 @@ class MyOffscreenCanvas(rendercanvas.BaseRenderCanvas):
     def _rc_present_bitmap(self, *, data, format, **kwargs):
         self.frame_count += 1
         self.array = np.frombuffer(data, np.uint8).reshape(data.shape)
-
-    def get_pixel_ratio(self):
-        return 1
-
-    def get_logical_size(self):
-        return self.get_physical_size()
-
-    def get_physical_size(self):
-        return self.physical_size
 
 
 @mark.skipif(not can_use_wgpu_lib, reason="Needs wgpu lib")
@@ -162,7 +153,7 @@ def test_simple_offscreen_canvas():
     assert np.all(canvas.array[:, :, 1] == 255)
 
     # Change resolution
-    canvas.physical_size = 120, 100
+    canvas._set_size_info((120, 100), 1)
 
     # Draw 3
     canvas.force_draw()
@@ -171,7 +162,7 @@ def test_simple_offscreen_canvas():
     assert np.all(canvas.array[:, :, 1] == 255)
 
     # Change resolution
-    canvas.physical_size = 120, 140
+    canvas._set_size_info((120, 140), 1)
 
     # Draw 4
     canvas.force_draw()
