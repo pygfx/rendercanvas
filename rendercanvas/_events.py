@@ -76,8 +76,8 @@ class EventEmitter:
 
         .. code-block:: py
 
-            @canvas.add_event_handler("pointer_up", "pointer_down") def
-            my_handler(event):
+            @canvas.add_event_handler("pointer_up", "pointer_down")
+            def my_handler(event):
                 print(event)
 
         Catch 'm all:

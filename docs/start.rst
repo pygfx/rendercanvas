@@ -129,12 +129,12 @@ Async
 A render canvas can be used in a fully async setting using e.g. Asyncio or Trio, or in an event-drived framework like Qt.
 If you like callbacks, ``loop.call_later()`` always works. If you like async, use ``loop.add_task()``. Event handlers can always be async.
 
-If you make use of async functions (co-routines), and want to keep your code portable accross
+If you make use of async functions (co-routines), and want to keep your code portable across
 different canvas backends, restrict your use of async features to ``sleep``  and ``Event``;
-these are the only features currently implemened in our async adapter utility.
+these are the only features currently implemented in our async adapter utility.
 We recommend importing these from :doc:`rendercanvas.utils.asyncs <utils_asyncs>` or use ``sniffio`` to detect the library that they can be imported from.
 
-On the other hand, if you know your code always runs on the asyncio loop, you can fully make use of ``asyncio``. Dito for Trio.
+On the other hand, if you know your code always runs on the asyncio loop, you can fully make use of ``asyncio``. Ditto for Trio.
 
 If you use Qt and get nervous from async code, no worries, when running on Qt, ``asyncio`` is not even imported. You can regard most async functions
 as syntactic sugar for pieces of code chained with ``call_later``. That's more or less how our async adapter works :)

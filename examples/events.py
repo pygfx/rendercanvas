@@ -2,7 +2,7 @@
 Events
 ------
 
-A simple example to demonstrate events.
+A simple example to demonstrate events. Events are printed to the console.
 """
 
 from rendercanvas.auto import RenderCanvas, loop

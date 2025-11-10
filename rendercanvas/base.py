@@ -123,8 +123,8 @@ class BaseRenderCanvas:
     def __init__(
         self,
         *args,
-        size: Tuple[float, float] = (640, 480),
-        title: str = "$backend",
+        size: Tuple[float, float] | None = (640, 480),
+        title: str | None = "$backend",
         update_mode: UpdateModeEnum = "ondemand",
         min_fps: float = 0.0,
         max_fps: float = 30.0,
@@ -199,8 +199,12 @@ class BaseRenderCanvas:
             del self.__kwargs_for_later
         # Apply
         if not isinstance(self, WrapperRenderCanvas):
-            self.set_logical_size(*kwargs["size"])  # type: ignore
-            self.set_title(kwargs["title"])  # type: ignore
+            size = kwargs["size"]
+            if size is not None:
+                self.set_logical_size(*size)  # type: ignore
+            title = kwargs["title"]
+            if title is not None:
+                self.set_title(title)  # type: ignore
 
     def __del__(self):
         # On delete, we call the custom destroy method.
@@ -508,7 +512,7 @@ class BaseRenderCanvas:
             # "draw event" that we requested, or as part of a forced draw.
 
             # Cannot draw to a closed canvas.
-            if self._rc_get_closed():
+            if self._rc_get_closed() or self._draw_frame is None:
                 return
 
             # Note: could check whether the known physical size is > 0.
@@ -707,7 +711,7 @@ class BaseRenderCanvas:
         raise NotImplementedError()
 
     def _rc_set_logical_size(self, width: float, height: float):
-        """Set the logical size. May be ignired when it makes no sense.
+        """Set the logical size. May be ignored when it makes no sense.
 
         The default implementation does nothing.
         """
