@@ -384,8 +384,9 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         # * On Win10 this always returns 1 - so hidpi is effectively broken
         ratio = self.GetContentScaleFactor()
         # We use the same logic as for Qt to derive the physical size.
-        psize = round(lsize[0] * ratio + 0.01), round(lsize[1] * ratio + 0.01)
-        self._set_size_info(psize, ratio)
+        pwidth = round(lsize[0] * ratio + 0.01)
+        pheight = round(lsize[1] * ratio + 0.01)
+        self._set_size_info(pwidth, pheight, ratio)
 
     def _on_key_down(self, event: wx.KeyEvent):
         char_str = self._get_char_from_event(event)

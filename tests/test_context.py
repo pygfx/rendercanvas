@@ -44,7 +44,7 @@ class WgpuContextToBitmapLookLikeWgpuPy(WgpuContextToBitmap):
             "total_pixel_ratio": 1.0,
             "logical_size": (float(w), float(h)),
         }
-        self._rc_set_size_info(size_info)
+        self._rc_set_size_dict(size_info)
 
     def present(self):
         return self._rc_present()

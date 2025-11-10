@@ -322,7 +322,9 @@ class BaseRenderCanvas:
 
     # %% Events
 
-    def _set_size_info(self, physical_size: Tuple[int, int], pixel_ratio: float):
+    def _set_size_info(
+        self, physical_width: int, physical_height: int, pixel_ratio: float
+    ):
         """Must be called by subclasses when their size changes.
 
         Backends must *not* submit a "resize" event; the base class takes care of that, because
@@ -335,7 +337,7 @@ class BaseRenderCanvas:
         zoom factor is multiplied with it to obtain the final pixel-ratio for
         this canvas.
         """
-        self.__size_info["physical_size"] = int(physical_size[0]), int(physical_size[1])
+        self.__size_info["physical_size"] = int(physical_width), int(physical_height)
         self.__size_info["native_pixel_ratio"] = float(pixel_ratio)
         self.__resolve_total_pixel_ratio_and_logical_size()
 
@@ -379,7 +381,7 @@ class BaseRenderCanvas:
         # Keep context up-to-date
         if self.__need_context_resize and self._canvas_context is not None:
             self.__need_context_resize = False
-            self._canvas_context._rc_set_size_info(self.__size_info)
+            self._canvas_context._rc_set_size_dict(self.__size_info)
 
         # Keep event listeners up-to-date
         if self.__need_size_event:
