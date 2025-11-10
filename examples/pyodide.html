@@ -1,0 +1,81 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <title>RenderCanvas Pyodide example</title>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.29.0/full/pyodide.js"></script>
+</head>
+
+<body>
+    <p>
+        This example demonstrates using Pyodide directly. It's a bit more
+        involved than PyScript, but it shows more directly what happens.
+        Further, this example shows how to deal with multiple canvases on the
+        same page; the first is made red, the second is made green. Both
+        canvases are also resized from the Python code.
+    </p>
+    <p>
+        This example is standalone (can be opened in the browser with a server).
+        To run this with the development version of rendercanvas, run the
+        <i>serve_browser_examples.py</i> script and select the example from
+        there.
+    </p>
+    <!-- declare your canvas elements with a unique id -->
+    <canvas id="canvas1" width="100" height="100" style="background: #aaa;"></canvas>
+    <canvas id="canvas2" width="100" height="100" style="background: #aaa;"></canvas>
+    <br><br>
+
+    <script type="text/javascript">
+        async function main() {
+            pythonCode = `
+                from rendercanvas.auto import RenderCanvas, loop
+                import numpy as np
+                from js import document
+
+                # Select by name
+                canvas_red = RenderCanvas(canvas_element="canvas1", size=(320, 240), update_mode="ondemand")
+
+                # Or by element
+                canvas2_el = document.getElementById("canvas2")
+                canvas_green = RenderCanvas(canvas_element=canvas2_el, size=(320, 240), update_mode="continuous")
+
+                context_red = canvas_red.get_context("bitmap")
+                context_green = canvas_green.get_context("bitmap")
+
+                red_data = np.random.uniform(127, 255, size=(24, 32, 4)).astype(np.uint8)
+                red_data[..., 0] = 255
+                red_data[..., 3] = 255
+
+                green_data = np.random.uniform(0, 255, size=(24, 32, 4)).astype(np.uint8)
+                green_data[..., 1] = 255
+                green_data[..., 3] = 255
+
+                @canvas_red.request_draw
+                def animate_red():
+                    context_red.set_bitmap(red_data)
+
+                @canvas_green.request_draw
+                def animate_green():
+                    context_green.set_bitmap(green_data)
+
+                # The loop.run() is not required in Pyodide, but you can include it so that the code works on both desktop and Pyodide.
+                loop.run()
+            `
+
+            // Load Pyodide
+            let pyodide = await loadPyodide();
+
+            await pyodide.loadPackage("micropip");
+            const micropip = pyodide.pyimport("micropip");
+            await micropip.install('numpy');
+            await micropip.install("rendercanvas");
+
+            // Run the Python code async
+            pyodide.runPythonAsync(pythonCode);
+        }
+        main();
+    </script>
+</body>
+
+</html>

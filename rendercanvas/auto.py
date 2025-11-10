@@ -29,6 +29,8 @@ def _load_backend(backend_name):
         from . import wx as module
     elif backend_name == "offscreen":
         from . import offscreen as module
+    elif backend_name == "pyodide":
+        from . import pyodide as module
     else:  # no-cover
         raise ImportError("Unknown rendercanvas backend: '{backend_name}'")
     return module
@@ -81,6 +83,7 @@ def backends_generator():
     """Generator that iterates over all sub-generators."""
     for gen in [
         backends_by_env_vars,
+        backends_by_browser,
         backends_by_jupyter,
         backends_by_imported_modules,
         backends_by_trying_in_order,
@@ -202,6 +205,14 @@ def backends_by_trying_in_order():
         except ModuleNotFoundError:
             continue
         yield backend_name, f"{libname} can be imported"
+
+
+def backends_by_browser():
+    """If python runs in a web browser, we use the pyodide backend."""
+    # https://pyodide.org/en/stable/usage/faq.html#how-to-detect-that-code-is-run-with-pyodide
+    # Technically, we could also be in microPython/RustPython/etc. For now, we only target Pyodide.
+    if sys.platform == "emscripten":
+        yield "pyodide", "running in a web browser"
 
 
 # Load!
