@@ -270,13 +270,16 @@ class BaseRenderCanvas:
                     f"Cannot get context for '{context_type}': a context of type '{self._canvas_context._context_type}' is already set."
                 )
 
-        # Select present_method
+        # Get available present methods.
+        # Take care not to hold onto this dict, it may contain objects that we don't want to unnecessarily reference.
         present_methods = self._rc_get_present_methods()
         invalid_methods = set(present_methods.keys()) - {"screen", "bitmap"}
         if invalid_methods:
             logger.warning(
                 f"{self.__class__.__name__} reports unknown present methods {invalid_methods!r}"
             )
+
+        # Select present_method
         present_method = None
         if context_type == "bitmap":
             if "bitmap" in present_methods:
@@ -295,7 +298,7 @@ class BaseRenderCanvas:
                 "Could not select present_method for context_type {context_type!r} from present_methods {present_methods!r}"
             )
 
-        # Select present_info
+        # Select present_info, and shape it into what the contexts need.
         present_info = present_methods[present_method]
         assert "method" not in present_info, (
             "the field 'method' is reserved in present_methods dicts"
