@@ -21,7 +21,7 @@ from ._scheduler import Scheduler
 from ._coreutils import logger, log_exception
 
 if TYPE_CHECKING:
-    from typing import Callable, List, Literal, Optional, Tuple
+    from typing import Callable, Literal, Optional
 
     EventHandlerFunction = Callable[[dict], None]
     DrawFunction = Callable[[], None]
@@ -74,7 +74,7 @@ class BaseCanvasGroup:
         """Get the currently associated loop (can be None for canvases that don't run a scheduler)."""
         return self._loop
 
-    def get_canvases(self) -> List[BaseRenderCanvas]:
+    def get_canvases(self) -> list[BaseRenderCanvas]:
         """Get a list of currently active (not-closed) canvases for this group."""
         return [canvas for canvas in self._canvases if not canvas.get_closed()]
 
@@ -123,7 +123,7 @@ class BaseRenderCanvas:
     def __init__(
         self,
         *args,
-        size: Tuple[float, float] | None = (640, 480),
+        size: tuple[float, float] | None = (640, 480),
         title: str | None = "$backend",
         update_mode: UpdateModeEnum = "ondemand",
         min_fps: float = 0.0,
@@ -221,7 +221,7 @@ class BaseRenderCanvas:
 
     _canvas_context = None  # set in get_context()
 
-    def get_physical_size(self) -> Tuple[int, int]:
+    def get_physical_size(self) -> tuple[int, int]:
         """Get the physical size of the canvas in integer pixels."""
         return self.__size_info["physical_size"]
 
@@ -566,7 +566,7 @@ class BaseRenderCanvas:
 
     # %% Primary canvas management methods
 
-    def get_logical_size(self) -> Tuple[float, float]:
+    def get_logical_size(self) -> tuple[float, float]:
         """Get the logical size (width, height) of the canvas in float pixels.
 
         The logical size can be smaller than the physical size, e.g. on HiDPI
@@ -802,10 +802,10 @@ class WrapperRenderCanvas(BaseRenderCanvas):
     def force_draw(self) -> None:
         self._subwidget.force_draw()
 
-    def get_physical_size(self) -> Tuple[int, int]:
+    def get_physical_size(self) -> tuple[int, int]:
         return self._subwidget.get_physical_size()
 
-    def get_logical_size(self) -> Tuple[float, float]:
+    def get_logical_size(self) -> tuple[float, float]:
         return self._subwidget.get_logical_size()
 
     def get_pixel_ratio(self) -> float:

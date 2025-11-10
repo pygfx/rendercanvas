@@ -13,7 +13,7 @@ from .utils.asyncs import sleep
 from .utils import asyncadapter
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, Coroutine, List
+    from typing import Any, Callable, Coroutine
     from base import BaseRenderCanvas
 
     CallbackFunction = Callable[[], Any]
@@ -83,7 +83,7 @@ class BaseLoop:
         # A CanvasGroup will call this when it selects a different loop.
         self.__canvas_groups.discard(canvas_group)
 
-    def get_canvases(self) -> List[BaseRenderCanvas]:
+    def get_canvases(self) -> list[BaseRenderCanvas]:
         """Get a list of currently active (not-closed) canvases."""
         canvases = []
         for canvas_group in self.__canvas_groups:
