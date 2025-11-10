@@ -269,10 +269,10 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         # on some systems and in logical-pixels on other, we use the
         # framebuffer size and pixel ratio to derive the logical size.
         pixel_ratio = get_window_content_scale(self._window)[0]
-        psize = get_physical_size(self._window)
+        pwidth, pheight = get_physical_size(self._window)
 
         self._pixel_ratio = pixel_ratio  # store
-        self._set_size_info(psize, pixel_ratio)
+        self._set_size_info(pwidth, pheight, pixel_ratio)
 
     def _on_want_close(self, *args):
         # Called when the user attempts to close the window, for example by clicking the close widget in the title bar.

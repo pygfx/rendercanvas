@@ -46,7 +46,7 @@ class BaseContext:
                 pseudo_canvas, {"screen": self._present_info}
             )
 
-    def _rc_set_size_info(self, size_info: dict) -> None:
+    def _rc_set_size_dict(self, size_info: dict) -> None:
         """Called by the BaseRenderCanvas to update the size."""
         # Note that we store the dict itself, not a copy. So our size is always up-to-date,
         # but this function is called on resize nonetheless so we can pass resizes downstream.

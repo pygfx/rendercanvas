@@ -105,11 +105,9 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
         elif event_type == "resize":
             logical_size = event["width"], event["height"]
             pixel_ratio = event["pixel_ratio"]
-            physical_size = (
-                int(logical_size[0] * pixel_ratio),
-                int(logical_size[1] * pixel_ratio),
-            )
-            self._set_size_info(physical_size, pixel_ratio)
+            pwidth = int(logical_size[0] * pixel_ratio)
+            pheight = int(logical_size[1] * pixel_ratio)
+            self._set_size_info(pwidth, pheight, pixel_ratio)
             self.request_draw()
             return
 

@@ -569,8 +569,9 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         # but also add a small offset. Tested on Win10 with several different OS
         # scales. Would be nice if we could ask Qt for the exact physical size, but
         # we can't. Not an issue on qt5, because ratio is always integer then.
-        psize = round(lsize[0] * ratio + 0.01), round(lsize[1] * ratio + 0.01)
-        self._set_size_info(psize, ratio)
+        pwidth = round(lsize[0] * ratio + 0.01)
+        pheight = round(lsize[1] * ratio + 0.01)
+        self._set_size_info(pwidth, pheight, ratio)
         # self.update() / self.request_draw() is implicit
 
     def closeEvent(self, event):  # noqa: N802
