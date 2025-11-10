@@ -292,7 +292,7 @@ An example using PyScript (which uses Pyodide):
     <html>
     <head>
         <meta name="viewport" content="width=device-width,initial-scale=1.0">
-        <script type="module" src="https://pyscript.net/releases/2025.10.3/core.js"></script>
+        <script type="module" src="https://pyscript.net/releases/2025.11.1/core.js"></script>
     </head>
     <body>
         <canvas id='canvas' style="background:#aaa; width: 640px; height: 480px;"></canvas>

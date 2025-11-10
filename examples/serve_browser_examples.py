@@ -57,7 +57,7 @@ def get_html_index():
     <head>
         <meta name="viewport" content="width=device-width,initial-scale=1.0">
         <title>RenderCanvas PyScript examples</title>
-        <script type="module" src="https://pyscript.net/releases/2025.10.3/core.js"></script>
+        <script type="module" src="https://pyscript.net/releases/2025.11.1/core.js"></script>
     </head>
     <body>
 
@@ -84,7 +84,7 @@ pyscript_template = """
 <head>
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
     <title>example.py via PyScript</title>
-    <script type="module" src="https://pyscript.net/releases/2025.10.3/core.js"></script>
+    <script type="module" src="https://pyscript.net/releases/2025.11.1/core.js"></script>
 </head>
 
 <body>
