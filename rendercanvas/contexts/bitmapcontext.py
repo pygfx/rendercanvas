@@ -34,7 +34,7 @@ class BitmapContext(BaseContext):
         """Set the rendered bitmap image.
 
         Call this in the draw event. The bitmap must be an object that can be
-        conveted to a memoryview, like a numpy array. It must represent a 2D
+        converted to a memoryview, like a numpy array. It must represent a 2D
         image in either grayscale or rgba format, with uint8 values
         """
 

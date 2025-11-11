@@ -286,14 +286,19 @@ class WgpuContextToBitmap(WgpuContext):
         if not self._texture:
             return {"method": "skip"}
 
-        bitmap = self._get_bitmap()
+        # TODO: in some cases, like offscreen backend, we don't want to skip the first frame!
+        bitmap = self._get_bitmap_stage2()
+        self._get_bitmap_stage1()
         self._drop_texture()
+        if bitmap is None:
+            return {"method": "skip"}
         return {"method": "bitmap", "format": "rgba-u8", "data": bitmap}
 
     _copy_buffer = None, 0
     _extra_stride = -1
+    _pending_bitmap_info = None
 
-    def _get_bitmap(self):
+    def _get_bitmap_stage1(self):
         import wgpu
 
         texture = self._texture
@@ -360,6 +365,32 @@ class WgpuContextToBitmap(WgpuContext):
         device.queue.submit([command_buffer])
 
         awaitable = copy_buffer.map_async("READ_NOSYNC", 0, data_length)
+
+        self._pending_bitmap_info = (
+            awaitable,
+            copy_buffer,
+            size,
+            ori_stride,
+            extra_stride,
+            full_stride,
+            format,
+            nchannels,
+        )
+
+    def _get_bitmap_stage2(self):
+        if self._pending_bitmap_info is None:
+            return None
+
+        (
+            awaitable,
+            copy_buffer,
+            size,
+            ori_stride,
+            extra_stride,
+            full_stride,
+            format,
+            nchannels,
+        ) = self._pending_bitmap_info
 
         # Download from mappable buffer
         # Because we use `copy=False``, we *must* copy the data.
