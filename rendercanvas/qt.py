@@ -400,6 +400,8 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         # If I understand things correctly, Qt uses composition on the CPU, so
         # there is an inherent limit to the performance. Rendering with GL likely
         # includes downloading the rendered image for composition.
+        #
+        # Also see https://github.com/pygfx/rendercanvas/pull/139
 
         width, height = data.shape[1], data.shape[0]  # width, height
 
