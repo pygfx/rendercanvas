@@ -90,7 +90,7 @@ class BaseRenderCanvas:
     Arguments:
         size (tuple): the logical size (width, height) of the canvas.
         title (str): The title of the canvas. Can use '$backend' to show the RenderCanvas class name,
-            and '$fps' to show the fps.
+            '$fps' to show the fps, and '$ms' to show the frame-time (recommended for benchmarks).
         update_mode (UpdateMode): The mode for scheduling draws and events. Default 'ondemand'.
         min_fps (float): A minimal frames-per-second to use when the ``update_mode`` is 'ondemand'. The default is 0:
         max_fps (float): A maximal frames-per-second to use when the ``update_mode`` is 'ondemand'
@@ -147,6 +147,7 @@ class BaseRenderCanvas:
         self.__title_info = {
             "raw": "",
             "fps": "?",
+            "ms": "?",
             "backend": self.__class__.__name__,
             "loop": self._rc_canvas_group.get_loop().__class__.__name__
             if (self._rc_canvas_group and self._rc_canvas_group.get_loop())
@@ -533,12 +534,14 @@ class BaseRenderCanvas:
 
             # Notify the scheduler
             if self.__scheduler is not None:
-                fps = self.__scheduler.on_draw()
+                frame_time = self.__scheduler.on_draw()
 
                 # Maybe update title
-                if fps is not None:
-                    self.__title_info["fps"] = f"{fps:0.1f}"
-                    if "$fps" in self.__title_info["raw"]:
+                if frame_time is not None:
+                    self.__title_info["fps"] = f"{min(9999, 1 / frame_time):0.1f}"
+                    self.__title_info["ms"] = f"{min(9999, 1000 * frame_time):0.1f}"
+                    raw_title = self.__title_info["raw"]
+                    if "$fps" in raw_title or "$ms" in raw_title:
                         self.set_title(self.__title_info["raw"])
 
             # Perform the user-defined drawing code. When this errors,
@@ -630,7 +633,7 @@ class BaseRenderCanvas:
     def set_title(self, title: str) -> None:
         """Set the window title.
 
-        The words "$backend", "$loop", and "$fps" can be used as variables that
+        The words "$backend", "$loop", "$fps", and "$ms" can be used as variables that
         are filled in with the corresponding values.
         """
         self.__title_info["raw"] = title
