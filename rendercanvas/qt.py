@@ -26,6 +26,8 @@ if libname:
     QtCore = importlib.import_module(".QtCore", libname)
     QtGui = importlib.import_module(".QtGui", libname)
     QtWidgets = importlib.import_module(".QtWidgets", libname)
+    # Uncomment the line below to try QtOpenGLWidgets.QOpenGLWidget instead of QWidget
+    # QtOpenGLWidgets = importlib.import_module(".QtOpenGLWidgets", libname)
     try:
         # pyqt6
         WA_PaintOnScreen = QtCore.Qt.WidgetAttribute.WA_PaintOnScreen
@@ -374,39 +376,50 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         self.repaint()
 
     def _rc_present_bitmap(self, *, data, format, **kwargs):
+        # Notes on performance:
+        #
+        # In the early stage of https://github.com/pygfx/rendercanvas/pull/138,
+        # with a single copy-buffer, running the cube example on my M1, with
+        # bitmap-present, I get about 75 FPS.
+        #
+        # AK: I tried to make this a QLabel and update a QPixmap by doing
+        # self._pixmap.convertFromImage(qImage), but this is much slower.
+        #
+        # AK: I tried to maintain a self._qimage, so that it maybe gets bound
+        # internally to a texture, but that even makes it slightly slower.
+        #
+        # AK: I tried inheriting from QOpenGLWidget, because I saw a blog post
+        # (https://doc.qt.io/archives/qt-5.15/qtopengl-2dpainting-example.html)
+        # that says it will make the painter hardware accelerated.
+        # Interestingly, the content is drawn different to screen, as if the
+        # rect args to drawImage are interpreted differently (or wrong), which
+        # suggests that the painter *does* take a different path. Also, it can
+        # be observed that the CPU usage is less that with QWidget. However, the
+        # performance does not significantly increase (in my tests)
+        #
+        # If I understand things correctly, Qt uses composition on the CPU, so
+        # there is an inherent limit to the performance. Rendering with GL likely
+        # includes downloading the rendered image for composition.
+        #
+        # Also see https://github.com/pygfx/rendercanvas/pull/139
+
         width, height = data.shape[1], data.shape[0]  # width, height
-        rect1 = QtCore.QRect(0, 0, width, height)
-        rect2 = self.rect()
 
-        painter = QtGui.QPainter(self)
-        # backingstore = self.backingStore()
-        # backingstore.beginPaint(rect2)
-        # painter = QtGui.QPainter(backingstore.paintDevice())
-
-        # We want to simply blit the image (copy pixels one-to-one on framebuffer).
-        # Maybe Qt does this when the sizes match exactly (like they do here).
-        # Converting to a QPixmap and painting that only makes it slower.
-
-        # Just in case, set render hints that may hurt performance.
-        painter.setRenderHints(
-            painter.RenderHint.Antialiasing | painter.RenderHint.SmoothPixmapTransform,
-            False,
-        )
-
+        # Wrap the data in a QImage (no copy)
         qtformat = BITMAP_FORMAT_MAP[format]
         bytes_per_line = data.strides[0]
         image = QtGui.QImage(data, width, height, bytes_per_line, qtformat)
 
+        # Prep drawImage rects
+        rect1 = QtCore.QRect(0, 0, width, height)
+        rect2 = self.rect()
+
+        # Paint the image. Nearest neighbor interpolation, like the other backends.
+        painter = QtGui.QPainter(self)
+        painter.setRenderHints(painter.RenderHint.Antialiasing, False)
+        painter.setRenderHints(painter.RenderHint.SmoothPixmapTransform, False)
         painter.drawImage(rect2, image, rect1)
-
-        # Uncomment for testing purposes
-        # painter.setPen(QtGui.QColor("#0000ff"))
-        # painter.setFont(QtGui.QFont("Arial", 30))
-        # painter.drawText(100, 100, "This is an image")
-
         painter.end()
-        # backingstore.endPaint()
-        # backingstore.flush(rect2)
 
     def _rc_set_logical_size(self, width, height):
         width, height = int(width), int(height)
