@@ -59,24 +59,26 @@ class StubRenderCanvas(BaseRenderCanvas):
     """
     The ``RenderCanvas`` represents the canvas to render to.
 
-    Backends must subclass ``BaseRenderCanvas`` and implement a set of methods prefixed with ``_rc_``.
-    This class also shows a few other private methods of the base canvas class, that a backend must be aware of.
+    Backends must subclass ``BaseRenderCanvas`` and implement a set of methods
+    prefixed with ``_rc_``.
+
+    Backends must call ``self._final_canvas_init()`` at the end of its
+    ``__init__()``. This will set the canvas' logical size and title.
+
+    Backends must call ``self._draw_frame_and_present()`` to make the actual
+    draw. This should typically be done inside the backend's native draw event.
+
+    Backends must call ``self._size_info.set_physical_size(width, height, native_pixel_ratio)``,
+    whenever the size or pixel ratio changes. It must be called when the actual
+    viewport has changed, so typically not in ``_rc_set_logical_size()``, but
+    e.g. when the underlying GUI layer fires a resize event.
+
+    Backends must also call ``self.submit_event()``, if applicable, to produce
+    events for mouse and keyboard. Backends must *not* submit a "resize" event;
+    the base class takes care of that. See the event spec for details.
     """
 
     # Note that the methods below don't have docstrings, but Sphinx recovers the docstrings from the base class.
-
-    # Just listed here so they end up in the docs
-
-    def _final_canvas_init(self):
-        return super()._final_canvas_init()
-
-    def _process_events(self):
-        return super()._process_events()
-
-    def _draw_frame_and_present(self):
-        return super()._draw_frame_and_present()
-
-    # Must be implemented by subclasses.
 
     _rc_canvas_group = StubCanvasGroup(loop)
 

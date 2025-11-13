@@ -18,12 +18,6 @@ class SizeInfo(dict):
     def set_physical_size(self, width: int, height: int, pixel_ratio: float):
         """Must be called by subclasses when their size changes.
 
-        Backends must *not* submit a "resize" event; the base class takes care of that, because
-        it requires some more attention than the other events.
-
-        The subclass must call this when the actual viewport has changed. So not in ``_rc_set_logical_size()``,
-        but e.g. when the underlying GUI layer fires a resize event, and maybe on init.
-
         The given pixel-ratio represents the 'native' pixel ratio. The canvas'
         zoom factor is multiplied with it to obtain the final pixel-ratio for
         this canvas.
