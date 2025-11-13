@@ -90,7 +90,7 @@ class BaseRenderCanvas:
     Arguments:
         size (tuple): the logical size (width, height) of the canvas.
         title (str): The title of the canvas. Can use '$backend' to show the RenderCanvas class name,
-            '$fps' to show the fps, and '$ms' to show the frame-time (recommended for benchmarks).
+            '$fps' to show the fps, and '$ms' to show the frame-time.
         update_mode (UpdateMode): The mode for scheduling draws and events. Default 'ondemand'.
         min_fps (float): A minimal frames-per-second to use when the ``update_mode`` is 'ondemand'. The default is 0:
         max_fps (float): A maximal frames-per-second to use when the ``update_mode`` is 'ondemand'
@@ -633,8 +633,12 @@ class BaseRenderCanvas:
     def set_title(self, title: str) -> None:
         """Set the window title.
 
-        The words "$backend", "$loop", "$fps", and "$ms" can be used as variables that
-        are filled in with the corresponding values.
+        A few special placeholders are supported:
+
+        * "$backend": the name of the backends's RenderCanvas subclass.
+        * "$loop": the name of the used Loop subclass.
+        * "$fps": the current frames per second, useful as an indication how smooth the rendering feels.
+        * "$ms": the time between two rendered frames in milliseconds, useful for benchmarking.
         """
         self.__title_info["raw"] = title
         for k, v in self.__title_info.items():
