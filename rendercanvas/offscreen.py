@@ -73,8 +73,8 @@ class OffscreenRenderCanvas(BaseRenderCanvas):
     def _rc_set_logical_size(self, width, height):
         logical_size = float(width), float(height)
         pixel_ratio = self._pixel_ratio
-        pwidth = int(logical_size[0] * pixel_ratio)
-        pheight = int(logical_size[1] * pixel_ratio)
+        pwidth = max(1, round(logical_size[0] * pixel_ratio + 0.01))
+        pheight = max(1, round(logical_size[1] * pixel_ratio + 0.01))
         self._size_info.set_physical_size(pwidth, pheight, pixel_ratio)
 
     def _rc_close(self):

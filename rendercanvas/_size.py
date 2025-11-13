@@ -1,5 +1,5 @@
 class SizeInfo(dict):
-    """A dict with size information.
+    """A dict with size information, for internal use.
 
     Handy to have a separate dict, so that it can be passed to objects that need it.
     Also allows canvases to create size callbacks without holding a ref to the canvas.
@@ -59,8 +59,8 @@ class SizeInfo(dict):
         """
         # Calculate adjusted logical size
         ratio = self["native_pixel_ratio"] * self["canvas_pixel_ratio"]
-        pwidth = max(1, int(float(width) * ratio))
-        pheight = max(1, int(float(height) * ratio))
+        pwidth = max(1, round(float(width) * ratio + 0.01))
+        pheight = max(1, round(float(height) * ratio + 0.01))
         lwidth, lheight = pwidth / ratio, pheight / ratio
 
         # Update logical size and total ratio. You could see it as a temporary zoom factor being applied.

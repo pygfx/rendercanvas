@@ -107,5 +107,33 @@ def test_offscreen_canvas_del():
     assert ref() is None
 
 
+def test_offscreen_extra_size_methods():
+    from rendercanvas.offscreen import RenderCanvas
+
+    c = RenderCanvas()
+
+    assert c.get_physical_size() == (640, 480)
+    assert c.get_logical_size() == (640.0, 480.0)
+    assert c.get_pixel_ratio() == 1.0
+
+    c.set_physical_size(100, 100)
+
+    assert c.get_physical_size() == (100, 100)
+    assert c.get_logical_size() == (100.0, 100.0)
+    assert c.get_pixel_ratio() == 1.0
+
+    c.set_pixel_ratio(2)
+
+    assert c.get_physical_size() == (100, 100)
+    assert c.get_logical_size() == (50.0, 50.0)
+    assert c.get_pixel_ratio() == 2.0
+
+    c.set_logical_size(100, 100)
+
+    assert c.get_physical_size() == (200, 200)
+    assert c.get_logical_size() == (100.0, 100.0)
+    assert c.get_pixel_ratio() == 2.0
+
+
 if __name__ == "__main__":
     run_tests(globals())
