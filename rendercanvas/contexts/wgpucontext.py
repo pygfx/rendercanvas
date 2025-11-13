@@ -15,6 +15,8 @@ class WgpuContext(BaseContext):
     which returns a subclass of this class, depending on the needs of the canvas.
     """
 
+    present_methods = ["screen", "bitmap"]
+
     def __new__(cls, present_info: dict):
         # Instantiating this class actually produces a subclass
         present_method = present_info["method"]
@@ -139,6 +141,8 @@ class WgpuContextToScreen(WgpuContext):
     When running in Pyodide, it means it renders directly to a ``<canvas>``.
     """
 
+    present_methods = ["screen"]
+
     def __init__(self, present_info: dict):
         super().__init__(present_info)
         assert self._present_info["method"] == "screen"
@@ -172,6 +176,8 @@ class WgpuContextToBitmap(WgpuContext):
     downloading is be done asynchronously, the difference in performance is not
     actually that big.
     """
+
+    present_methods = ["bitmap"]
 
     def __init__(self, present_info: dict):
         super().__init__(present_info)

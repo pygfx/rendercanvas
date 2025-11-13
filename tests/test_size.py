@@ -12,7 +12,7 @@ def test_size_info_basic():
     assert si["physical_size"] == (1, 1)
     assert si["logical_size"] == (1.0, 1.0)
     assert si["total_pixel_ratio"] == 1.0
-    assert si["need_size_event"] is False
+    assert si["changed"] is False
 
     # Backends setting physical size
     si.set_physical_size(10, 10, 1)
@@ -20,7 +20,7 @@ def test_size_info_basic():
     assert si["physical_size"] == (10, 10)
     assert si["logical_size"] == (10.0, 10.0)
     assert si["total_pixel_ratio"] == 1.0
-    assert si["need_size_event"] is True
+    assert si["changed"] is True
 
     # Different pixel ratio
     si.set_physical_size(10, 10, 2.5)
@@ -28,7 +28,7 @@ def test_size_info_basic():
     assert si["physical_size"] == (10, 10)
     assert si["logical_size"] == (4.0, 4.0)
     assert si["total_pixel_ratio"] == 2.5
-    assert si["need_size_event"] is True
+    assert si["changed"] is True
 
 
 def test_size_info_logical():
@@ -36,7 +36,7 @@ def test_size_info_logical():
     assert si["physical_size"] == (1, 1)
     assert si["logical_size"] == (1.0, 1.0)
     assert si["total_pixel_ratio"] == 1.0
-    assert si["need_size_event"] is False
+    assert si["changed"] is False
 
     # Base class setting logical size
     si.set_logical_size(100, 100)
@@ -44,7 +44,7 @@ def test_size_info_logical():
     assert si["physical_size"] == (1, 1)  # don't touch!
     assert si["logical_size"] == (100.0, 100.0)
     assert si["total_pixel_ratio"] == 0.01
-    assert si["need_size_event"] is True
+    assert si["changed"] is True
 
     # Again
     si.set_logical_size(640, 480)

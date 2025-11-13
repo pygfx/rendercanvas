@@ -227,16 +227,15 @@ class BaseRenderCanvas:
         """Get the ``WgpuContext`` to render to this canvas."""
         return self.get_context("wgpu")
 
-    def get_context(
-        self, context_type: Literal["bitmap", "wgpu"]
-    ) -> contexts.BaseContext:
+    def get_context(self, context_type: str | type) -> contexts.BaseContext:
         """Get a context object that can be used to render to this canvas.
 
         The context takes care of presenting the rendered result to the canvas.
         Different types of contexts are available:
 
-        * "wgpu": get a ``WgpuContext``
-        * "bitmap": get a ``BitmapContext``
+        * Use "wgpu" to get a ``WgpuContext``
+        * Use "bitmap" to get a ``BitmapContext``
+        * Use a subclass of ``BaseContext`` to get an instance of it.
 
         Later calls to this method, with the same context_type argument, will return
         the same context instance as was returned the first time the method was
@@ -246,22 +245,45 @@ class BaseRenderCanvas:
 
         # Note that this method is analog to HtmlCanvas.getContext(), except with different context types.
 
-        if not isinstance(context_type, str):
-            raise TypeError("context_type must be str.")
+        context_name = None
+        context_class = None
 
-        # Resolve the context type name
-        if context_type not in ("bitmap", "wgpu"):
+        # Resolve the context class
+        if isinstance(context_type, str):
+            # Builtin contexts
+            if context_type == "bitmap":
+                context_class = contexts.BitmapContext
+            elif context_type == "wgpu":
+                context_class = contexts.WgpuContext
+            else:
+                raise TypeError(
+                    f"The given context type is invalid: {context_type!r} is not 'bitmap' or 'wgpu'."
+                )
+        elif isinstance(context_type, type) and issubclass(
+            context_type, contexts.BaseContext
+        ):
+            # Custom context
+            context_class = context_type
+        else:
             raise TypeError(
-                "The given context type is invalid: {context_type!r} is not 'bitmap' or 'wgpu'."
+                "canvas.get_context(): context_type must be str or a subclass of BaseContext."
             )
+
+        # Get the name
+        context_name = context_class.__name__
 
         # Is the context already set?
         if self._canvas_context is not None:
-            if context_type == self._canvas_context._context_type:
+            ref_context_name = getattr(
+                self._canvas_context,
+                "_context_name",
+                self._canvas_context.__class__.__name__,
+            )
+            if context_name == ref_context_name:
                 return self._canvas_context
             else:
                 raise RuntimeError(
-                    f"Cannot get context for '{context_type}': a context of type '{self._canvas_context._context_type}' is already set."
+                    f"Cannot get context for '{context_name}': a context of type '{ref_context_name}' is already set."
                 )
 
         # Get available present methods.
@@ -274,22 +296,13 @@ class BaseRenderCanvas:
             )
 
         # Select present_method
-        present_method = None
-        if context_type == "bitmap":
-            if "bitmap" in present_methods:
-                present_method = "bitmap"
-            elif "screen" in present_methods:
-                present_method = "screen"
+        for present_method in context_class.present_methods:
+            assert present_method in ("bitmap", "screen")
+            if present_method in present_methods:
+                break
         else:
-            if "screen" in present_methods:
-                present_method = "screen"
-            elif "bitmap" in present_methods:
-                present_method = "bitmap"
-
-        # This should never happen, unless there's a bug
-        if present_method is None:
-            raise RuntimeError(
-                "Could not select present_method for context_type {context_type!r} from present_methods {present_methods!r}"
+            raise TypeError(
+                f"Could not select present_method for context {context_name!r}: The methods {tuple(context_class.present_methods)!r} are not supported by the canvas backend {tuple(present_methods.keys())!r}."
             )
 
         # Select present_info, and shape it into what the contexts need.
@@ -304,14 +317,10 @@ class BaseRenderCanvas:
             "vsync": self._vsync,
         }
 
-        if context_type == "bitmap":
-            context = contexts.BitmapContext(present_info)
-        else:
-            context = contexts.WgpuContext(present_info)
-
-        # Done
-        self._canvas_context = context
-        self._canvas_context._context_type = context_type
+        # Create the context
+        self._canvas_context = context_class(present_info)
+        self._canvas_context._context_name = context_name
+        self._canvas_context._rc_set_size_dict(self._size_info)
         return self._canvas_context
 
     # %% Events
@@ -337,14 +346,12 @@ class BaseRenderCanvas:
     # %% Scheduling and drawing
 
     def __maybe_emit_resize_event(self):
-        # Keep context up-to-date
-        if self._size_info["need_context_resize"] and self._canvas_context is not None:
-            self._size_info["need_context_resize"] = False
-            self._canvas_context._rc_set_size_dict(self._size_info)
-
-        # Keep event listeners up-to-date
-        if self._size_info["need_size_event"]:
-            self._size_info["need_size_event"] = False
+        if self._size_info["changed"]:
+            self._size_info["changed"] = False
+            # Keep context up-to-date
+            if self._canvas_context is not None:
+                self._canvas_context._rc_set_size_dict(self._size_info)
+            # Keep event listeners up-to-date
             lsize = self._size_info["logical_size"]
             self._events.emit(
                 {
@@ -752,7 +759,7 @@ class WrapperRenderCanvas(BaseRenderCanvas):
     def submit_event(self, event: dict) -> None:
         return self._subwidget._events.submit(event)
 
-    def get_context(self, context_type: str) -> object:
+    def get_context(self, context_type: str | type) -> object:
         return self._subwidget.get_context(context_type)
 
     def set_update_mode(

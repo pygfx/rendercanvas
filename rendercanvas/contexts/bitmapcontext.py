@@ -14,6 +14,8 @@ class BitmapContext(BaseContext):
     which returns a subclass of this class, depending on the needs of the canvas.
     """
 
+    present_methods = ["bitmap", "screen"]
+
     def __new__(cls, present_info: dict):
         # Instantiating this class actually produces a subclass
         present_method = present_info["method"]
@@ -72,6 +74,8 @@ class BitmapContext(BaseContext):
 class BitmapContextToBitmap(BitmapContext):
     """A BitmapContext that just presents the bitmap to the canvas."""
 
+    present_methods = ["bitmap"]
+
     def __init__(self, present_info):
         super().__init__(present_info)
         assert self._present_info["method"] == "bitmap"
@@ -108,6 +112,8 @@ class BitmapContextToScreen(BitmapContext):
 
     This is uses for canvases that do not support presenting a bitmap.
     """
+
+    present_methods = ["screen"]
 
     def __init__(self, present_info):
         super().__init__(present_info)
