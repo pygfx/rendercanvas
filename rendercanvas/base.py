@@ -15,6 +15,7 @@ from ._enums import (
     CursorShapeEnum,
 )
 from . import contexts
+from ._size import SizeInfo
 from ._events import EventEmitter
 from ._loop import BaseLoop
 from ._scheduler import Scheduler
@@ -153,15 +154,7 @@ class BaseRenderCanvas:
             if (self._rc_canvas_group and self._rc_canvas_group.get_loop())
             else "no-loop",
         }
-        self.__size_info = {
-            "physical_size": (0, 0),
-            "native_pixel_ratio": 1.0,
-            "canvas_pixel_ratio": 1.0,
-            "total_pixel_ratio": 1.0,
-            "logical_size": (0.0, 0.0),
-        }
-        self.__need_size_event = False
-        self.__need_context_resize = True  # True bc context may be created later
+        self._size_info = SizeInfo()
 
         # Events and scheduler
         self._events = EventEmitter()
@@ -224,7 +217,7 @@ class BaseRenderCanvas:
 
     def get_physical_size(self) -> tuple[int, int]:
         """Get the physical size of the canvas in integer pixels."""
-        return self.__size_info["physical_size"]
+        return self._size_info["physical_size"]
 
     def get_bitmap_context(self) -> contexts.BitmapContext:
         """Get the ``BitmapContext`` to render to this canvas."""
@@ -323,41 +316,6 @@ class BaseRenderCanvas:
 
     # %% Events
 
-    def _set_size_info(
-        self, physical_width: int, physical_height: int, pixel_ratio: float
-    ):
-        """Must be called by subclasses when their size changes.
-
-        Backends must *not* submit a "resize" event; the base class takes care of that, because
-        it requires some more attention than the other events.
-
-        The subclass must call this when the actual viewport has changed. So not in ``_rc_set_logical_size()``,
-        but e.g. when the underlying GUI layer fires a resize event, and maybe on init.
-
-        The given pixel-ratio represents the 'native' pixel ratio. The canvas'
-        zoom factor is multiplied with it to obtain the final pixel-ratio for
-        this canvas.
-        """
-        self.__size_info["physical_size"] = int(physical_width), int(physical_height)
-        self.__size_info["native_pixel_ratio"] = float(pixel_ratio)
-        self.__resolve_total_pixel_ratio_and_logical_size()
-
-    def __resolve_total_pixel_ratio_and_logical_size(self):
-        physical_size = self.__size_info["physical_size"]
-        native_pixel_ratio = self.__size_info["native_pixel_ratio"]
-        canvas_pixel_ratio = self.__size_info["canvas_pixel_ratio"]
-
-        total_pixel_ratio = native_pixel_ratio * canvas_pixel_ratio
-        logical_size = (
-            physical_size[0] / total_pixel_ratio,
-            physical_size[1] / total_pixel_ratio,
-        )
-
-        self.__size_info["total_pixel_ratio"] = total_pixel_ratio
-        self.__size_info["logical_size"] = logical_size
-        self.__need_size_event = True
-        self.__need_context_resize = True
-
     def add_event_handler(
         self, *args: EventTypeEnum | EventHandlerFunction, order: float = 0
     ) -> Callable:
@@ -380,23 +338,23 @@ class BaseRenderCanvas:
 
     def __maybe_emit_resize_event(self):
         # Keep context up-to-date
-        if self.__need_context_resize and self._canvas_context is not None:
-            self.__need_context_resize = False
-            self._canvas_context._rc_set_size_dict(self.__size_info)
+        if self._size_info["need_context_resize"] and self._canvas_context is not None:
+            self._size_info["need_context_resize"] = False
+            self._canvas_context._rc_set_size_dict(self._size_info)
 
         # Keep event listeners up-to-date
-        if self.__need_size_event:
-            self.__need_size_event = False
-            lsize = self.__size_info["logical_size"]
+        if self._size_info["need_size_event"]:
+            self._size_info["need_size_event"] = False
+            lsize = self._size_info["logical_size"]
             self._events.emit(
                 {
                     "event_type": "resize",
                     "width": lsize[0],
                     "height": lsize[1],
-                    "pixel_ratio": self.__size_info["total_pixel_ratio"],
+                    "pixel_ratio": self._size_info["total_pixel_ratio"],
                     # Would be nice to have more details. But as it is now, PyGfx errors if we add fields it does not know, so let's do later.
-                    # "logical_size": self.__size_info["logical_size"],
-                    # "physical_size": self.__size_info["physical_size"],
+                    # "logical_size": self._size_info["logical_size"],
+                    # "physical_size": self._size_info["physical_size"],
                 }
             )
 
@@ -575,7 +533,7 @@ class BaseRenderCanvas:
         The logical size can be smaller than the physical size, e.g. on HiDPI
         monitors or when the user's system has the display-scale set to e.g. 125%.
         """
-        return self.__size_info["logical_size"]
+        return self._size_info["logical_size"]
 
     def get_pixel_ratio(self) -> float:
         """Get the float ratio between logical and physical pixels.
@@ -585,7 +543,7 @@ class BaseRenderCanvas:
         display-scale is set to e.g. 125%. An HiDPI screen can be assumed if the
         pixel ratio >= 2.0.
         """
-        return self.__size_info["total_pixel_ratio"]
+        return self._size_info["total_pixel_ratio"]
 
     def close(self) -> None:
         """Close the canvas."""
@@ -628,6 +586,9 @@ class BaseRenderCanvas:
         width, height = float(width), float(height)
         if width < 0 or height < 0:
             raise ValueError("Canvas width and height must not be negative")
+        # Already adjust our logical size, so e.g. layout engines can get to work
+        self._size_info.set_logical_size(width, height)
+        # Tell the backend to adjust the size. It will likely set the new physical size before the next draw.
         self._rc_set_logical_size(width, height)
 
     def set_title(self, title: str) -> None:

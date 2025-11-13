@@ -584,7 +584,7 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         # we can't. Not an issue on qt5, because ratio is always integer then.
         pwidth = round(lsize[0] * ratio + 0.01)
         pheight = round(lsize[1] * ratio + 0.01)
-        self._set_size_info(pwidth, pheight, ratio)
+        self._size_info.set_physical_size(pwidth, pheight, ratio)
         # self.update() / self.request_draw() is implicit
 
     def closeEvent(self, event):  # noqa: N802

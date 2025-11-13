@@ -76,7 +76,7 @@ class MyOffscreenCanvas(rendercanvas.BaseRenderCanvas):
     def __init__(self):
         super().__init__()
         self.frame_count = 0
-        self._set_size_info(100, 100, 1)
+        self._size_info.set_physical_size(100, 100, 1)
 
     def _rc_get_present_methods(self):
         return {
@@ -153,7 +153,7 @@ def test_simple_offscreen_canvas():
     assert np.all(canvas.array[:, :, 1] == 255)
 
     # Change resolution
-    canvas._set_size_info(120, 100, 1)
+    canvas._size_info.set_physical_size(120, 100, 1)
 
     # Draw 3
     canvas.force_draw()
@@ -162,7 +162,7 @@ def test_simple_offscreen_canvas():
     assert np.all(canvas.array[:, :, 1] == 255)
 
     # Change resolution
-    canvas._set_size_info(120, 140, 1)
+    canvas._size_info.set_physical_size(120, 140, 1)
 
     # Draw 4
     canvas.force_draw()
