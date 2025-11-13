@@ -386,7 +386,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         # We use the same logic as for Qt to derive the physical size.
         pwidth = round(lsize[0] * ratio + 0.01)
         pheight = round(lsize[1] * ratio + 0.01)
-        self._set_size_info(pwidth, pheight, ratio)
+        self._size_info.set_physical_size(pwidth, pheight, ratio)
 
     def _on_key_down(self, event: wx.KeyEvent):
         char_str = self._get_char_from_event(event)

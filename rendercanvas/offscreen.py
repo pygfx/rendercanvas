@@ -75,7 +75,7 @@ class OffscreenRenderCanvas(BaseRenderCanvas):
         pixel_ratio = self._pixel_ratio
         pwidth = int(logical_size[0] * pixel_ratio)
         pheight = int(logical_size[1] * pixel_ratio)
-        self._set_size_info(pwidth, pheight, pixel_ratio)
+        self._size_info.set_physical_size(pwidth, pheight, pixel_ratio)
 
     def _rc_close(self):
         self._closed = True
@@ -100,7 +100,7 @@ class OffscreenRenderCanvas(BaseRenderCanvas):
         """
         pwidth = int(width)
         pheight = int(height)
-        self._set_size_info(pwidth, pheight, self._pixel_ratio)
+        self._size_info.set_physical_size(pwidth, pheight, self._pixel_ratio)
 
     def set_pixel_ratio(self, pixel_ratio: float):
         """Set the pixel ratio, changing the logical size of the canvas.
@@ -110,7 +110,7 @@ class OffscreenRenderCanvas(BaseRenderCanvas):
         """
         self._pixel_ratio = float(pixel_ratio)
         pwidth, pheight = self.get_physical_size()
-        self._set_size_info(pwidth, pheight, self._pixel_ratio)
+        self._size_info.set_physical_size(pwidth, pheight, self._pixel_ratio)
 
     def draw(self):
         """Perform a draw and get the resulting image.

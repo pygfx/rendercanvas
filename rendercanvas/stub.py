@@ -70,9 +70,6 @@ class StubRenderCanvas(BaseRenderCanvas):
     def _final_canvas_init(self):
         return super()._final_canvas_init()
 
-    def _set_size_info(self, physical_width, physical_height, pixel_ratio):
-        return super()._set_size_info(physical_width, physical_height, pixel_ratio)
-
     def _process_events(self):
         return super()._process_events()
 

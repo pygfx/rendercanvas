@@ -272,7 +272,7 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         pwidth, pheight = get_physical_size(self._window)
 
         self._pixel_ratio = pixel_ratio  # store
-        self._set_size_info(pwidth, pheight, pixel_ratio)
+        self._size_info.set_physical_size(pwidth, pheight, pixel_ratio)
 
     def _on_want_close(self, *args):
         # Called when the user attempts to close the window, for example by clicking the close widget in the title bar.
