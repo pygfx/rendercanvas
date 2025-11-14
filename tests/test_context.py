@@ -56,11 +56,22 @@ class WgpuContextToBitmapLookLikeWgpuPy(WgpuContextToBitmap):
 class BitmapContextToWgpuAndBackToBimap(BitmapContextToScreen):
     """A bitmap context that takes a detour via wgpu :)"""
 
+    present_methods = ["bitmap"]
+
     def _create_wgpu_py_context(self):
         self._wgpu_context = WgpuContextToBitmapLookLikeWgpuPy(self._present_info)
 
 
 # %%
+
+
+def test_context_size():
+    canvas = ManualOffscreenRenderCanvas()
+    context = canvas.get_context("bitmap")
+
+    # Size should be immediate
+    assert canvas.get_physical_size() == (640, 480)
+    assert context.physical_size == (640, 480)
 
 
 def test_context_selection_bitmap():
@@ -108,6 +119,49 @@ def test_context_selection_wgpu():
     assert context2 is context
 
 
+def test_context_selection_by_class():
+    canvas = ManualOffscreenRenderCanvas()
+
+    # Select by class
+    context = canvas.get_context(BitmapContext)
+    assert isinstance(context, BitmapContext)
+    assert isinstance(context, BaseContext)
+
+    # Again
+    context2 = canvas.get_context(BitmapContext)
+    assert context2 is context
+
+    # Compatible with builtin bitmap
+    context2 = canvas.get_context("bitmap")
+    assert context2 is context
+
+    # Cannot select another context now
+    with pytest.raises(RuntimeError):
+        canvas.get_context("wgpu")
+    with pytest.raises(RuntimeError):
+        canvas.get_context(WgpuContext)
+
+
+def test_context_selection_by_custom_class():
+    class MyContext1(BaseContext):
+        present_methods = ["bitmap"]
+
+    class MyContext2(BaseContext):
+        present_methods = ["screen"]
+
+    canvas = ManualOffscreenRenderCanvas()
+
+    context = canvas.get_context(MyContext1)
+    assert isinstance(context, MyContext1)
+    assert context._present_info["method"] == "bitmap"
+
+    canvas = ManualOffscreenRenderCanvas()
+
+    with pytest.raises(TypeError) as err:
+        canvas.get_context(MyContext2)
+    assert "not supported by the canvas backend" in str(err)
+
+
 def test_context_selection_fails():
     canvas = ManualOffscreenRenderCanvas()
 
@@ -118,8 +172,8 @@ def test_context_selection_fails():
 
     # Must be a string
     with pytest.raises(TypeError) as err:
-        canvas.get_context(BitmapContext)
-    assert "must be str" in str(err)
+        canvas.get_context([1, 2, 3])
+    assert "must be 'bitmap', 'wgpu', or " in str(err)
 
     # Must be a valid string
     with pytest.raises(TypeError) as err:
@@ -163,10 +217,8 @@ def test_bitmap_context():
 def test_wgpu_context():
     # Create canvas and attach our special adapter canvas
     canvas = ManualOffscreenRenderCanvas()
-    context = BitmapContextToWgpuAndBackToBimap(
-        {"method": "bitmap", "formats": ["rgba-u8"]}
-    )
-    canvas._canvas_context = context
+    context = canvas.get_context(BitmapContextToWgpuAndBackToBimap)
+    assert isinstance(context, BitmapContextToWgpuAndBackToBimap)
     assert isinstance(context, BitmapContext)
 
     # Create and set bitmap

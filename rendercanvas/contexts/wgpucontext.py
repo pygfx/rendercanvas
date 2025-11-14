@@ -9,11 +9,14 @@ __all__ = ["WgpuContext", "WgpuContextToBitmap", "WgpuContextToScreen"]
 class WgpuContext(BaseContext):
     """A context that exposes an API that provides a GPU texture to render to.
 
-    This is inspired by JS' ``GPUCanvasContext``, and the more performant approach for rendering to a ``rendercanvas``.
-
-    Users typically don't instantiate contexts directly, but use ``canvas.get_wgpu_context()``,
-    which returns a subclass of this class, depending on the needs of the canvas.
+    This is inspired by JS' ``GPUCanvasContext``, and the more performant
+    approach for rendering to a ``rendercanvas``. Use
+    ``canvas.get_wgpu_context()`` to create a ``WgpuContext``.
     """
+
+    # Note:  instantiating this class creates an instance of a sub-class, dedicated to the present method of the canvas.
+
+    present_methods = ["screen", "bitmap"]
 
     def __new__(cls, present_info: dict):
         # Instantiating this class actually produces a subclass
@@ -139,6 +142,8 @@ class WgpuContextToScreen(WgpuContext):
     When running in Pyodide, it means it renders directly to a ``<canvas>``.
     """
 
+    present_methods = ["screen"]
+
     def __init__(self, present_info: dict):
         super().__init__(present_info)
         assert self._present_info["method"] == "screen"
@@ -172,6 +177,8 @@ class WgpuContextToBitmap(WgpuContext):
     downloading is be done asynchronously, the difference in performance is not
     actually that big.
     """
+
+    present_methods = ["bitmap"]
 
     def __init__(self, present_info: dict):
         super().__init__(present_info)

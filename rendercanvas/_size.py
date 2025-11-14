@@ -12,8 +12,7 @@ class SizeInfo(dict):
         self["canvas_pixel_ratio"] = 1.0
         self["total_pixel_ratio"] = 1.0
         self["logical_size"] = 1.0, 1.0
-        self["need_size_event"] = False
-        self["need_context_resize"] = False
+        self["changed"] = False
 
     def set_physical_size(self, width: int, height: int, pixel_ratio: float):
         """Must be called by subclasses when their size changes.
@@ -40,8 +39,7 @@ class SizeInfo(dict):
         self["total_pixel_ratio"] = total_pixel_ratio
         self["logical_size"] = logical_size
 
-        self["need_size_event"] = True
-        self["need_context_resize"] = True
+        self["changed"] = True
 
     def set_logical_size(self, width: float, height: float):
         """Called by the canvas when the logical size is set.
@@ -62,8 +60,7 @@ class SizeInfo(dict):
         self["logical_size"] = lwidth, lheight
         self["total_pixel_ratio"] = self["physical_size"][0] / lwidth
 
-        self["need_size_event"] = True
-        self["need_context_resize"] = True
+        self["changed"] = True
 
     def set_zoom(self, zoom: float):
         """Set the zoom factor, i.e. the canvas pixel ratio."""
