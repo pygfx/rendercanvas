@@ -42,7 +42,7 @@ loop = StubLoop()
 
 class StubCanvasGroup(BaseCanvasGroup):
     """
-    The ``CanvasGroup`` representss a group of canvas objects from the same class, that share a loop.
+    The ``CanvasGroup`` represents a group of canvas objects from the same class, that share a loop.
 
     The initial/default loop is passed when the ``CanvasGroup`` is instantiated.
 
