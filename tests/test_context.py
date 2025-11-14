@@ -173,7 +173,7 @@ def test_context_selection_fails():
     # Must be a string
     with pytest.raises(TypeError) as err:
         canvas.get_context([1, 2, 3])
-    assert "must be str" in str(err)
+    assert "must be 'bitmap', 'wgpu', or " in str(err)
 
     # Must be a valid string
     with pytest.raises(TypeError) as err:
