@@ -90,6 +90,10 @@ class WgpuContext(BaseContext):
         elif not isinstance(usage, int):
             raise TypeError("Texture usage must be str or int")
 
+        # Store usage flags, now that we have the wgpu namespace
+        self._our_texture_usage = wgpu.TextureUsage.COPY_SRC
+        self._our_buffer_usage = wgpu.BufferUsage.COPY_DST | wgpu.BufferUsage.MAP_READ
+
         # Build config dict
         config = {
             "device": device,
@@ -100,7 +104,6 @@ class WgpuContext(BaseContext):
             # "tone_mapping": tone_mapping,
             "alpha_mode": alpha_mode,
         }
-
         # Let subclass finnish the configuration, then store the config
         self._configure(config)
         self._config = config
@@ -190,6 +193,22 @@ class WgpuContextToBitmap(WgpuContext):
         # The last used texture
         self._texture = None
 
+        # A ring-buffer to download the rendered images to the CPU/RAM. The
+        # image is first copied from the texture to an available copy-buffer.
+        # This is very fast (which is why we don't have a ring of textures).
+        # Mapping the buffers to RAM takes time, and we want to wait for this
+        # asynchronously.
+        #
+        # I feel that using just one buffer is sufficient. Adding more costs
+        # memory, and does not necessarily improve the FPS. It can actually
+        # strain the GPU more, because it would be busy mapping multiple buffers
+        # at once. I leave the ring-mechanism in-place for now, so we can
+        # experiment with it.
+        self._downloaders = [None]  # Put as many None's as you want buffers
+
+        # Extra vars for the downloading
+        self._pending_bitmap_info = None
+
     def _get_capabilities(self):
         """Get dict of capabilities and cache the result."""
 
@@ -272,8 +291,6 @@ class WgpuContextToBitmap(WgpuContext):
         # Right now we return the existing texture, so user can retrieve it in different render passes that write to the same frame.
 
         if self._texture is None:
-            import wgpu
-
             width, height = self.physical_size
             width, height = max(width, 1), max(height, 1)
 
@@ -284,7 +301,7 @@ class WgpuContextToBitmap(WgpuContext):
                 label="present",
                 size=(width, height, 1),
                 format=self._config["format"],
-                usage=self._config["usage"] | wgpu.TextureUsage.COPY_SRC,
+                usage=self._config["usage"] | self._our_texture_usage,
             )
 
         return self._texture
@@ -294,26 +311,60 @@ class WgpuContextToBitmap(WgpuContext):
             return {"method": "skip"}
 
         # TODO: in some cases, like offscreen backend, we don't want to skip the first frame!
-        bitmap = self._get_bitmap_stage2()
-        self._get_bitmap_stage1()
+
+        # Get bitmap from oldest downloader
+        bitmap = None
+        downloader = self._downloaders.pop(0)
+        try:
+            if downloader is not None:
+                bitmap = downloader.get_bitmap()
+        finally:
+            self._downloaders.append(downloader)
+
+        # Select new downloader
+        downloader = self._downloaders[-1]
+        if downloader is None:
+            downloader = self._downloaders[-1] = ImageDownloader(
+                self._config["device"], self._our_buffer_usage
+            )
+        downloader.initiate_download(self._texture)
+
         self._drop_texture()
         if bitmap is None:
             return {"method": "skip"}
-        return {"method": "bitmap", "format": "rgba-u8", "data": bitmap}
+        else:
+            return {"method": "bitmap", "format": "rgba-u8", "data": bitmap}
 
-    _copy_buffer = None, 0
-    _extra_stride = -1
-    _pending_bitmap_info = None
+    def _rc_close(self):
+        self._drop_texture()
 
-    def _get_bitmap_stage1(self):
-        import wgpu
 
-        texture = self._texture
-        device = texture._device
+class ImageDownloader:
+    """A helper class that wraps a copy-buffer to async-download an image from a texture."""
 
+    def __init__(self, device, buffer_usage):
+        self._device = device
+        self._buffer_usage = buffer_usage
+        self._buffer = None
+        self._time = 0
+
+    def initiate_download(self, texture):
+        # TODO: assert not waiting
+
+        self._parse_texture_metadata(texture)
+        nbytes = self._padded_stride * self._texture_size[1]
+        self._ensure_size(nbytes)
+        self._copy_texture(texture)
+
+        # Note: the buffer.map_async() method by default also does a flush, to hide a bug in wgpu-core (https://github.com/gfx-rs/wgpu/issues/5173).
+        # That bug does not affect this use-case, so we use a special (undocumented :/) map-mode to prevent wgpu-py from doing its sync thing.
+        self._awaitable = self._buffer.map_async("READ_NOSYNC", 0, nbytes)
+
+    def _parse_texture_metadata(self, texture):
         size = texture.size
         format = texture.format
         nchannels = 4  # we expect rgba or bgra
+
         if not format.startswith(("rgba", "bgra")):
             raise RuntimeError(f"Image present unsupported texture format {format}.")
         if "8" in format:
@@ -327,121 +378,6 @@ class WgpuContextToBitmap(WgpuContext):
                 f"Image present unsupported texture format bitdepth {format}."
             )
 
-        source = {
-            "texture": texture,
-            "mip_level": 0,
-            "origin": (0, 0, 0),
-        }
-
-        ori_stride = bytes_per_pixel * size[0]
-        extra_stride = (256 - ori_stride % 256) % 256
-        full_stride = ori_stride + extra_stride
-
-        data_length = full_stride * size[1] * size[2]
-
-        # Create temporary buffer
-        copy_buffer, time_since_size_ok = self._copy_buffer
-        if copy_buffer is None:
-            pass  # No buffer
-        elif copy_buffer.size < data_length:
-            copy_buffer = None  # Buffer too small
-        elif copy_buffer.size < data_length * 4:
-            self._copy_buffer = copy_buffer, time.perf_counter()  # Bufer size ok
-        elif time.perf_counter() - time_since_size_ok > 5.0:
-            copy_buffer = None  # Too large too long
-        if copy_buffer is None:
-            buffer_size = data_length
-            buffer_size += (4096 - buffer_size % 4096) % 4096
-            buf_usage = wgpu.BufferUsage.COPY_DST | wgpu.BufferUsage.MAP_READ
-            copy_buffer = device._create_buffer(
-                "copy-buffer", buffer_size, buf_usage, False
-            )
-            self._copy_buffer = copy_buffer, time.perf_counter()
-
-        destination = {
-            "buffer": copy_buffer,
-            "offset": 0,
-            "bytes_per_row": full_stride,  # or WGPU_COPY_STRIDE_UNDEFINED ?
-            "rows_per_image": size[1],
-        }
-
-        # Copy data to temp buffer
-        encoder = device.create_command_encoder()
-        encoder.copy_texture_to_buffer(source, destination, size)
-        command_buffer = encoder.finish()
-        device.queue.submit([command_buffer])
-
-        # Note: the buffer.map_async() method by default also does a flush, to hide a bug in wgpu-core (https://github.com/gfx-rs/wgpu/issues/5173).
-        # That bug does not affect this use-case, so we use a special (undocumented :/) map-mode to prevent wgpu-py from doing its sync thing.
-        awaitable = copy_buffer.map_async("READ_NOSYNC", 0, data_length)
-
-        self._pending_bitmap_info = (
-            awaitable,
-            copy_buffer,
-            size,
-            ori_stride,
-            extra_stride,
-            full_stride,
-            format,
-            nchannels,
-        )
-
-    def _get_bitmap_stage2(self):
-        if self._pending_bitmap_info is None:
-            return None
-
-        (
-            awaitable,
-            copy_buffer,
-            size,
-            ori_stride,
-            extra_stride,
-            full_stride,
-            format,
-            nchannels,
-        ) = self._pending_bitmap_info
-
-        # Download from mappable buffer
-        # Because we use `copy=False``, we *must* copy the data.
-        if copy_buffer.map_state == "pending":
-            awaitable.sync_wait()
-        mapped_data = copy_buffer.read_mapped(copy=False)
-
-        data_length2 = ori_stride * size[1] * size[2]
-
-        if extra_stride is not self._extra_stride:
-            self._extra_stride = extra_stride
-            print("extra stride", extra_stride)
-
-        # Copy the data
-        if extra_stride:
-            # Copy per row
-            data = memoryview(bytearray(data_length2)).cast(mapped_data.format)
-            i_start = 0
-            for i in range(size[1] * size[2]):
-                row = mapped_data[i * full_stride : i * full_stride + ori_stride]
-                data[i_start : i_start + ori_stride] = row
-                i_start += ori_stride
-        else:
-            # Copy as a whole
-            data = memoryview(bytearray(mapped_data)).cast(mapped_data.format)
-
-        # Alternative copy solution using Numpy.
-        # I expected this to be faster, but does not really seem to be. Seems not worth it
-        # since we technically don't depend on Numpy. Leaving here for reference.
-        # import numpy as np
-        # mapped_data = np.asarray(mapped_data)[:data_length]
-        # data = np.empty(data_length2, dtype=mapped_data.dtype)
-        # mapped_data.shape = -1, full_stride
-        # data.shape = -1, ori_stride
-        # data[:] = mapped_data[:, :ori_stride]
-        # data.shape = -1
-        # data = memoryview(data)
-
-        # Since we use read_mapped(copy=False), we must unmap it *after* we've copied the data.
-        copy_buffer.unmap()
-
-        # Derive struct dtype from wgpu texture format
         memoryview_type = "B"
         if "float" in format:
             memoryview_type = "e" if "16" in format else "f"
@@ -455,9 +391,104 @@ class WgpuContextToBitmap(WgpuContext):
             if "sint" in format:
                 memoryview_type = memoryview_type.lower()
 
-        # Represent as memory object to avoid numpy dependency
-        # Equivalent: np.frombuffer(data, np.uint8).reshape(size[1], size[0], nchannels)
-        return data.cast(memoryview_type, (size[1], size[0], nchannels))
+        plain_stride = bytes_per_pixel * size[0]
+        extra_stride = (256 - plain_stride % 256) % 256
+        padded_stride = plain_stride + extra_stride
 
-    def _rc_close(self):
-        self._drop_texture()
+        self._memoryview_type = memoryview_type
+        self._nchannels = nchannels
+        self._plain_stride = plain_stride
+        self._padded_stride = padded_stride
+        self._texture_size = size
+
+    def _ensure_size(self, required_size):
+        # Get buffer and decide whether we can still use it
+        buffer = self._buffer
+        if buffer is None:
+            pass  # No buffer
+        elif required_size > buffer.size:
+            buffer = None  # Buffer too small
+        elif required_size < 0.25 * buffer.size:
+            buffer = None  # Buffer too large
+        elif required_size > 0.75 * buffer.size:
+            self._time = time.perf_counter()  # Size is fine
+        elif time.perf_counter() - self._time > 5.0:
+            buffer = None  # Too large too long
+
+        # Create a new buffer if we need one
+        if buffer is None:
+            buffer_size = required_size
+            buffer_size += (4096 - buffer_size % 4096) % 4096
+            self._buffer = self._device.create_buffer(
+                label="copy-buffer", size=buffer_size, usage=self._buffer_usage
+            )
+
+    def _copy_texture(self, texture):
+        source = {
+            "texture": texture,
+            "mip_level": 0,
+            "origin": (0, 0, 0),
+        }
+
+        destination = {
+            "buffer": self._buffer,
+            "offset": 0,
+            "bytes_per_row": self._padded_stride,
+            "rows_per_image": self._texture_size[1],
+        }
+
+        # Copy data to temp buffer
+        encoder = self._device.create_command_encoder()
+        encoder.copy_texture_to_buffer(source, destination, texture.size)
+        command_buffer = encoder.finish()
+        self._device.queue.submit([command_buffer])
+
+    def get_bitmap(self):
+        memoryview_type = self._memoryview_type
+        plain_stride = self._plain_stride
+        padded_stride = self._padded_stride
+
+        nbytes = plain_stride * self._texture_size[1]
+        plain_shape = (self._texture_size[1], self._texture_size[0], self._nchannels)
+
+        # Download from mappable buffer
+        # Because we use `copy=False``, we *must* copy the data.
+        if self._buffer.map_state == "pending":
+            self._awaitable.sync_wait()
+        mapped_data = self._buffer.read_mapped(copy=False)
+
+        # Copy the data
+        if padded_stride > plain_stride:
+            # Copy per row
+            data = memoryview(bytearray(nbytes)).cast(mapped_data.format)
+            i_start = 0
+            for i in range(self._texture_size[1]):
+                row = mapped_data[i * padded_stride : i * padded_stride + plain_stride]
+                data[i_start : i_start + plain_stride] = row
+                i_start += plain_stride
+        else:
+            # Copy as a whole
+            data = memoryview(bytearray(mapped_data)).cast(mapped_data.format)
+
+        # Alternative copy solution using Numpy.
+        # I expected this to be faster, but does not really seem to be. Seems not worth it
+        # since we technically don't depend on Numpy. Leaving here for reference.
+        # import numpy as np
+        # mapped_data = np.asarray(mapped_data)[:data_length]
+        # data = np.empty(nbytes, dtype=mapped_data.dtype)
+        # mapped_data.shape = -1, padded_stride
+        # data.shape = -1, plain_stride
+        # data[:] = mapped_data[:, :plain_stride]
+        # data.shape = -1
+        # data = memoryview(data)
+
+        # Since we use read_mapped(copy=False), we must unmap it *after* we've copied the data.
+        self._buffer.unmap()
+
+        # Derive struct dtype from wgpu texture format
+
+        # Represent as memory object to avoid numpy dependency
+        # Equivalent: np.frombuffer(data, np.uint8).reshape(plain_shape)
+        data = data.cast(memoryview_type, plain_shape)
+
+        return data
