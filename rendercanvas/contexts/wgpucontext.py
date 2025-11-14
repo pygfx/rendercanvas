@@ -371,6 +371,8 @@ class WgpuContextToBitmap(WgpuContext):
         command_buffer = encoder.finish()
         device.queue.submit([command_buffer])
 
+        # Note: the buffer.map_async() method by default also does a flush, to hide a bug in wgpu-core (https://github.com/gfx-rs/wgpu/issues/5173).
+        # That bug does not affect this use-case, so we use a special (undocumented :/) map-mode to prevent wgpu-py from doing its sync thing.
         awaitable = copy_buffer.map_async("READ_NOSYNC", 0, data_length)
 
         self._pending_bitmap_info = (
