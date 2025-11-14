@@ -8,11 +8,11 @@ class BitmapContext(BaseContext):
 
     This is loosely inspired by JS' ``ImageBitmapRenderingContext``. Rendering
     bitmaps is a simple way to use ``rendercanvas``, but usually not as
-    performant as a wgpu context.
-
-    Users typically don't instantiate contexts directly, but use ``canvas.get_bitmap_context()``,
-    which returns a subclass of this class, depending on the needs of the canvas.
+    performant as a wgpu context. Use ``canvas.get_bitmap_context()`` to create
+    a ``BitmapContext``.
     """
+
+    # Note:  instantiating this class creates an instance of a sub-class, dedicated to the present method of the canvas.
 
     present_methods = ["bitmap", "screen"]
 

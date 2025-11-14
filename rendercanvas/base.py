@@ -235,7 +235,7 @@ class BaseRenderCanvas:
 
         * Use "wgpu" to get a ``WgpuContext``
         * Use "bitmap" to get a ``BitmapContext``
-        * Use a subclass of ``BaseContext`` to get an instance of it.
+        * Use a subclass of ``BaseContext`` to create an instance that is set up for this canvas.
 
         Later calls to this method, with the same context_type argument, will return
         the same context instance as was returned the first time the method was
@@ -266,7 +266,7 @@ class BaseRenderCanvas:
             context_class = context_type
         else:
             raise TypeError(
-                "canvas.get_context(): context_type must be str or a subclass of BaseContext."
+                "canvas.get_context(): context_type must be 'bitmap', 'wgpu', or a subclass of BaseContext."
             )
 
         # Get the name
