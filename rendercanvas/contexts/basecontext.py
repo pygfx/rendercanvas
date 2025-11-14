@@ -4,15 +4,10 @@ __all__ = ["BaseContext"]
 
 
 class BaseContext:
-    """The base class for context objects in ``rendercanvas``.
+    """The base class for context objects in ``rendercanvas``."""
 
-    All contexts provide detailed size information. A rendering system should
-    generally be capable to perform the rendering with just the context object;
-    without a reference to the canvas. With this, we try to promote a clear
-    separation of concern, where one system listens to events from the canvas to
-    update a certain state, and the renderer uses this state and the context to
-    render the image.
-    """
+    # Subclasses must define their present-methods that they support, in oder of preference
+    present_methods = []
 
     def __init__(self, present_info: dict):
         self._present_info = present_info

@@ -209,11 +209,11 @@ class Scheduler:
         count, last_time = self._draw_stats
         count += 1
         if time.perf_counter() - last_time > 1.0:
-            fps = count / (time.perf_counter() - last_time)
+            frame_time = (time.perf_counter() - last_time) / count
             self._draw_stats = 0, time.perf_counter()
         else:
-            fps = None
+            frame_time = None
             self._draw_stats = count, last_time
 
-        # Return fps or None. Will change with better stats at some point
-        return fps
+        # Return frame_time or None. Will change with better stats at some point
+        return frame_time

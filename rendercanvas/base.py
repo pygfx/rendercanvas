@@ -15,6 +15,7 @@ from ._enums import (
     CursorShapeEnum,
 )
 from . import contexts
+from ._size import SizeInfo
 from ._events import EventEmitter
 from ._loop import BaseLoop
 from ._scheduler import Scheduler
@@ -90,7 +91,7 @@ class BaseRenderCanvas:
     Arguments:
         size (tuple): the logical size (width, height) of the canvas.
         title (str): The title of the canvas. Can use '$backend' to show the RenderCanvas class name,
-            and '$fps' to show the fps.
+            '$fps' to show the fps, and '$ms' to show the frame-time.
         update_mode (UpdateMode): The mode for scheduling draws and events. Default 'ondemand'.
         min_fps (float): A minimal frames-per-second to use when the ``update_mode`` is 'ondemand'. The default is 0:
         max_fps (float): A maximal frames-per-second to use when the ``update_mode`` is 'ondemand'
@@ -147,20 +148,13 @@ class BaseRenderCanvas:
         self.__title_info = {
             "raw": "",
             "fps": "?",
+            "ms": "?",
             "backend": self.__class__.__name__,
             "loop": self._rc_canvas_group.get_loop().__class__.__name__
             if (self._rc_canvas_group and self._rc_canvas_group.get_loop())
             else "no-loop",
         }
-        self.__size_info = {
-            "physical_size": (0, 0),
-            "native_pixel_ratio": 1.0,
-            "canvas_pixel_ratio": 1.0,
-            "total_pixel_ratio": 1.0,
-            "logical_size": (0.0, 0.0),
-        }
-        self.__need_size_event = False
-        self.__need_context_resize = True  # True bc context may be created later
+        self._size_info = SizeInfo()
 
         # Events and scheduler
         self._events = EventEmitter()
@@ -223,7 +217,7 @@ class BaseRenderCanvas:
 
     def get_physical_size(self) -> tuple[int, int]:
         """Get the physical size of the canvas in integer pixels."""
-        return self.__size_info["physical_size"]
+        return self._size_info["physical_size"]
 
     def get_bitmap_context(self) -> contexts.BitmapContext:
         """Get the ``BitmapContext`` to render to this canvas."""
@@ -233,16 +227,15 @@ class BaseRenderCanvas:
         """Get the ``WgpuContext`` to render to this canvas."""
         return self.get_context("wgpu")
 
-    def get_context(
-        self, context_type: Literal["bitmap", "wgpu"]
-    ) -> contexts.BaseContext:
+    def get_context(self, context_type: str | type) -> contexts.BaseContext:
         """Get a context object that can be used to render to this canvas.
 
         The context takes care of presenting the rendered result to the canvas.
         Different types of contexts are available:
 
-        * "wgpu": get a ``WgpuContext``
-        * "bitmap": get a ``BitmapContext``
+        * Use "wgpu" to get a ``WgpuContext``
+        * Use "bitmap" to get a ``BitmapContext``
+        * Use a subclass of ``BaseContext`` to create an instance that is set up for this canvas.
 
         Later calls to this method, with the same context_type argument, will return
         the same context instance as was returned the first time the method was
@@ -252,22 +245,45 @@ class BaseRenderCanvas:
 
         # Note that this method is analog to HtmlCanvas.getContext(), except with different context types.
 
-        if not isinstance(context_type, str):
-            raise TypeError("context_type must be str.")
+        context_name = None
+        context_class = None
 
-        # Resolve the context type name
-        if context_type not in ("bitmap", "wgpu"):
+        # Resolve the context class
+        if isinstance(context_type, str):
+            # Builtin contexts
+            if context_type == "bitmap":
+                context_class = contexts.BitmapContext
+            elif context_type == "wgpu":
+                context_class = contexts.WgpuContext
+            else:
+                raise TypeError(
+                    f"The given context type is invalid: {context_type!r} is not 'bitmap' or 'wgpu'."
+                )
+        elif isinstance(context_type, type) and issubclass(
+            context_type, contexts.BaseContext
+        ):
+            # Custom context
+            context_class = context_type
+        else:
             raise TypeError(
-                "The given context type is invalid: {context_type!r} is not 'bitmap' or 'wgpu'."
+                "canvas.get_context(): context_type must be 'bitmap', 'wgpu', or a subclass of BaseContext."
             )
+
+        # Get the name
+        context_name = context_class.__name__
 
         # Is the context already set?
         if self._canvas_context is not None:
-            if context_type == self._canvas_context._context_type:
+            ref_context_name = getattr(
+                self._canvas_context,
+                "_context_name",
+                self._canvas_context.__class__.__name__,
+            )
+            if context_name == ref_context_name:
                 return self._canvas_context
             else:
                 raise RuntimeError(
-                    f"Cannot get context for '{context_type}': a context of type '{self._canvas_context._context_type}' is already set."
+                    f"Cannot get context for '{context_name}': a context of type '{ref_context_name}' is already set."
                 )
 
         # Get available present methods.
@@ -280,22 +296,13 @@ class BaseRenderCanvas:
             )
 
         # Select present_method
-        present_method = None
-        if context_type == "bitmap":
-            if "bitmap" in present_methods:
-                present_method = "bitmap"
-            elif "screen" in present_methods:
-                present_method = "screen"
+        for present_method in context_class.present_methods:
+            assert present_method in ("bitmap", "screen")
+            if present_method in present_methods:
+                break
         else:
-            if "screen" in present_methods:
-                present_method = "screen"
-            elif "bitmap" in present_methods:
-                present_method = "bitmap"
-
-        # This should never happen, unless there's a bug
-        if present_method is None:
-            raise RuntimeError(
-                "Could not select present_method for context_type {context_type!r} from present_methods {present_methods!r}"
+            raise TypeError(
+                f"Could not select present_method for context {context_name!r}: The methods {tuple(context_class.present_methods)!r} are not supported by the canvas backend {tuple(present_methods.keys())!r}."
             )
 
         # Select present_info, and shape it into what the contexts need.
@@ -310,52 +317,13 @@ class BaseRenderCanvas:
             "vsync": self._vsync,
         }
 
-        if context_type == "bitmap":
-            context = contexts.BitmapContext(present_info)
-        else:
-            context = contexts.WgpuContext(present_info)
-
-        # Done
-        self._canvas_context = context
-        self._canvas_context._context_type = context_type
+        # Create the context
+        self._canvas_context = context_class(present_info)
+        self._canvas_context._context_name = context_name
+        self._canvas_context._rc_set_size_dict(self._size_info)
         return self._canvas_context
 
     # %% Events
-
-    def _set_size_info(
-        self, physical_width: int, physical_height: int, pixel_ratio: float
-    ):
-        """Must be called by subclasses when their size changes.
-
-        Backends must *not* submit a "resize" event; the base class takes care of that, because
-        it requires some more attention than the other events.
-
-        The subclass must call this when the actual viewport has changed. So not in ``_rc_set_logical_size()``,
-        but e.g. when the underlying GUI layer fires a resize event, and maybe on init.
-
-        The given pixel-ratio represents the 'native' pixel ratio. The canvas'
-        zoom factor is multiplied with it to obtain the final pixel-ratio for
-        this canvas.
-        """
-        self.__size_info["physical_size"] = int(physical_width), int(physical_height)
-        self.__size_info["native_pixel_ratio"] = float(pixel_ratio)
-        self.__resolve_total_pixel_ratio_and_logical_size()
-
-    def __resolve_total_pixel_ratio_and_logical_size(self):
-        physical_size = self.__size_info["physical_size"]
-        native_pixel_ratio = self.__size_info["native_pixel_ratio"]
-        canvas_pixel_ratio = self.__size_info["canvas_pixel_ratio"]
-
-        total_pixel_ratio = native_pixel_ratio * canvas_pixel_ratio
-        logical_size = (
-            physical_size[0] / total_pixel_ratio,
-            physical_size[1] / total_pixel_ratio,
-        )
-
-        self.__size_info["total_pixel_ratio"] = total_pixel_ratio
-        self.__size_info["logical_size"] = logical_size
-        self.__need_size_event = True
-        self.__need_context_resize = True
 
     def add_event_handler(
         self, *args: EventTypeEnum | EventHandlerFunction, order: float = 0
@@ -378,24 +346,22 @@ class BaseRenderCanvas:
     # %% Scheduling and drawing
 
     def __maybe_emit_resize_event(self):
-        # Keep context up-to-date
-        if self.__need_context_resize and self._canvas_context is not None:
-            self.__need_context_resize = False
-            self._canvas_context._rc_set_size_dict(self.__size_info)
-
-        # Keep event listeners up-to-date
-        if self.__need_size_event:
-            self.__need_size_event = False
-            lsize = self.__size_info["logical_size"]
+        if self._size_info["changed"]:
+            self._size_info["changed"] = False
+            # Keep context up-to-date
+            if self._canvas_context is not None:
+                self._canvas_context._rc_set_size_dict(self._size_info)
+            # Keep event listeners up-to-date
+            lsize = self._size_info["logical_size"]
             self._events.emit(
                 {
                     "event_type": "resize",
                     "width": lsize[0],
                     "height": lsize[1],
-                    "pixel_ratio": self.__size_info["total_pixel_ratio"],
+                    "pixel_ratio": self._size_info["total_pixel_ratio"],
                     # Would be nice to have more details. But as it is now, PyGfx errors if we add fields it does not know, so let's do later.
-                    # "logical_size": self.__size_info["logical_size"],
-                    # "physical_size": self.__size_info["physical_size"],
+                    # "logical_size": self._size_info["logical_size"],
+                    # "physical_size": self._size_info["physical_size"],
                 }
             )
 
@@ -533,12 +499,14 @@ class BaseRenderCanvas:
 
             # Notify the scheduler
             if self.__scheduler is not None:
-                fps = self.__scheduler.on_draw()
+                frame_time = self.__scheduler.on_draw()
 
                 # Maybe update title
-                if fps is not None:
-                    self.__title_info["fps"] = f"{fps:0.1f}"
-                    if "$fps" in self.__title_info["raw"]:
+                if frame_time is not None:
+                    self.__title_info["fps"] = f"{min(9999, 1 / frame_time):0.1f}"
+                    self.__title_info["ms"] = f"{min(9999, 1000 * frame_time):0.1f}"
+                    raw_title = self.__title_info["raw"]
+                    if "$fps" in raw_title or "$ms" in raw_title:
                         self.set_title(self.__title_info["raw"])
 
             # Perform the user-defined drawing code. When this errors,
@@ -572,7 +540,7 @@ class BaseRenderCanvas:
         The logical size can be smaller than the physical size, e.g. on HiDPI
         monitors or when the user's system has the display-scale set to e.g. 125%.
         """
-        return self.__size_info["logical_size"]
+        return self._size_info["logical_size"]
 
     def get_pixel_ratio(self) -> float:
         """Get the float ratio between logical and physical pixels.
@@ -582,7 +550,7 @@ class BaseRenderCanvas:
         display-scale is set to e.g. 125%. An HiDPI screen can be assumed if the
         pixel ratio >= 2.0.
         """
-        return self.__size_info["total_pixel_ratio"]
+        return self._size_info["total_pixel_ratio"]
 
     def close(self) -> None:
         """Close the canvas."""
@@ -625,13 +593,20 @@ class BaseRenderCanvas:
         width, height = float(width), float(height)
         if width < 0 or height < 0:
             raise ValueError("Canvas width and height must not be negative")
+        # Already adjust our logical size, so e.g. layout engines can get to work
+        self._size_info.set_logical_size(width, height)
+        # Tell the backend to adjust the size. It will likely set the new physical size before the next draw.
         self._rc_set_logical_size(width, height)
 
     def set_title(self, title: str) -> None:
         """Set the window title.
 
-        The words "$backend", "$loop", and "$fps" can be used as variables that
-        are filled in with the corresponding values.
+        A few special placeholders are supported:
+
+        * "$backend": the name of the backends's RenderCanvas subclass.
+        * "$loop": the name of the used Loop subclass.
+        * "$fps": the current frames per second, useful as an indication how smooth the rendering feels.
+        * "$ms": the time between two rendered frames in milliseconds, useful for benchmarking.
         """
         self.__title_info["raw"] = title
         for k, v in self.__title_info.items():
@@ -784,7 +759,7 @@ class WrapperRenderCanvas(BaseRenderCanvas):
     def submit_event(self, event: dict) -> None:
         return self._subwidget._events.submit(event)
 
-    def get_context(self, context_type: str) -> object:
+    def get_context(self, context_type: str | type) -> object:
         return self._subwidget.get_context(context_type)
 
     def set_update_mode(

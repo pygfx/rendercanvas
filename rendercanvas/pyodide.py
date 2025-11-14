@@ -203,7 +203,7 @@ class PyodideRenderCanvas(BaseRenderCanvas):
 
             # Notify the base class, so it knows our new size
             pwidth, pheight = psize
-            self._set_size_info(pwidth, pheight, window.devicePixelRatio)
+            self._size_info.set_physical_size(pwidth, pheight, window.devicePixelRatio)
 
         self._resize_callback_proxy = create_proxy(_resize_callback)
         self._resize_observer = ResizeObserver.new(self._resize_callback_proxy)
