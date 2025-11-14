@@ -90,10 +90,6 @@ class WgpuContext(BaseContext):
         elif not isinstance(usage, int):
             raise TypeError("Texture usage must be str or int")
 
-        # Store usage flags, now that we have the wgpu namespace
-        self._our_texture_usage = wgpu.TextureUsage.COPY_SRC
-        self._our_buffer_usage = wgpu.BufferUsage.COPY_DST | wgpu.BufferUsage.MAP_READ
-
         # Build config dict
         config = {
             "device": device,
@@ -206,13 +202,14 @@ class WgpuContextToBitmap(WgpuContext):
         # experiment with it.
         self._downloaders = [None]  # Put as many None's as you want buffers
 
-        # Extra vars for the downloading
-        self._pending_bitmap_info = None
-
     def _get_capabilities(self):
         """Get dict of capabilities and cache the result."""
 
         import wgpu
+
+        # Store usage flags now that we have the wgpu namespace
+        self._our_texture_usage = wgpu.TextureUsage.COPY_SRC
+        self._our_buffer_usage = wgpu.BufferUsage.COPY_DST | wgpu.BufferUsage.MAP_READ
 
         capabilities = {}
 
@@ -280,8 +277,14 @@ class WgpuContextToBitmap(WgpuContext):
                 f"Configure: unsupported alpha-mode: {alpha_mode} not in {cap_alpha_modes}"
             )
 
+        # (re)create downloaders
+        self._downloaders[:] = [
+            ImageDownloader(config["device"], self._our_buffer_usage)
+        ]
+
     def _unconfigure(self) -> None:
         self._drop_texture()
+        self._downloaders[:] = [None for _ in self._downloaders]
 
     def _get_current_texture(self):
         # When the texture is active right now, we could either:
@@ -316,17 +319,12 @@ class WgpuContextToBitmap(WgpuContext):
         bitmap = None
         downloader = self._downloaders.pop(0)
         try:
-            if downloader is not None:
-                bitmap = downloader.get_bitmap()
+            bitmap = downloader.get_bitmap()
         finally:
             self._downloaders.append(downloader)
 
         # Select new downloader
         downloader = self._downloaders[-1]
-        if downloader is None:
-            downloader = self._downloaders[-1] = ImageDownloader(
-                self._config["device"], self._our_buffer_usage
-            )
         downloader.initiate_download(self._texture)
 
         self._drop_texture()
@@ -444,6 +442,9 @@ class ImageDownloader:
         self._device.queue.submit([command_buffer])
 
     def get_bitmap(self):
+        if self._buffer is None:  # todo: more explicit state tracking
+            return None
+
         memoryview_type = self._memoryview_type
         plain_stride = self._plain_stride
         padded_stride = self._padded_stride
