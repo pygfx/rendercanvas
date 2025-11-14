@@ -606,7 +606,8 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         # Undocumented char event to make imgui work, see https://github.com/pygfx/wgpu-py/issues/530
         ev = {
             "event_type": "char",
-            "char_str": chr(char),
+            "data": chr(char),
+            "char_str": chr(char),  # compat, remove few months from nov '25
             "modifiers": tuple(self._key_modifiers),
         }
         self.submit_event(ev)

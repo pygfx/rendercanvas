@@ -421,7 +421,8 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
 
         ev = {
             "event_type": "char",
-            "char_str": char_str,
+            "data": char_str,
+            "char_str": char_str,  # compat, remove few months from nov '25
             "modifiers": None,
         }
         self.submit_event(ev)

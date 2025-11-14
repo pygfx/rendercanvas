@@ -474,7 +474,8 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
     def _char_input_event(self, char_str):
         ev = {
             "event_type": "char",
-            "char_str": char_str,
+            "data": char_str,
+            "char_str": char_str,  # compat, remove few months from nov '25
             "modifiers": None,
         }
         self.submit_event(ev)
