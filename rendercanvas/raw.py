@@ -46,8 +46,11 @@ class RawLoop(BaseLoop):
         pass
 
     def _rc_run(self):
+        perf_counter = time.perf_counter
+        event = self._event
+
         while not self._should_stop:
-            self._event.clear()
+            event.clear()
 
             # Get wrapper for callback that is first to be called
             try:
@@ -61,11 +64,18 @@ class RawLoop(BaseLoop):
             else:
                 # Wait until its time for it to be called
                 # Note that on Windows, the accuracy of the timeout is 15.6 ms
-                wait_time = wrapper.time - time.perf_counter()
-                self._event.wait(max(wait_time, 0))
+                sleep_time = wrapper.time - perf_counter()
+                sleep_time = max(0, sleep_time - 0.0156)
+                event.wait(sleep_time)
+
+                # Wait some more
+                sleep_time = wrapper.time - perf_counter()
+                while not event.is_set() and sleep_time > 0:
+                    time.sleep(min(sleep_time, 0.001))  # sleep hard for at most 1ms
+                    sleep_time = wrapper.time - perf_counter()
 
                 # Put it back or call it?
-                if time.perf_counter() < wrapper.time:
+                if perf_counter() < wrapper.time:
                     heapq.heappush(self._queue, wrapper)
                 elif wrapper.callback is not None:
                     try:
