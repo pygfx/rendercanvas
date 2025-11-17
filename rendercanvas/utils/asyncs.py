@@ -16,7 +16,7 @@ import sys
 import sniffio
 
 
-IS_WIN = sys.platform.startswith("win")
+IS_WIN = sys.platform.startswith("win")  # Note that IS_WIN is false on Pyodide
 
 thread_pool = None
 
@@ -31,7 +31,10 @@ def get_thread_pool_executor():
 
 
 async def sleep(delay):
-    """Generic async sleep. Works with trio, asyncio and rendercanvas-native."""
+    """Generic async sleep. Works with trio, asyncio and rendercanvas-native.
+
+    For asyncio on Windows, this uses a special sleep routine that is more accurate than ``asyncio.sleep()``.
+    """
     libname = sniffio.current_async_library()
     if IS_WIN and libname == "asyncio":
         executor = get_thread_pool_executor()
