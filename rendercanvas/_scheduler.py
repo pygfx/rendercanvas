@@ -2,7 +2,6 @@
 The scheduler class/loop.
 """
 
-import sys
 import time
 import weakref
 

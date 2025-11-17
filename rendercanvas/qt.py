@@ -182,8 +182,8 @@ _show_image_method_warning = (
     "Qt falling back to offscreen rendering, which is less performant."
 )
 
-class CallbackWrapper(QtCore.QObject):
 
+class CallbackWrapper(QtCore.QObject):
     def __init__(self, pool, cb):
         super().__init__()
         self.pool = pool
@@ -246,7 +246,9 @@ class QtLoop(BaseLoop):
     def _rc_call_later(self, delay, callback):
         delay_ms = int(max(0, delay * 1000))
         callback_wrapper = CallbackWrapper(self._callback_pool, callback)
-        QtCore.QTimer.singleShot(delay_ms, PreciseTimer, callback_wrapper, QtCore.SLOT("callback()"))
+        QtCore.QTimer.singleShot(
+            delay_ms, PreciseTimer, callback_wrapper, QtCore.SLOT("callback()")
+        )
 
 
 loop = QtLoop()

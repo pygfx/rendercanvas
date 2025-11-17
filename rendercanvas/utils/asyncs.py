@@ -24,8 +24,8 @@ thread_pool = None
 def get_thread_pool_executor():
     global thread_pool
     if thread_pool is not None:
-
         from concurrent.futures import ThreadPoolExecutor
+
         thread_pool = ThreadPoolExecutor(16, "rendercanvas-threadpool")
     return thread_pool
 
@@ -33,9 +33,13 @@ def get_thread_pool_executor():
 async def sleep(delay):
     """Generic async sleep. Works with trio, asyncio and rendercanvas-native."""
     libname = sniffio.current_async_library()
-    if IS_WIN and libname == 'asyncio':
+    if IS_WIN and libname == "asyncio":
         executor = get_thread_pool_executor()
-        await  sys.modules[libname].get_running_loop().run_in_executor(executor, time_sleep, delay)
+        await (
+            sys.modules[libname]
+            .get_running_loop()
+            .run_in_executor(executor, time_sleep, delay)
+        )
     else:
         sleep = sys.modules[libname].sleep
         await sleep(delay)
