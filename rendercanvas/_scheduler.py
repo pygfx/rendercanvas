@@ -10,9 +10,6 @@ from ._enums import UpdateMode
 from .utils.asyncs import sleep, Event
 
 
-IS_WIN = sys.platform.startswith("win")
-
-
 class Scheduler:
     """Helper class to schedule event processing and drawing."""
 
@@ -121,20 +118,9 @@ class Scheduler:
             # Determine amount of sleep
             sleep_time = delay - (time.perf_counter() - last_tick_time)
 
-            if IS_WIN:
-                # On Windows OS-level timers have an in accuracy of 15.6 ms.
-                # This can cause sleep to take longer than intended. So we sleep
-                # less, and then do a few small sync-sleeps that have high accuracy.
-                await sleep(max(0, sleep_time - 0.0156))
-                sleep_time = delay - (time.perf_counter() - last_tick_time)
-                while sleep_time > 0:
-                    time.sleep(min(sleep_time, 0.001))  # sleep hard for at most 1ms
-                    await sleep(0)  # Allow other tasks to run but don't wait
-                    sleep_time = delay - (time.perf_counter() - last_tick_time)
-            else:
-                # Wait. Even if delay is zero, it gives control back to the loop,
-                # allowing other tasks to do work.
-                await sleep(max(0, sleep_time))
+            # Wait. Even if delay is zero, it gives control back to the loop,
+            # allowing other tasks to do work.
+            await sleep(max(0, sleep_time))
 
             # Below is the "tick"
 

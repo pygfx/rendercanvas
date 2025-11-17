@@ -34,6 +34,7 @@ if libname:
         WA_DeleteOnClose = QtCore.Qt.WidgetAttribute.WA_DeleteOnClose
         WA_InputMethodEnabled = QtCore.Qt.WidgetAttribute.WA_InputMethodEnabled
         KeyboardModifiers = QtCore.Qt.KeyboardModifier
+        PreciseTimer = QtCore.Qt.TimerType.PreciseTimer
         FocusPolicy = QtCore.Qt.FocusPolicy
         CursorShape = QtCore.Qt.CursorShape
         Keys = QtCore.Qt.Key
@@ -43,6 +44,7 @@ if libname:
         WA_PaintOnScreen = QtCore.Qt.WA_PaintOnScreen
         WA_DeleteOnClose = QtCore.Qt.WA_DeleteOnClose
         WA_InputMethodEnabled = QtCore.Qt.WA_InputMethodEnabled
+        PreciseTimer = QtCore.Qt.PreciseTimer
         KeyboardModifiers = QtCore.Qt
         FocusPolicy = QtCore.Qt
         CursorShape = QtCore.Qt
@@ -180,6 +182,20 @@ _show_image_method_warning = (
     "Qt falling back to offscreen rendering, which is less performant."
 )
 
+class CallbackWrapper(QtCore.QObject):
+
+    def __init__(self, pool, cb):
+        super().__init__()
+        self.pool = pool
+        self.pool.add(self)
+        self.cb = cb
+
+    @QtCore.Slot()
+    def callback(self):
+        self.pool.discard(self)
+        self.pool = None
+        self.cb()
+
 
 class QtLoop(BaseLoop):
     _app = None
@@ -192,6 +208,7 @@ class QtLoop(BaseLoop):
                 self._app = QtWidgets.QApplication([])
         if already_had_app_on_import:
             self._mark_as_interactive()
+        self._callback_pool = set()
 
     def _rc_run(self):
         # Note: we could detect if asyncio is running (interactive session) and wheter
@@ -228,7 +245,8 @@ class QtLoop(BaseLoop):
 
     def _rc_call_later(self, delay, callback):
         delay_ms = int(max(0, delay * 1000))
-        QtCore.QTimer.singleShot(delay_ms, callback)
+        callback_wrapper = CallbackWrapper(self._callback_pool, callback)
+        QtCore.QTimer.singleShot(delay_ms, PreciseTimer, callback_wrapper, QtCore.SLOT("callback()"))
 
 
 loop = QtLoop()
