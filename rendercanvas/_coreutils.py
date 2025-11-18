@@ -152,7 +152,8 @@ class CallLaterThread(threading.Thread):
         is_win = IS_WIN
 
         wait_until = None
-        leeway = 0.0005  # a little 0.5ms offset, because we take 1 ms steps
+        timestep = 0.001  # for doing small sleeps
+        leeway = timestep / 2  # a little offset so waiting exactly right on average
 
         while True:
             # == Wait for input
@@ -171,7 +172,7 @@ class CallLaterThread(threading.Thread):
                 except Empty:
                     new_item = None
                     while perf_counter() < wait_until:
-                        time.sleep(0.001)  # sleep hard for 1ms
+                        time.sleep(timestep)
                         try:
                             new_item = q.get_nowait()
                             break
