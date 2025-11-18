@@ -52,6 +52,14 @@ async def sleep(delay):
                 .get_running_loop()
                 .run_in_executor(executor, time_sleep, delay)
             )
+    elif True and libname == "trio" and delay > 0:
+        trio = sys.modules[libname]
+        f = _Future()
+        event = trio.Event()
+        token = trio.lowlevel.current_trio_token()
+        get_call_later_thread().call_later_from_thread(delay, token.run_sync_soon, event.set)
+        await event.wait()
+
     else:
         sleep = sys.modules[libname].sleep
         await sleep(delay)
