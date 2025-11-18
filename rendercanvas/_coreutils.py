@@ -105,7 +105,14 @@ def weakbind(method):
 # %% Helper for scheduling call-laters
 
 
-class SchedulerTimeoutThread(threading.Thread):
+class CallLaterThread(threading.Thread):
+    """A thread object that can be used to do "call later" from a dedicated thread.
+
+    Care is taken to realize precise timing, so it can be used to implement
+    precise sleeping and call_later on Windows (to overcome Windows notorious
+    15.6ms ticks).
+    """
+
     class Item:
         def __init__(self, index, time, callback, args):
             self.index = index
@@ -131,10 +138,11 @@ class SchedulerTimeoutThread(threading.Thread):
     def call_later_from_thread(self, delay, callback, *args):
         """In delay seconds, call the callback from the scheduling thread."""
         self._count += 1
-        item = SchedulerTimeoutThread.Item(
+        item = CallLaterThread.Item(
             self._count, time.perf_counter() + float(delay), callback, args
         )
         self._queue.put(item)
+        # TODO: could return a futures.Promise?
 
     def run(self):
         perf_counter = time.perf_counter
@@ -144,6 +152,7 @@ class SchedulerTimeoutThread(threading.Thread):
         is_win = IS_WIN
 
         wait_until = None
+        leeway = 0.0005  # a little 0.5ms offset, because we take 1 ms steps
 
         while True:
             # == Wait for input
@@ -151,16 +160,14 @@ class SchedulerTimeoutThread(threading.Thread):
             if wait_until is None:
                 # Nothing to do but wait
                 new_item = q.get(True, None)
-            elif not is_win:
-                # Wait for as long we can
-                try:
-                    new_item = q.get(True, max(0, wait_until - perf_counter()))
-                except Empty:
-                    new_item = None
             else:
-                # Trickery to work around limited Windows timer precision
+                # We wait for the queue with a timeout. But because the timeout is not very precise,
+                # we wait shorter, and then go in a loop with some hard sleeps.
+                # Windows has 15.6 ms resolution ticks. But also on other OSes,
+                # it benefits precision to do the last bit with hard sleeps.
+                offset = 0.016 if is_win else 0.004
                 try:
-                    new_item = q.get(True, max(0, wait_until - perf_counter() - 0.0156))
+                    new_item = q.get(True, max(0, wait_until - perf_counter() - offset))
                 except Empty:
                     new_item = None
                     while perf_counter() < wait_until:
@@ -189,9 +196,10 @@ class SchedulerTimeoutThread(threading.Thread):
                     break
 
                 # If it's not yet time for the item, put it back, and go wait
-                if perf_counter() < item.time:
+                item_time_threshold = item.time - leeway
+                if perf_counter() < item_time_threshold:
                     heapq.heappush(priority, item)
-                    wait_until = item.time
+                    wait_until = item_time_threshold
                     break
 
                 # Otherwise, handle the callback
@@ -206,7 +214,14 @@ class SchedulerTimeoutThread(threading.Thread):
             del item
 
 
-scheduler_timeout_thread = SchedulerTimeoutThread()
+call_later_thread = None
+
+
+def get_call_later_thread():
+    global call_later_thread
+    if call_later_thread is None:
+        call_later_thread = CallLaterThread()
+    return call_later_thread
 
 
 # %% lib support

@@ -13,9 +13,11 @@ To give an idea how to use ``sniffio`` to get a generic async sleep function:
 
 from time import sleep as time_sleep
 import sys
+from concurrent.futures import Future as _Future
+
 import sniffio
 
-from .._coreutils import IS_WIN, scheduler_timeout_thread
+from .._coreutils import IS_WIN, get_call_later_thread
 
 
 thread_pool = None
@@ -40,13 +42,9 @@ async def sleep(delay):
     if True and libname == "asyncio" and delay > 0:
         if True:
             asyncio = sys.modules[libname]
-            loop = asyncio.get_running_loop()
-            event = asyncio.Event()
-            offset = 0.002  # there is some overhead for going to a thread and back
-            scheduler_timeout_thread.call_later_from_thread(
-                delay - offset, loop.call_soon_threadsafe, event.set
-            )
-            await event.wait()
+            f = _Future()
+            get_call_later_thread().call_later_from_thread(delay, f.set_result, None)
+            await asyncio.wrap_future(f)
         else:
             executor = get_thread_pool_executor()
             await (

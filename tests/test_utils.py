@@ -40,7 +40,7 @@ def test_weakbind():
 
 
 def test_call_later_thread():
-    t = rendercanvas._coreutils.scheduler_timeout_thread
+    t = rendercanvas._coreutils.CallLaterThread()
 
     results = []
 
