@@ -15,8 +15,8 @@ from time import sleep as time_sleep
 import sys
 import sniffio
 
+from .._coreutils import IS_WIN, scheduler_timeout_thread
 
-IS_WIN = sys.platform.startswith("win")  # Note that IS_WIN is false on Pyodide
 
 thread_pool = None
 
@@ -36,13 +36,24 @@ async def sleep(delay):
     For asyncio on Windows, this uses a special sleep routine that is more accurate than ``asyncio.sleep()``.
     """
     libname = sniffio.current_async_library()
-    if IS_WIN and libname == "asyncio":
-        executor = get_thread_pool_executor()
-        await (
-            sys.modules[libname]
-            .get_running_loop()
-            .run_in_executor(executor, time_sleep, delay)
-        )
+    # if IS_WIN and libname == "asyncio" and delay > 0:
+    if True and libname == "asyncio" and delay > 0:
+        if True:
+            asyncio = sys.modules[libname]
+            loop = asyncio.get_running_loop()
+            event = asyncio.Event()
+            offset = 0.002  # there is some overhead for going to a thread and back
+            scheduler_timeout_thread.call_later_from_thread(
+                delay - offset, loop.call_soon_threadsafe, event.set
+            )
+            await event.wait()
+        else:
+            executor = get_thread_pool_executor()
+            await (
+                sys.modules[libname]
+                .get_running_loop()
+                .run_in_executor(executor, time_sleep, delay)
+            )
     else:
         sleep = sys.modules[libname].sleep
         await sleep(delay)

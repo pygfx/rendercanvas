@@ -6,10 +6,19 @@ import os
 import re
 import sys
 import time
+import heapq
+import queue
 import weakref
 import logging
+import threading
 import ctypes.util
 from contextlib import contextmanager
+
+
+# %% Constants
+
+
+IS_WIN = sys.platform.startswith("win")  # Note that IS_WIN is false on Pyodide
 
 
 # %% Logging
@@ -91,6 +100,113 @@ def weakbind(method):
 
     proxy.__name__ = class_func.__name__
     return proxy
+
+
+# %% Helper for scheduling call-laters
+
+
+class SchedulerTimeoutThread(threading.Thread):
+    class Item:
+        def __init__(self, index, time, callback, args):
+            self.index = index
+            self.time = time  # measured in time.perf_counter
+            self.callback = callback
+            self.args = args
+
+        def __lt__(self, other):
+            return (self.time, self.index) < (other.time, other.index)
+
+        def cancel(self):
+            self.callback = None
+            self.args = None
+
+    def __init__(self):
+        super().__init__()
+        self._queue = queue.SimpleQueue()
+        self._count = 0
+        self._shutdown = False
+        self.daemon = True  # don't let this thread prevent shutdown
+        self.start()
+
+    def call_later_from_thread(self, delay, callback, *args):
+        """In delay seconds, call the callback from the scheduling thread."""
+        self._count += 1
+        item = SchedulerTimeoutThread.Item(
+            self._count, time.perf_counter() + float(delay), callback, args
+        )
+        self._queue.put(item)
+
+    def run(self):
+        perf_counter = time.perf_counter
+        Empty = queue.Empty  # noqa: N806
+        q = self._queue
+        priority = []
+        is_win = IS_WIN
+
+        wait_until = None
+
+        while True:
+            # == Wait for input
+
+            if wait_until is None:
+                # Nothing to do but wait
+                new_item = q.get(True, None)
+            elif not is_win:
+                # Wait for as long we can
+                try:
+                    new_item = q.get(True, max(0, wait_until - perf_counter()))
+                except Empty:
+                    new_item = None
+            else:
+                # Trickery to work around limited Windows timer precision
+                try:
+                    new_item = q.get(True, max(0, wait_until - perf_counter() - 0.0156))
+                except Empty:
+                    new_item = None
+                    while perf_counter() < wait_until:
+                        time.sleep(0.001)  # sleep hard for 1ms
+                        try:
+                            new_item = q.get_nowait()
+                            break
+                        except Empty:
+                            pass
+
+            # Put it in our priority queue
+            if new_item is not None:
+                heapq.heappush(priority, new_item)
+
+            del new_item
+
+            # == Process items until we have to wait
+
+            item = None
+            while True:
+                # Get item that is up next
+                try:
+                    item = heapq.heappop(priority)
+                except IndexError:
+                    wait_until = None
+                    break
+
+                # If it's not yet time for the item, put it back, and go wait
+                if perf_counter() < item.time:
+                    heapq.heappush(priority, item)
+                    wait_until = item.time
+                    break
+
+                # Otherwise, handle the callback
+                try:
+                    item.callback(*item.args)
+                except Exception as err:
+                    logger.error(f"Error in callback: {err}")
+
+                # Clear
+                item.cancel()
+
+            del item
+
+
+scheduler_timeout_thread = SchedulerTimeoutThread()
 
 
 # %% lib support
