@@ -106,28 +106,14 @@ def weakbind(method):
 
 
 class CallLaterThread(threading.Thread):
-    """A thread object that can be used to do "call later" from a dedicated thread.
+    """An object that can be used to do "call later" from a dedicated thread.
 
     Care is taken to realize precise timing, so it can be used to implement
-    precise sleeping and call_later on Windows (to overcome Windows notorious
+    precise sleeping and call_later on Windows (to overcome Windows' notorious
     15.6ms ticks).
     """
 
     Item = namedtuple("Item", ["time", "index", "callback", "args"])
-
-    class Item:
-        def __init__(self, index, time, callback, args):
-            self.index = index
-            self.time = time  # measured in time.perf_counter
-            self.callback = callback
-            self.args = args
-
-        def __lt__(self, other):
-            return (self.time, self.index) < (other.time, other.index)
-
-        def cancel(self):
-            self.callback = None
-            self.args = None
 
     def __init__(self):
         super().__init__()
@@ -141,7 +127,7 @@ class CallLaterThread(threading.Thread):
         """In delay seconds, call the callback from the scheduling thread."""
         self._count += 1
         item = CallLaterThread.Item(
-            self._count, time.perf_counter() + float(delay), callback, args
+            time.perf_counter() + float(delay), self._count, callback, args
         )
         self._queue.put(item)
 
@@ -210,9 +196,6 @@ class CallLaterThread(threading.Thread):
                     item.callback(*item.args)
                 except Exception as err:
                     logger.error(f"Error in callback: {err}")
-
-                # Clear
-                item.cancel()
 
             del item
 
