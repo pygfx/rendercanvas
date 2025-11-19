@@ -215,14 +215,20 @@ class CallLaterThread(threading.Thread):
             del item
 
 
-call_later_thread = None
+_call_later_thread = None
 
 
-def get_call_later_thread():
-    global call_later_thread
-    if call_later_thread is None:
-        call_later_thread = CallLaterThread()
-    return call_later_thread
+def call_later_from_thread(delay: float, callback: object, *args: object):
+    """Utility that calls a callback after a specified delay, from a separate thread.
+
+    The caller is responsible for the given callback to be thread-safe.
+    There is one global thread that handles all callbacks. This thread is spawned the first time
+    that this function is called.
+    """
+    global _call_later_thread
+    if _call_later_thread is None:
+        _call_later_thread = CallLaterThread()
+    return _call_later_thread.call_later_from_thread(delay, callback, *args)
 
 
 # %% lib support

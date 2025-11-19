@@ -18,8 +18,10 @@ from ._coreutils import (
     get_alt_wayland_display,
     select_qt_lib,
     IS_WIN,
-    get_call_later_thread,
+    call_later_from_thread,
 )
+
+USE_THREADED_TIMER = False  # Default False, because we use Qt PreciseTimer instead
 
 
 # Select GUI toolkit
@@ -268,23 +270,23 @@ class QtLoop(BaseLoop):
     def _rc_call_later(self, delay, callback):
         if delay <= 0:
             QtCore.QTimer.singleShot(0, callback)
+        elif USE_THREADED_TIMER:
+            call_later_from_thread(delay, self._caller.call.emit, callback)
         elif IS_WIN:
-            # Use high precision timer. We can use the threaded approach,
-            # or use Qt's own high precision timer.
-            # We chose the latter, which seems slightly more accurate.
-            if False:
-                get_call_later_thread().call_later_from_thread(
-                    delay, self._caller.call.emit, callback
-                )
-            else:
-                callback_wrapper = CallbackWrapperHelper(self._callback_pool, callback)
-                wrapper_args = (callback_wrapper.callback,)
-                if is_pyside:
-                    wrapper_args = (callback_wrapper, QtCore.SLOT("callback()"))
-                QtCore.QTimer.singleShot(
-                    int(max(delay * 1000, 1)), PreciseTimer, *wrapper_args
-                )
+            # To get high-precision call_later in Windows, we can either use the threaded
+            # approach, or use Qt's own high-precision timer. We default to the latter,
+            # which seems slightly more accurate. It's a bit involved, because we need to
+            # make use of slots, and the signature for singleShot is not well-documented and
+            # differs between PyQt/PySide.
+            callback_wrapper = CallbackWrapperHelper(self._callback_pool, callback)
+            wrapper_args = (callback_wrapper.callback,)
+            if is_pyside:
+                wrapper_args = (callback_wrapper, QtCore.SLOT("callback()"))
+            QtCore.QTimer.singleShot(
+                int(max(delay * 1000, 1)), PreciseTimer, *wrapper_args
+            )
         else:
+            # Normal timer. Already precise for MacOS/Linux.
             QtCore.QTimer.singleShot(int(max(delay * 1000, 1)), callback)
 
 

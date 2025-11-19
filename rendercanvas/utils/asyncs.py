@@ -11,25 +11,15 @@ To give an idea how to use ``sniffio`` to get a generic async sleep function:
 
 """
 
-from time import sleep as time_sleep
 import sys
 from concurrent.futures import Future as _Future
 
 import sniffio
 
-from .._coreutils import IS_WIN, get_call_later_thread
+from .._coreutils import IS_WIN, call_later_from_thread
 
 
-thread_pool = None
-
-
-def get_thread_pool_executor():
-    global thread_pool
-    if thread_pool is not None:
-        from concurrent.futures import ThreadPoolExecutor
-
-        thread_pool = ThreadPoolExecutor(16, "rendercanvas-threadpool")
-    return thread_pool
+USE_THREADED_TIMER = IS_WIN
 
 
 async def sleep(delay):
@@ -38,30 +28,20 @@ async def sleep(delay):
     For asyncio on Windows, this uses a special sleep routine that is more accurate than ``asyncio.sleep()``.
     """
     libname = sniffio.current_async_library()
-    # if IS_WIN and libname == "asyncio" and delay > 0:
-    if True and libname == "asyncio" and delay > 0:
-        if True:
-            asyncio = sys.modules[libname]
-            f = _Future()
-            get_call_later_thread().call_later_from_thread(delay, f.set_result, None)
-            await asyncio.wrap_future(f)
-        else:
-            executor = get_thread_pool_executor()
-            await (
-                sys.modules[libname]
-                .get_running_loop()
-                .run_in_executor(executor, time_sleep, delay)
-            )
-    elif True and libname == "trio" and delay > 0:
+    if libname == "asyncio" and delay > 0 and USE_THREADED_TIMER:
+        asyncio = sys.modules[libname]
+        f = _Future()
+        call_later_from_thread(delay, f.set_result, None)
+        await asyncio.wrap_future(f)
+        return
+    elif libname == "trio" and delay > 0 and USE_THREADED_TIMER:
         trio = sys.modules[libname]
         f = _Future()
         event = trio.Event()
         token = trio.lowlevel.current_trio_token()
-        get_call_later_thread().call_later_from_thread(
-            delay, token.run_sync_soon, event.set
-        )
+        call_later_from_thread(delay, token.run_sync_soon, event.set)
         await event.wait()
-
+        return
     else:
         sleep = sys.modules[libname].sleep
         await sleep(delay)
