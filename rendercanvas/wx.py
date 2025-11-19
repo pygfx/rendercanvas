@@ -17,6 +17,8 @@ from ._coreutils import (
     SYSTEM_IS_WAYLAND,
     get_alt_x11_display,
     get_alt_wayland_display,
+    IS_WIN,
+    get_call_later_thread,
 )
 from .base import (
     WrapperRenderCanvas,
@@ -179,7 +181,14 @@ class WxLoop(BaseLoop):
         return super()._rc_add_task(async_func, name)
 
     def _rc_call_later(self, delay, callback):
-        wx.CallLater(max(int(delay * 1000), 1), callback)
+        if delay <= 0:
+            wx.CallAfter(callback)
+        elif IS_WIN:
+            get_call_later_thread().call_later_from_thread(
+                delay, wx.CallAfter, callback
+            )
+        else:
+            wx.CallLater(max(int(delay * 1000), 1), callback)
 
     def process_wx_events(self):
         old_loop = wx.GUIEventLoop.GetActive()
