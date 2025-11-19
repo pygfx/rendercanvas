@@ -27,9 +27,9 @@ same to the code that renders to them. Yet, the GUI systems are very different
 
 Providing a generic API for:
 
-* managing a canvas window (`BaseRenderCanvas`).
-* presenting rendered results with `wgpu` (`WgpuContext`).
-* presenting rendered results as a bitmap (`BitmapContext`).
+* managing a canvas window ([`BaseRenderCanvas`](https://rendercanvas.readthedocs.io/stable/api.html)).
+* presenting rendered results with `wgpu` ([`WgpuContext`](https://rendercanvas.readthedocs.io/stable/contexts.html#rendercanvas.contexts.WgpuContext)).
+* presenting rendered results as a bitmap ([`BitmapContext`](https://rendercanvas.readthedocs.io/stable/contexts.html#rendercanvas.contexts.BitmapContext)).
 * working with events that have standardized behavior.
 
 Implement that on top of a variety of backends:
