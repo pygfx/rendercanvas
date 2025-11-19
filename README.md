@@ -34,12 +34,16 @@ Providing a generic API for:
 
 Implement that on top of a variety of backends:
 
-* One that is light and easily installed (glfw).
-* When running Python in the browser with Pyodide or PyScript.
-* When running in a (Jupyter) notebook.
-* For various GUI libraries so visualizations can be embedded in a GUI.
+* Running on desktop with a light backend (glfw).
+* Running in the browser (with Pyodide or PyScript).
+* Running from a (Jupyter) notebook.
+* Embedding as a widget in a GUI library.
   * Qt
   * wx
+* In addition to the GUI libraries mentioned above, the following event loops are supported:
+  * asyncio
+  * trio
+  * raw
 
 
 ## Installation
