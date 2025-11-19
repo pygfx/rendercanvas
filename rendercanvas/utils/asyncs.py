@@ -24,7 +24,7 @@ USE_THREADED_TIMER = IS_WIN
 async def sleep(delay):
     """Generic async sleep. Works with trio, asyncio and rendercanvas-native.
 
-    For asyncio on Windows, this uses a special sleep routine that is more accurate than ``asyncio.sleep()``.
+    On Windows, with asyncio or trio, this uses a special sleep routine that is more accurate than the standard ``sleep()``.
     """
     libname = sniffio.current_async_library()
     if libname == "asyncio" and delay > 0 and USE_THREADED_TIMER:
