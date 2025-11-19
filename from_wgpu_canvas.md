@@ -21,10 +21,9 @@ This document lists all the changes w.r.t. the last version of the canvas in wgp
 * Bitmap rendering via builtin`canvas.get_bitmap_context()`.
 * Handling of sigint (ctrl+c).
 * Support for Trio.
-* Support for async event handlers.
 * Support for running async functions via `loop.add_task()`.
 * Simpler Qt lib selection with `from rendercanvas.pyside6 import RenderCanvas`.
-* Generic scheduling system with modes "ondemand", "continious", "fastest".
+* Generic scheduling system with modes "ondemand", "continuous", "fastest".
 
 
 ## By example
