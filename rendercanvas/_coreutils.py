@@ -119,7 +119,6 @@ class CallLaterThread(threading.Thread):
         super().__init__()
         self._queue = queue.SimpleQueue()
         self._count = 0
-        self._shutdown = False
         self.daemon = True  # don't let this thread prevent shutdown
         self.start()
 
