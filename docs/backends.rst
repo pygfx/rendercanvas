@@ -323,7 +323,7 @@ An example using Pyodide directly:
                     from rendercanvas.auto import RenderCanvas, loop
 
                     canvas = RenderCanvas()
-                    context = canvas.get_context("bitmap")
+                    context = canvas.get_bitmap_context()
                     data = np.random.uniform(127, 255, size=(24, 32, 4)).astype(np.uint8)
 
                     @canvas.request_draw
