@@ -41,27 +41,6 @@ class SizeInfo(dict):
 
         self["changed"] = True
 
-    def set_logical_size(self, width: float, height: float):
-        """Called by the canvas when the logical size is set.
-
-        This calculates the expected physical size (with the current pixel ratio),
-        to get the corrected logical size. But this *only* sets the logical_size
-        and total_pixel_ratio. The backend will, likely before the next draw,
-        adjust the size and call set_physical_size(), which re-sets the logical size.
-        """
-        # Calculate adjusted logical size
-        ratio = self["native_pixel_ratio"] * self["canvas_pixel_ratio"]
-        pwidth = max(1, round(float(width) * ratio + 0.01))
-        pheight = max(1, round(float(height) * ratio + 0.01))
-        lwidth, lheight = pwidth / ratio, pheight / ratio
-
-        # Update logical size and total ratio. You could see it as a temporary zoom factor being applied.
-        # Note that The backend will soon call set_physical_size().
-        self["logical_size"] = lwidth, lheight
-        self["total_pixel_ratio"] = self["physical_size"][0] / lwidth
-
-        self["changed"] = True
-
     def set_zoom(self, zoom: float):
         """Set the zoom factor, i.e. the canvas pixel ratio."""
         self["canvas_pixel_ratio"] = float(zoom)
