@@ -28,8 +28,8 @@ same to the code that renders to them. Yet, the GUI systems are very different
 Providing a generic API for:
 
 * managing a canvas window (`BaseRenderCanvas`).
-* presenting rendered results with `wgpu` (`BitmapContext`).
-* presenting rendered results as a bitmap (`WgpuContext`).
+* presenting rendered results with `wgpu` (`WgpuContext`).
+* presenting rendered results as a bitmap (`BitmapContext`).
 * working with events that have standardized behavior.
 
 Implement that on top of a variety of backends:
