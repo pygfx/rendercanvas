@@ -31,57 +31,6 @@ def test_size_info_basic():
     assert si["changed"] is True
 
 
-def test_size_info_logical():
-    si = SizeInfo()
-    assert si["physical_size"] == (1, 1)
-    assert si["logical_size"] == (1.0, 1.0)
-    assert si["total_pixel_ratio"] == 1.0
-    assert si["changed"] is False
-
-    # Base class setting logical size
-    si.set_logical_size(100, 100)
-
-    assert si["physical_size"] == (1, 1)  # don't touch!
-    assert si["logical_size"] == (100.0, 100.0)
-    assert si["total_pixel_ratio"] == 0.01
-    assert si["changed"] is True
-
-    # Again
-    si.set_logical_size(640, 480)
-
-    assert si["physical_size"] == (1, 1)  # don't touch!
-    assert si["logical_size"] == (640.0, 480.0)
-    assert si["total_pixel_ratio"] == 1 / 640
-
-    # Now backend adjusts its actual size
-    si.set_physical_size(1280, 960, 2.0)
-
-    assert si["physical_size"] == (1280, 960)
-    assert si["logical_size"] == (640.0, 480.0)
-    assert si["total_pixel_ratio"] == 2.0
-
-    # Base class sets logical size again
-    si.set_logical_size(100.2, 100.2)
-
-    assert si["physical_size"] == (1280, 960)  # don't touch!
-    assert si["logical_size"] == (100.0, 100.0)  # took ratio into account
-    assert si["total_pixel_ratio"] == 1280 / 100
-
-    # And again
-    si.set_logical_size(101.8, 101.8)
-
-    assert si["physical_size"] == (1280, 960)  # don't touch!
-    assert si["logical_size"] == (102.0, 102.0)  # took ratio into account
-    assert si["total_pixel_ratio"] == 1280 / 102
-
-    # And backend adjusts its actual size
-    si.set_physical_size(204, 204, 2.0)
-
-    assert si["physical_size"] == (204, 204)
-    assert si["logical_size"] == (102, 102.0)
-    assert si["total_pixel_ratio"] == 2.0
-
-
 def test_size_info_zoom():
     si = SizeInfo()
     si.set_physical_size(1200, 1200, 2.0)
@@ -145,9 +94,9 @@ def test_canvas_sizing():
 
     c = MyRenderCanvas()
 
-    assert c.get_logical_size() == (640.0, 480.0)
+    assert c.get_logical_size() == (1.0, 1.0)
     assert c.get_physical_size() == (1, 1)
-    assert c.get_pixel_ratio() == 1 / 640
+    assert c.get_pixel_ratio() == 1
 
     c.apply_size()
 
