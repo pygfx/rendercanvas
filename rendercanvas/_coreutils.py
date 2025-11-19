@@ -195,7 +195,7 @@ class CallLaterThread(threading.Thread):
                 try:
                     item.callback(*item.args)
                 except Exception as err:
-                    logger.error(f"Error in callback: {err}")
+                    logger.error(f"Error in CallLaterThread callback: {err}")
 
             del item
 

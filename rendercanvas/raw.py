@@ -8,80 +8,29 @@ for educational purposes: look how simple a loop can be!
 
 __all__ = ["RawLoop", "loop"]
 
-import time
-import heapq
-import logging
-import threading
-from itertools import count
+import queue
 
 from .base import BaseLoop
-
-
-logger = logging.getLogger("rendercanvas")
-counter = count()
-
-
-class CallAtWrapper:
-    def __init__(self, time, callback):
-        self.index = next(counter)
-        self.time = time
-        self.callback = callback
-
-    def __lt__(self, other):
-        return (self.time, self.index) < (other.time, other.index)
-
-    def cancel(self):
-        self.callback = None
+from ._coreutils import logger, call_later_from_thread
 
 
 class RawLoop(BaseLoop):
     def __init__(self):
         super().__init__()
-        self._queue = []  # prioriry queue
+        self._queue = queue.SimpleQueue()
         self._should_stop = False
-        self._event = threading.Event()
 
     def _rc_init(self):
         # This gets called when the first canvas is created (possibly after having run and stopped before).
         pass
 
     def _rc_run(self):
-        perf_counter = time.perf_counter
-        event = self._event
-
         while not self._should_stop:
-            event.clear()
-
-            # Get wrapper for callback that is first to be called
+            callback = self._queue.get(True, None)
             try:
-                wrapper = heapq.heappop(self._queue)
-            except IndexError:
-                wrapper = None
-
-            if wrapper is None:
-                # Empty queue, exit
-                break
-            else:
-                # Wait until its time for it to be called
-                # Note that on Windows, the accuracy of the timeout is 15.6 ms
-                sleep_time = wrapper.time - perf_counter()
-                sleep_time = max(0, sleep_time - 0.0156)
-                event.wait(sleep_time)
-
-                # Wait some more
-                sleep_time = wrapper.time - perf_counter()
-                while not event.is_set() and sleep_time > 0:
-                    time.sleep(min(sleep_time, 0.001))  # sleep hard for at most 1ms
-                    sleep_time = wrapper.time - perf_counter()
-
-                # Put it back or call it?
-                if perf_counter() < wrapper.time:
-                    heapq.heappush(self._queue, wrapper)
-                elif wrapper.callback is not None:
-                    try:
-                        wrapper.callback()
-                    except Exception as err:
-                        logger.error(f"Error in callback: {err}")
+                callback()
+            except Exception as err:
+                logger.error(f"Error in RawLoop callback: {err}")
 
     async def _rc_run_async(self):
         raise NotImplementedError()
@@ -89,18 +38,14 @@ class RawLoop(BaseLoop):
     def _rc_stop(self):
         # Note: is only called when we're inside _rc_run
         self._should_stop = True
-        self._event.set()
+        self._queue.put(lambda: None)  # trigger an iter
 
     def _rc_add_task(self, async_func, name):
         # we use the async adapter with call_later
         return super()._rc_add_task(async_func, name)
 
     def _rc_call_later(self, delay, callback):
-        now = time.perf_counter()
-        time_at = now + max(0, delay)
-        wrapper = CallAtWrapper(time_at, callback)
-        heapq.heappush(self._queue, wrapper)
-        self._event.set()
+        call_later_from_thread(delay, self._queue.put, callback)
 
 
 loop = RawLoop()
