@@ -224,6 +224,9 @@ def call_later_from_thread(delay: float, callback: object, *args: object):
     The caller is responsible for the given callback to be thread-safe.
     There is one global thread that handles all callbacks. This thread is spawned the first time
     that this function is called.
+
+    Note that this function should only be used in environments where threading is available.
+    E.g. on Pyodide this will raise ``RuntimeError: can't start new thread``.
     """
     global _call_later_thread
     if _call_later_thread is None:
