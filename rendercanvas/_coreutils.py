@@ -6,13 +6,13 @@ import os
 import re
 import sys
 import time
-import heapq
 import queue
 import weakref
 import logging
 import threading
 import ctypes.util
 from contextlib import contextmanager
+from collections import namedtuple
 
 
 # %% Constants
@@ -113,6 +113,8 @@ class CallLaterThread(threading.Thread):
     15.6ms ticks).
     """
 
+    Item = namedtuple("Item", ["time", "index", "callback", "args"])
+
     class Item:
         def __init__(self, index, time, callback, args):
             self.index = index
@@ -181,7 +183,8 @@ class CallLaterThread(threading.Thread):
 
             # Put it in our priority queue
             if new_item is not None:
-                heapq.heappush(priority, new_item)
+                priority.append(new_item)
+                priority.sort(reverse=True)
 
             del new_item
 
@@ -191,7 +194,7 @@ class CallLaterThread(threading.Thread):
             while True:
                 # Get item that is up next
                 try:
-                    item = heapq.heappop(priority)
+                    item = priority.pop(-1)
                 except IndexError:
                     wait_until = None
                     break
@@ -199,7 +202,7 @@ class CallLaterThread(threading.Thread):
                 # If it's not yet time for the item, put it back, and go wait
                 item_time_threshold = item.time - leeway
                 if perf_counter() < item_time_threshold:
-                    heapq.heappush(priority, item)
+                    priority.append(item)
                     wait_until = item_time_threshold
                     break
 
