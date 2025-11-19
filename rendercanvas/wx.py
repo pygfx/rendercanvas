@@ -188,7 +188,7 @@ class WxLoop(BaseLoop):
                 delay, wx.CallAfter, callback
             )
         else:
-            wx.CallLater(max(int(delay * 1000), 1), callback)
+            wx.CallLater(int(max(delay * 1000, 1)), callback)
 
     def process_wx_events(self):
         old_loop = wx.GUIEventLoop.GetActive()

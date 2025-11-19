@@ -57,7 +57,9 @@ async def sleep(delay):
         f = _Future()
         event = trio.Event()
         token = trio.lowlevel.current_trio_token()
-        get_call_later_thread().call_later_from_thread(delay, token.run_sync_soon, event.set)
+        get_call_later_thread().call_later_from_thread(
+            delay, token.run_sync_soon, event.set
+        )
         await event.wait()
 
     else:
