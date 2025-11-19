@@ -144,7 +144,6 @@ class CallLaterThread(threading.Thread):
             self._count, time.perf_counter() + float(delay), callback, args
         )
         self._queue.put(item)
-        # TODO: could return a futures.Promise?
 
     def run(self):
         perf_counter = time.perf_counter

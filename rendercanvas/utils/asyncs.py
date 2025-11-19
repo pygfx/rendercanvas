@@ -12,7 +12,6 @@ To give an idea how to use ``sniffio`` to get a generic async sleep function:
 """
 
 import sys
-from concurrent.futures import Future as _Future
 
 import sniffio
 
@@ -30,18 +29,16 @@ async def sleep(delay):
     libname = sniffio.current_async_library()
     if libname == "asyncio" and delay > 0 and USE_THREADED_TIMER:
         asyncio = sys.modules[libname]
-        f = _Future()
-        call_later_from_thread(delay, f.set_result, None)
-        await asyncio.wrap_future(f)
-        return
+        loop = asyncio.get_running_loop()
+        event = asyncio.Event()
+        call_later_from_thread(delay, loop.call_soon_threadsafe, event.set)
+        await event.wait()
     elif libname == "trio" and delay > 0 and USE_THREADED_TIMER:
         trio = sys.modules[libname]
-        f = _Future()
         event = trio.Event()
         token = trio.lowlevel.current_trio_token()
         call_later_from_thread(delay, token.run_sync_soon, event.set)
         await event.wait()
-        return
     else:
         sleep = sys.modules[libname].sleep
         await sleep(delay)
