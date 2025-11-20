@@ -88,8 +88,12 @@ class AsyncioLoop(BaseLoop):
             self.__tasks.add(task)
             task.add_done_callback(self.__tasks.discard)
 
-    def _rc_call_later(self, *args):
+    def _rc_call_later(self, delay, callback):
         raise NotImplementedError()  # we implement _rc_add_task instead
+
+    def _rc_call_soon_threadsafe(self, callback):
+        loop = self._interactive_loop or self._run_loop
+        loop.call_soon_threadsafe(callback)
 
 
 loop = AsyncioLoop()

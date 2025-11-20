@@ -289,6 +289,10 @@ class QtLoop(BaseLoop):
             # Normal timer. Already precise for MacOS/Linux.
             QtCore.QTimer.singleShot(int(max(delay * 1000, 1)), callback)
 
+    def _rc_call_soon_threadsafe(self, callback):
+        # Because this goes through a signal/slot, it's thread-safe
+        self._caller.call.emit(callback)
+
 
 loop = QtLoop()
 

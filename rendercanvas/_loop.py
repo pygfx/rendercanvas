@@ -8,7 +8,7 @@ import signal
 from inspect import iscoroutinefunction
 from typing import TYPE_CHECKING
 
-from ._coreutils import logger, log_exception
+from ._coreutils import logger, log_exception, call_later_from_thread
 from .utils.asyncs import sleep
 from .utils import asyncadapter
 
@@ -29,7 +29,7 @@ class BaseLoop:
     """The base class for an event-loop object.
 
     Canvas backends can implement their own loop subclass (like qt and wx do), but a
-    canvas backend can also rely on one of muliple loop implementations (like glfw
+    canvas backend can also rely on one of multiple loop implementations (like glfw
     running on asyncio or trio).
 
     The lifecycle states of a loop are:
@@ -46,7 +46,7 @@ class BaseLoop:
     * Stopping the loop (via ``.stop()``) closes the canvases, which will then stop the loop.
     * From there it can go back to the ready state (which would call ``_rc_init()`` again).
     * In backends like Qt, the native loop can be started without us knowing: state "active".
-    * In interactive settings like an IDE that runs an syncio or Qt loop, the
+    * In interactive settings like an IDE that runs an asyncio or Qt loop, the
       loop can become "active" as soon as the first canvas is created.
 
     """
@@ -176,8 +176,11 @@ class BaseLoop:
     def call_soon(self, callback: CallbackFunction, *args: Any) -> None:
         """Arrange for a callback to be called as soon as possible.
 
-        The callback will be called in the next iteration of the event-loop,
-        but other pending events/callbacks may be handled first. Returns None.
+        The callback will be called in the next iteration of the event-loop, but
+        other pending events/callbacks may be handled first. Returns None.
+
+        Not thread-safe; use ``call_soon_threadsafe()`` for scheduling callbacks
+        from another thread.
         """
         if not callable(callback):
             raise TypeError("call_soon() expects a callable.")
@@ -189,6 +192,22 @@ class BaseLoop:
                 callback(*args)
 
         self._rc_add_task(wrapper, "call_soon")
+
+    def call_soon_threadsafe(self, callback: CallbackFunction, *args: Any) -> None:
+        """A thread-safe variant of ``call_soon()``."""
+
+        if not callable(callback):
+            raise TypeError("call_soon_threadsafe() expects a callable.")
+        elif iscoroutinefunction(callback):
+            raise TypeError(
+                "call_soon_threadsafe() expects a normal callable, not an async one."
+            )
+
+        def wrapper():
+            with log_exception("Callback error:"):
+                callback(*args)
+
+        self._rc_call_soon_threadsafe(wrapper)
 
     def call_later(self, delay: float, callback: CallbackFunction, *args: Any) -> None:
         """Arrange for a callback to be called after the given delay (in seconds)."""
@@ -214,7 +233,7 @@ class BaseLoop:
         its fine to start the loop in the normal way.
 
         This call usually blocks, but it can also return immediately, e.g. when there are no
-        canvases, or when the loop is already active (e.g. interactve via IDE).
+        canvases, or when the loop is already active (e.g. interactive via IDE).
         """
 
         # Can we enter the loop?
@@ -360,8 +379,13 @@ class BaseLoop:
     def _rc_add_task(self, async_func, name):
         """Add an async task to the running loop.
 
-        This method is optional. A subclass must either implement ``_rc_add_task`` or ``_rc_call_later``.
+        True async loop-backends (like asyncio and trio) should implement this.
+        When they do, ``_rc_call_later`` is not used.
 
+        Other loop-backends can use the default implementation, which uses the
+        ``asyncadapter`` which runs coroutines using ``_rc_call_later``.
+
+        * If you implement this, make ``_rc_call_later()`` raise an exception.
         * Schedule running the task defined by the given co-routine function.
         * The name is for debugging purposes only.
         * The subclass is responsible for cancelling remaining tasks in _rc_stop.
@@ -374,11 +398,23 @@ class BaseLoop:
     def _rc_call_later(self, delay, callback):
         """Method to call a callback in delay number of seconds.
 
-        This method is optional. A subclass must either implement ``_rc_add_task`` or ``_rc_call_later``.
+        Backends that implement ``_rc_add_task`` should not implement this.
+        Other backends can use the default implementation, which uses a
+        scheduler thread and ``_rc_call_soon_threadsafe``. But they can also
+        implement this using the loop-backend's own mechanics.
 
-        * If you implememt this, make ``_rc_add_task()`` call ``super()._rc_add_task()``.
+        * If you implement this, make ``_rc_add_task()`` call ``super()._rc_add_task()``.
+        * Take into account that on Windows, timers are usually inaccurate.
         * If delay is zero, this should behave like "call_soon".
-        * No need to catch errors from the callback; that's dealt with internally.
+        * No need to catch errors from the callback; that's dealt with
+          internally.
         * Return None.
+        """
+        call_later_from_thread(delay, self._rc_call_soon_threadsafe, callback)
+
+    def _rc_call_soon_threadsafe(self, callback):
+        """Method to schedule a callback in the loop's thread.
+
+        Must be thread-safe; this may be called from a different thread.
         """
         raise NotImplementedError()

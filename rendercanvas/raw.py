@@ -45,7 +45,10 @@ class RawLoop(BaseLoop):
         return super()._rc_add_task(async_func, name)
 
     def _rc_call_later(self, delay, callback):
-        call_later_from_thread(delay, self._queue.put, callback)
+        call_later_from_thread(delay, self._rc_call_soon_threadsafe, callback)
+
+    def _rc_call_soon_threadsafe(self, callback):
+        self._queue.put(callback)
 
 
 loop = RawLoop()

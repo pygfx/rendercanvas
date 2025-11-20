@@ -191,6 +191,9 @@ class WxLoop(BaseLoop):
         else:
             wx.CallLater(int(max(delay * 1000, 1)), callback)
 
+    def _rc_call_soon_threadsafe(self, callback):
+        wx.CallAfter(callback)
+
     def process_wx_events(self):
         old_loop = wx.GUIEventLoop.GetActive()
         event_loop = wx.GUIEventLoop()
