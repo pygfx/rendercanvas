@@ -172,5 +172,8 @@ class StubLoop(BaseLoop):
     def _rc_call_later(self, delay, callback):
         self._callbacks.append((time.perf_counter() + delay, callback))
 
+    def _rc_call_soon_threadsafe(self, callback):
+        self._callbacks.append((0, callback))
+
 
 loop = StubLoop()

@@ -6,10 +6,19 @@ import os
 import re
 import sys
 import time
+import queue
 import weakref
 import logging
+import threading
 import ctypes.util
 from contextlib import contextmanager
+from collections import namedtuple
+
+
+# %% Constants
+
+
+IS_WIN = sys.platform.startswith("win")  # Note that IS_WIN is false on Pyodide
 
 
 # %% Logging
@@ -91,6 +100,132 @@ def weakbind(method):
 
     proxy.__name__ = class_func.__name__
     return proxy
+
+
+# %% Helper for scheduling call-laters
+
+
+class CallLaterThread(threading.Thread):
+    """An object that can be used to do "call later" from a dedicated thread.
+
+    This is helpful to implement a call-later mechanism on some backends, and
+    serves as an alternative timeout mechanism in Windows (to overcome its
+    notorious 15.6ms ticks).
+
+    Windows historically uses ticks that go at 64 ticks per second, i.e. 15.625
+    ms each. Other platforms are "tickless" and (in theory) have microsecond
+    resolution.
+
+    Care is taken to realize precise timing, in the order of 1 ms. Nevertheless,
+    on OS's other than Windows, the native timers are more accurate than this
+    threaded approach. I suspect that this is related to the GIL; two threads
+    cannot run at the same time.
+    """
+
+    Item = namedtuple("Item", ["time", "index", "callback", "args"])
+
+    def __init__(self):
+        super().__init__()
+        self._queue = queue.SimpleQueue()
+        self._count = 0
+        self.daemon = True  # don't let this thread prevent shutdown
+        self.start()
+
+    def call_later_from_thread(self, delay, callback, *args):
+        """In delay seconds, call the callback from the scheduling thread."""
+        self._count += 1
+        item = CallLaterThread.Item(
+            time.perf_counter() + float(delay), self._count, callback, args
+        )
+        self._queue.put(item)
+
+    def run(self):
+        perf_counter = time.perf_counter
+        Empty = queue.Empty  # noqa: N806
+        q = self._queue
+        priority = []
+        is_win = IS_WIN
+
+        wait_until = None
+        timestep = 0.001  # for doing small sleeps
+        leeway = timestep / 2  # a little offset so waiting exactly right on average
+        leeway += 0.0005  # extra offset to account for GIL etc. (0.5ms seems ok)
+
+        while True:
+            # == Wait for input
+
+            if wait_until is None:
+                # Nothing to do but wait
+                new_item = q.get(True, None)
+            else:
+                # We wait for the queue with a timeout. But because the timeout is not very precise,
+                # we wait shorter, and then go in a loop with some hard sleeps.
+                # Windows has 15.6 ms resolution ticks. But also on other OSes,
+                # it benefits precision to do the last bit with hard sleeps.
+                offset = 0.016 if is_win else timestep
+                try:
+                    new_item = q.get(True, max(0, wait_until - perf_counter() - offset))
+                except Empty:
+                    new_item = None
+                    while perf_counter() < wait_until:
+                        time.sleep(timestep)
+                        try:
+                            new_item = q.get_nowait()
+                            break
+                        except Empty:
+                            pass
+
+            # Put it in our priority queue
+            if new_item is not None:
+                priority.append(new_item)
+                priority.sort(reverse=True)
+
+            del new_item
+
+            # == Process items until we have to wait
+
+            item = None
+            while True:
+                # Get item that is up next
+                try:
+                    item = priority.pop(-1)
+                except IndexError:
+                    wait_until = None
+                    break
+
+                # If it's not yet time for the item, put it back, and go wait
+                item_time_threshold = item.time - leeway
+                if perf_counter() < item_time_threshold:
+                    priority.append(item)
+                    wait_until = item_time_threshold
+                    break
+
+                # Otherwise, handle the callback
+                try:
+                    item.callback(*item.args)
+                except Exception as err:
+                    logger.error(f"Error in CallLaterThread callback: {err}")
+
+            del item
+
+
+_call_later_thread = None
+
+
+def call_later_from_thread(delay: float, callback: object, *args: object):
+    """Utility that calls a callback after a specified delay, from a separate thread.
+
+    The caller is responsible for the given callback to be thread-safe.
+    There is one global thread that handles all callbacks. This thread is spawned the first time
+    that this function is called.
+
+    Note that this function should only be used in environments where threading is available.
+    E.g. on Pyodide this will raise ``RuntimeError: can't start new thread``.
+    """
+    global _call_later_thread
+    if _call_later_thread is None:
+        _call_later_thread = CallLaterThread()
+    return _call_later_thread.call_later_from_thread(delay, callback, *args)
 
 
 # %% lib support
