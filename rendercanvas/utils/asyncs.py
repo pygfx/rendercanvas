@@ -18,7 +18,7 @@ import sniffio
 from .._coreutils import IS_WIN, call_later_from_thread
 
 
-USE_THREADED_TIMER = True
+USE_THREADED_TIMER = IS_WIN
 
 
 async def sleep(delay):
