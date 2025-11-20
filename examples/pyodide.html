@@ -40,8 +40,8 @@
                 canvas2_el = document.getElementById("canvas2")
                 canvas_green = RenderCanvas(canvas_element=canvas2_el, size=(320, 240), update_mode="continuous")
 
-                context_red = canvas_red.get_context("bitmap")
-                context_green = canvas_green.get_context("bitmap")
+                context_red = canvas_red.get_bitmap_context()
+                context_green = canvas_green.get_bitmap_context()
 
                 red_data = np.random.uniform(127, 255, size=(24, 32, 4)).astype(np.uint8)
                 red_data[..., 0] = 255
