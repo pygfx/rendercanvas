@@ -26,6 +26,16 @@ async def sleep(delay):
 
     On Windows, with asyncio or trio, this uses a special sleep routine that is more accurate than the standard ``sleep()``.
     """
+
+    # The commented code below would be quite elegant, but we don't have get_running_rendercanvas_loop(),
+    # so instead we replicate the call_soon_threadsafe logic for asyncio and trio here.
+    #
+    # if delay > 0 and USE_THREADED_TIMER:
+    #     event = Event()
+    #     rc_loop = get_running_rendercanvas_loop()
+    #     call_later_from_thread(delay, rc_loop.call_soon_threadsafe, event.set)
+    #     await event.wait()
+
     libname = sniffio.current_async_library()
     if libname == "asyncio" and delay > 0 and USE_THREADED_TIMER:
         asyncio = sys.modules[libname]
