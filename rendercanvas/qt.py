@@ -195,7 +195,7 @@ _show_image_method_warning = (
 
 
 class CallbackWrapperHelper(QtCore.QObject):
-    """Little helper for the high-precision-timer call-laters."""
+    """Little helper for _rc_call_later with PreciseTimer"""
 
     def __init__(self, pool, cb):
         super().__init__()
@@ -211,7 +211,7 @@ class CallbackWrapperHelper(QtCore.QObject):
 
 
 class CallerHelper(QtCore.QObject):
-    """Little helper class for the threaded call-laters."""
+    """Little helper for _rc_call_soon_threadsafe"""
 
     call = Signal(object)
 

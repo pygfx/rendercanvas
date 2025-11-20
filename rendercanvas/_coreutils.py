@@ -108,9 +108,18 @@ def weakbind(method):
 class CallLaterThread(threading.Thread):
     """An object that can be used to do "call later" from a dedicated thread.
 
-    Care is taken to realize precise timing, so it can be used to implement
-    precise sleeping and call_later on Windows (to overcome Windows' notorious
-    15.6ms ticks).
+    This is helpful to implement a call-later mechanism on some backends, and
+    serves as an alternative timeout mechanism in Windows (to overcome its
+    notorious 15.6ms ticks).
+
+    Windows historically uses ticks that go at 64 ticks per second, i.e. 15.625
+    ms each. Other platforms are "tickless" and (in theory) have microsecond
+    resolution.
+
+    Care is taken to realize precise timing, in the order of 1 ms. Nevertheless,
+    on OS's other than Windows, the native timers are more accurate than this
+    threaded approach. I suspect that this is related to the GIL; two threads
+    cannot run at the same time.
     """
 
     Item = namedtuple("Item", ["time", "index", "callback", "args"])
@@ -140,6 +149,7 @@ class CallLaterThread(threading.Thread):
         wait_until = None
         timestep = 0.001  # for doing small sleeps
         leeway = timestep / 2  # a little offset so waiting exactly right on average
+        leeway += 0.0005  # extra offset to account for GIL etc. (0.5ms seems ok)
 
         while True:
             # == Wait for input
@@ -152,7 +162,7 @@ class CallLaterThread(threading.Thread):
                 # we wait shorter, and then go in a loop with some hard sleeps.
                 # Windows has 15.6 ms resolution ticks. But also on other OSes,
                 # it benefits precision to do the last bit with hard sleeps.
-                offset = 0.016 if is_win else 0.004
+                offset = 0.016 if is_win else timestep
                 try:
                     new_item = q.get(True, max(0, wait_until - perf_counter() - offset))
                 except Empty:
