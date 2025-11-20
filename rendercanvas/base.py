@@ -593,8 +593,6 @@ class BaseRenderCanvas:
         width, height = float(width), float(height)
         if width < 0 or height < 0:
             raise ValueError("Canvas width and height must not be negative")
-        # Already adjust our logical size, so e.g. layout engines can get to work
-        self._size_info.set_logical_size(width, height)
         # Tell the backend to adjust the size. It will likely set the new physical size before the next draw.
         self._rc_set_logical_size(width, height)
 

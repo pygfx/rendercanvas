@@ -21,23 +21,29 @@ See how the two windows above look the same? That's the idea; they also look the
 same to the code that renders to them. Yet, the GUI systems are very different
 (Qt vs glfw in this case). Now that's a powerful abstraction!
 
-Coming from `wgpu.gui`? Check [from_wgpu_canvas.md](from_wgpu_canvas.md).
 
 
 ## Purpose
 
-* Provide a generic canvas API to render to.
-* Provide an event loop for scheduling events and draws.
-* Provide a simple but powerful event system with standardized event objects.
-* Provide various canvas implementations:
-  * One that is light and easily installed (glfw).
-  * For various GUI libraries (e.g. qt and wx), so visuzalizations can be embedded in a GUI.
-  * For specific platforms (e.g. Jupyter, browser).
+Providing a generic API for:
 
+* managing a canvas window ([`BaseRenderCanvas`](https://rendercanvas.readthedocs.io/stable/api.html)).
+* presenting rendered results with `wgpu` ([`WgpuContext`](https://rendercanvas.readthedocs.io/stable/contexts.html#rendercanvas.contexts.WgpuContext)).
+* presenting rendered results as a bitmap ([`BitmapContext`](https://rendercanvas.readthedocs.io/stable/contexts.html#rendercanvas.contexts.BitmapContext)).
+* working with events that have standardized behavior.
 
-The main use-case is rendering with [wgpu](https://github.com/pygfx/wgpu-py),
-but ``rendercanvas``can be used by anything that can render based on a window-id or
-by producing bitmap images.
+Implement that on top of a variety of backends:
+
+* Running on desktop with a light backend (glfw).
+* Running in the browser (with Pyodide or PyScript).
+* Running from a (Jupyter) notebook.
+* Embedding as a widget in a GUI library.
+  * Qt
+  * wx
+* In addition to the GUI libraries mentioned above, the following event loops are supported:
+  * asyncio
+  * trio
+  * raw
 
 
 ## Installation
@@ -109,8 +115,8 @@ app.exec()
 
 ## Async or not async
 
-We support both; a render canvas can be used in a fully async setting using e.g. Asyncio or Trio, or in an event-drived framework like Qt.
-If you like callbacks, ``loop.call_later()`` always works. If you like async, use ``loop.add_task()``. Event handlers can always be async.
+We support both; a render canvas can be used in a fully async setting using e.g. Asyncio or Trio, or in an event-driven framework like Qt.
+If you like callbacks, ``loop.call_later()`` always works. If you like async, use ``loop.add_task()``.
 See the [docs on async](https://rendercanvas.readthedocs.io/stable/start.html#async) for details.
 
 

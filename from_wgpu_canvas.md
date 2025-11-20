@@ -11,20 +11,19 @@ This document lists all the changes w.r.t. the last version of the canvas in wgp
 * `run` -> `loop.run()`.
 * `call_later` -> `loop.call_later`.
 * `canvas.is_closed()` -> `canvas.get_closed()`.
-* The `canvas.get_context()` must be called with an arg: `canvas.get_context("wgpu")`.
+* Instead of `canvas.get_context()`, use `canvas.get_wgpu_context()` (or `canvas.get_context('bitmap')`).
 
 
 ## Improvements
 
 * Overall cleaner code, more tests, better docs.
 * Support for contexts other than wgpu.
-* Bitmap rendering via builtin`canvas.get_context("bitmap")`.
+* Bitmap rendering via builtin`canvas.get_bitmap_context()`.
 * Handling of sigint (ctrl+c).
 * Support for Trio.
-* Support for async event handlers.
 * Support for running async functions via `loop.add_task()`.
 * Simpler Qt lib selection with `from rendercanvas.pyside6 import RenderCanvas`.
-* Generic scheduling system with modes "ondemand", "continious", "fastest".
+* Generic scheduling system with modes "ondemand", "continuous", "fastest".
 
 
 ## By example
