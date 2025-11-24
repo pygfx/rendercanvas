@@ -17,7 +17,11 @@ from ._coreutils import (
     get_alt_x11_display,
     get_alt_wayland_display,
     select_qt_lib,
+    IS_WIN,
+    call_later_from_thread,
 )
+
+USE_THREADED_TIMER = False  # Default False, because we use Qt PreciseTimer instead
 
 
 # Select GUI toolkit
@@ -28,26 +32,35 @@ if libname:
     QtWidgets = importlib.import_module(".QtWidgets", libname)
     # Uncomment the line below to try QtOpenGLWidgets.QOpenGLWidget instead of QWidget
     # QtOpenGLWidgets = importlib.import_module(".QtOpenGLWidgets", libname)
-    try:
-        # pyqt6
-        WA_PaintOnScreen = QtCore.Qt.WidgetAttribute.WA_PaintOnScreen
-        WA_DeleteOnClose = QtCore.Qt.WidgetAttribute.WA_DeleteOnClose
+    if libname.startswith("PyQt"):
+        # PyQt5 or PyQt6
         WA_InputMethodEnabled = QtCore.Qt.WidgetAttribute.WA_InputMethodEnabled
         KeyboardModifiers = QtCore.Qt.KeyboardModifier
+        WA_PaintOnScreen = QtCore.Qt.WidgetAttribute.WA_PaintOnScreen
+        WA_DeleteOnClose = QtCore.Qt.WidgetAttribute.WA_DeleteOnClose
+        PreciseTimer = QtCore.Qt.TimerType.PreciseTimer
         FocusPolicy = QtCore.Qt.FocusPolicy
         CursorShape = QtCore.Qt.CursorShape
-        Keys = QtCore.Qt.Key
         WinIdChange = QtCore.QEvent.Type.WinIdChange
-    except AttributeError:
-        # pyside6
-        WA_PaintOnScreen = QtCore.Qt.WA_PaintOnScreen
-        WA_DeleteOnClose = QtCore.Qt.WA_DeleteOnClose
+        Signal = QtCore.pyqtSignal
+        Slot = QtCore.pyqtSlot
+        Keys = QtCore.Qt.Key
+        is_pyside = False
+    else:
+        # Pyside2 or PySide6
         WA_InputMethodEnabled = QtCore.Qt.WA_InputMethodEnabled
         KeyboardModifiers = QtCore.Qt
+        WA_PaintOnScreen = QtCore.Qt.WA_PaintOnScreen
+        WA_DeleteOnClose = QtCore.Qt.WA_DeleteOnClose
+        PreciseTimer = QtCore.Qt.PreciseTimer
         FocusPolicy = QtCore.Qt
         CursorShape = QtCore.Qt
-        Keys = QtCore.Qt
         WinIdChange = QtCore.QEvent.WinIdChange
+        Signal = QtCore.Signal
+        Slot = QtCore.Slot
+        Keys = QtCore.Qt
+        is_pyside = True
+
 else:
     raise ImportError(
         "Before importing rendercanvas.qt, import one of PySide6/PySide2/PyQt6/PyQt5 to select a Qt toolkit."
@@ -181,6 +194,32 @@ _show_image_method_warning = (
 )
 
 
+class CallbackWrapperHelper(QtCore.QObject):
+    """Little helper for _rc_call_later with PreciseTimer"""
+
+    def __init__(self, pool, cb):
+        super().__init__()
+        self.pool = pool
+        self.pool.add(self)
+        self.cb = cb
+
+    @Slot()
+    def callback(self):
+        self.pool.discard(self)
+        self.pool = None
+        self.cb()
+
+
+class CallerHelper(QtCore.QObject):
+    """Little helper for _rc_call_soon_threadsafe"""
+
+    call = Signal(object)
+
+    def __init__(self):
+        super().__init__()
+        self.call.connect(lambda f: f())
+
+
 class QtLoop(BaseLoop):
     _app = None
     _we_run_the_loop = False
@@ -192,6 +231,8 @@ class QtLoop(BaseLoop):
                 self._app = QtWidgets.QApplication([])
         if already_had_app_on_import:
             self._mark_as_interactive()
+        self._callback_pool = set()
+        self._caller = CallerHelper()
 
     def _rc_run(self):
         # Note: we could detect if asyncio is running (interactive session) and wheter
@@ -227,8 +268,30 @@ class QtLoop(BaseLoop):
         return super()._rc_add_task(async_func, name)
 
     def _rc_call_later(self, delay, callback):
-        delay_ms = int(max(0, delay * 1000))
-        QtCore.QTimer.singleShot(delay_ms, callback)
+        if delay <= 0:
+            QtCore.QTimer.singleShot(0, callback)
+        elif USE_THREADED_TIMER:
+            call_later_from_thread(delay, self._caller.call.emit, callback)
+        elif IS_WIN:
+            # To get high-precision call_later in Windows, we can either use the threaded
+            # approach, or use Qt's own high-precision timer. We default to the latter,
+            # which seems slightly more accurate. It's a bit involved, because we need to
+            # make use of slots, and the signature for singleShot is not well-documented and
+            # differs between PyQt/PySide.
+            callback_wrapper = CallbackWrapperHelper(self._callback_pool, callback)
+            wrapper_args = (callback_wrapper.callback,)
+            if is_pyside:
+                wrapper_args = (callback_wrapper, QtCore.SLOT("callback()"))
+            QtCore.QTimer.singleShot(
+                int(max(delay * 1000, 1)), PreciseTimer, *wrapper_args
+            )
+        else:
+            # Normal timer. Already precise for MacOS/Linux.
+            QtCore.QTimer.singleShot(int(max(delay * 1000, 1)), callback)
+
+    def _rc_call_soon_threadsafe(self, callback):
+        # Because this goes through a signal/slot, it's thread-safe
+        self._caller.call.emit(callback)
 
 
 loop = QtLoop()
