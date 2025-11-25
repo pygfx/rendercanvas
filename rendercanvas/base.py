@@ -79,6 +79,10 @@ class BaseCanvasGroup:
         """Get a list of currently active (not-closed) canvases for this group."""
         return [canvas for canvas in self._canvases if not canvas.get_closed()]
 
+    def _get_sniffio_activator(self) -> object:
+        # Called by the canvas
+        return self._loop._get_sniffio_activator()
+
 
 class BaseRenderCanvas:
     """The base canvas class.
@@ -478,6 +482,8 @@ class BaseRenderCanvas:
             return
         self.__is_drawing = True
 
+        sniffio_activator = self._rc_canvas_group._get_sniffio_activator()
+
         try:
             # This method is called from the GUI layer. It can be called from a
             # "draw event" that we requested, or as part of a forced draw.
@@ -531,6 +537,7 @@ class BaseRenderCanvas:
 
         finally:
             self.__is_drawing = False
+            sniffio_activator.restore()
 
     # %% Primary canvas management methods
 
