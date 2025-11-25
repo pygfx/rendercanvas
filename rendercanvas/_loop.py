@@ -52,12 +52,13 @@ class BaseLoop:
     """
 
     def __init__(self):
-        self.__tasks = set()
+        self.__tasks = set()  # only used by the async adapter
         self.__canvas_groups = set()
         self.__should_stop = 0
         self.__state = (
             0  # 0: off, 1: ready, 2: detected-active, 3: inter-active, 4: running
         )
+        self._using_adapter = False
 
     def __repr__(self):
         full_class_name = f"{self.__class__.__module__}.{self.__class__.__name__}"
@@ -77,11 +78,19 @@ class BaseLoop:
             self.__state = 1
             self._rc_init()
             self.add_task(self._loop_task, name="loop-task")
+            self._using_adapter = len(self.__tasks) > 0
         self.__canvas_groups.add(canvas_group)
 
     def _unregister_canvas_group(self, canvas_group):
         # A CanvasGroup will call this when it selects a different loop.
         self.__canvas_groups.discard(canvas_group)
+
+    def _get_sniffio_activator(self):
+        # A CanvasGroup will call this to activate the loop
+        if self._using_adapter:
+            return asyncadapter.SniffioActivator(self)
+        else:
+            return None
 
     def get_canvases(self) -> list[BaseRenderCanvas]:
         """Get a list of currently active (not-closed) canvases."""
@@ -391,7 +400,7 @@ class BaseLoop:
         * The subclass is responsible for cancelling remaining tasks in _rc_stop.
         * Return None.
         """
-        task = asyncadapter.Task(self._rc_call_later, async_func(), name)
+        task = asyncadapter.Task(self._rc_call_later, async_func(), name, self)
         self.__tasks.add(task)
         task.add_done_callback(self.__tasks.discard)
 
