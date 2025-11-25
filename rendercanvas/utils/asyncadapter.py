@@ -78,19 +78,7 @@ def get_running_loop():
         raise RuntimeError(f"no running {__name__} loop")
 
 
-class BaseActivator:
-    def __init__(self, loop):
-        self.active = True
-
-    def restore(self):
-        self.active = False
-
-    def __del__(self):
-        if self.active:
-            logger.warning("asyncadapter's activator.restore() was never called.")
-
-
-class SniffioActivator(BaseActivator):
+class SniffioActivator:
     def __init__(self, loop):
         self.active = True
         self.old_loop = _ourloop_thread_local.loop
@@ -103,6 +91,12 @@ class SniffioActivator(BaseActivator):
             self.active = False
             _sniffio_thread_local.name = self.old_name
             _ourloop_thread_local.loop = self.old_loop
+
+    def __del__(self):
+        if self.active:
+            logger.warning(
+                "asyncadapter's SniffioActivator.restore() was never called."
+            )
 
 
 class Task:

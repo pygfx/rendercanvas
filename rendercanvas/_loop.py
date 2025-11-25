@@ -90,7 +90,7 @@ class BaseLoop:
         if self._using_adapter:
             return asyncadapter.SniffioActivator(self)
         else:
-            return asyncadapter.BaseActivator(self)
+            return None
 
     def get_canvases(self) -> list[BaseRenderCanvas]:
         """Get a list of currently active (not-closed) canvases."""
