@@ -66,7 +66,7 @@ class _ThreadLocalWithLoop(threading.local):
 _ourloop_thread_local = _ThreadLocalWithLoop()
 
 
-def get_running_loop():
+def get_running_loop() -> object:
     """Return the running event loop. Raise a RuntimeError if there is none.
 
     This function is thread-specific.
@@ -76,6 +76,7 @@ def get_running_loop():
     loop = _ourloop_thread_local.loop
     if loop is None:
         raise RuntimeError(f"no running {__name__} loop")
+    return loop
 
 
 class SniffioActivator:
