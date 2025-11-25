@@ -60,17 +60,22 @@ class CancelledError(BaseException):
 
 
 class _ThreadLocalWithLoop(threading.local):
-    # Since threading.local provides no explicit mechanism is for setting
-    # a default for a value, a custom class with a class attribute is used
-    # instead.
-    loop = None
+    loop = None  # set default value as a class attr, like sniffio does
 
 
 _ourloop_thread_local = _ThreadLocalWithLoop()
 
 
-def get_current_loop():
-    return _ourloop_thread_local.loop
+def get_running_loop():
+    """Return the running event loop. Raise a RuntimeError if there is none.
+
+    This function is thread-specific.
+    """
+    # This is inspired by asyncio, and together with sniffio, allows the same
+    # code to handle asyncio and our adapter for some cases.
+    loop = _ourloop_thread_local.loop
+    if loop is None:
+        raise RuntimeError(f"no running {__name__} loop")
 
 
 class BaseActivator:
