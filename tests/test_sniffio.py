@@ -11,6 +11,7 @@ than that it's API is very similar to asyncio.
 # ruff: noqa: N803
 
 import sys
+import asyncio
 
 from testutils import run_tests
 import rendercanvas
@@ -103,6 +104,28 @@ def test_sniffio_on_loop(SomeLoop):
     assert len(funcs) == 1
     for func in funcs:
         assert callable(func)
+
+
+def test_asyncio():
+    # Just make sure that in a call_soon/call_later the get_running_loop stil works
+
+    loop = asyncio.new_event_loop()
+
+    running_loops = []
+
+    def set_current_loop(name):
+        running_loops.append((name, asyncio.get_running_loop()))
+
+    loop.call_soon(set_current_loop, "call_soon")
+    loop.call_later(0.1, set_current_loop, "call_soon")
+    loop.call_soon(loop.call_soon_threadsafe, set_current_loop, "call_soon_threadsafe")
+    loop.call_later(0.2, loop.stop)
+    loop.run_forever()
+
+    print(running_loops)
+    assert len(running_loops) == 3
+    for name, running_loop in running_loops:
+        assert running_loop is loop
 
 
 if __name__ == "__main__":
