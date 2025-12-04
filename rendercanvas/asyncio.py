@@ -42,7 +42,7 @@ class AsyncioLoop(BaseLoop):
     async def _rc_run_async(self):
         import asyncio
 
-        # Protect agsinst usage of wrong loop object
+        # Protect against usage of wrong loop object
         libname = sniffio.current_async_library()
         if libname != "asyncio":
             raise TypeError(f"Attempt to run AsyncioLoop with {libname}.")
@@ -61,7 +61,7 @@ class AsyncioLoop(BaseLoop):
 
         # Create tasks if necessay
         while self.__pending_tasks:
-            self._rc_add_task(*self.__pending_tasks.pop(-1))
+            self._rc_add_task(*self.__pending_tasks.pop(0))
 
         # Wait for loop to finish
         if self._stop_event is None:

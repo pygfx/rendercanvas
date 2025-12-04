@@ -5,6 +5,7 @@ The base loop implementation.
 from __future__ import annotations
 
 import signal
+import weakref
 from inspect import iscoroutinefunction
 from typing import TYPE_CHECKING
 
@@ -58,6 +59,7 @@ class BaseLoop:
         self.__state = (
             0  # 0: off, 1: ready, 2: detected-active, 3: inter-active, 4: running
         )
+        self._asyncgens = weakref.WeakSet()
 
     def __repr__(self):
         full_class_name = f"{self.__class__.__module__}.{self.__class__.__name__}"
@@ -105,6 +107,18 @@ class BaseLoop:
         # Keep track of event emitter objects
         event_emitters = {id(c): c._events for c in self.get_canvases()}
 
+        # def init(gen):
+        #     print("init gen", gen)
+
+        # def fin(gen):
+        #     print("fin gen", gen)
+
+        # print("in loop task", self._using_adapter)
+        # import sys
+
+        # old_agen_hooks = sys.get_asyncgen_hooks()
+        # sys.set_asyncgen_hooks(init, fin)
+
         try:
             while True:
                 await sleep(0.1)
@@ -151,6 +165,7 @@ class BaseLoop:
                         del canvas
 
         finally:
+            # sys.set_asyncgen_hooks(*old_agen_hooks)  -> move into __stop
             self.__stop()
 
     def add_task(

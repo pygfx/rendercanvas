@@ -383,5 +383,101 @@ def test_async_loops_check_lib():
     trio.run(trio_loop.run_async)
 
 
+async def a_generator(flag):
+    flag.append("started")
+    try:
+        for i in range(10):
+            await async_sleep(0)  # yield back to the loop
+            yield i
+    except BaseException as err:
+        flag.append(f"except {err.__class__.__name__}")
+        raise
+    else:
+        flag.append("finished")
+    finally:
+        flag.append("closed")
+
+
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
+def test_async_gens_cleanup0(SomeLoop):
+    # Don't even start the generator
+
+    async def tester_coroutine():
+        _g = a_generator(flag)
+
+    flag = []
+    loop = SomeLoop()
+    loop.add_task(tester_coroutine)
+    loop.call_later(0.1, loop.stop)
+    loop.run()
+
+    assert flag == [], flag
+
+
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
+def test_async_gens_cleanup1(SomeLoop):
+    # Run the generator to completion
+
+    async def tester_coroutine():
+        g = a_generator(flag)
+        async for i in g:
+            pass
+
+    flag = []
+    loop = SomeLoop()
+    loop.add_task(tester_coroutine)
+    loop.call_later(0.1, loop.stop)
+    loop.run()
+
+    assert flag == ["started", "finished", "closed"], flag
+
+
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
+def test_async_gens_cleanup2(SomeLoop):
+    # Break out of the generator, leaving it in a pending state
+
+    async def tester_coroutine():
+        g = a_generator(flag)
+        # await async_sleep(0)
+        async for i in g:
+            if i > 2:
+                break
+
+    flag = []
+    loop = SomeLoop()
+    loop.add_task(tester_coroutine)
+    loop.call_later(0.1, loop.stop)
+    loop.run()
+
+    assert flag == ["started", "except GeneratorExit", "closed"], flag
+
+
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
+def test_async_gens_cleanup3(SomeLoop):
+    # Break out of the generator, with one extra sleep.
+    # This made a difference in the outcome at some point.
+
+    async def tester_coroutine():
+        g = a_generator(flag)
+        await async_sleep(0)
+        async for i in g:
+            if i > 2:
+                break
+
+    flag = []
+    loop = SomeLoop()
+    loop.add_task(tester_coroutine)
+    loop.call_later(0.1, loop.stop)
+    loop.run()
+
+    # Ok, this is stupid. This breaks it for asyncio too!!
+    # I am not able to create a test that
+
+    assert flag == ["started", "except GeneratorExit", "closed"], flag
+    # assert flag == ["started"]
+
+
 if __name__ == "__main__":
     run_tests(globals())
+    # test_async_gens_cleanup3(AsyncioLoop)
+    # test_async_gens_cleanup3(RawLoop)
