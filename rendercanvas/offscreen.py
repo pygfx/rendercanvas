@@ -147,6 +147,10 @@ class StubLoop(BaseLoop):
         super().__init__()
         self._callbacks = []
 
+    def _rc_init(self):
+        # This gets called when the first canvas is created (possibly after having run and stopped before).
+        pass
+
     def process_tasks(self):
         callbacks_to_run = []
         new_callbacks = []
@@ -164,7 +168,7 @@ class StubLoop(BaseLoop):
         self.process_tasks()
 
     def _rc_stop(self):
-        self._callbacks = []
+        pass
 
     def _rc_add_task(self, async_func, name):
         super()._rc_add_task(async_func, name)

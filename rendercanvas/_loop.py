@@ -37,18 +37,27 @@ class BaseLoop:
 
     * off (0): the initial state, the subclass should probably not even import dependencies yet.
     * ready (1): the first canvas is created, ``_rc_init()`` is called to get the loop ready for running.
-    * active (2): the loop is active, but not running via our entrypoints.
-    * active (3): the loop is inter-active in e.g. an IDE.
+    * active (2): the loop is active (we detect it because our task is running), but we don't know how.
+    * active (3): the loop is inter-active in e.g. an IDE, reported by the backend.
     * running (4): the loop is running via ``_rc_run()`` or ``_rc_run_async()``.
 
     Notes:
 
-    * The loop goes back to the "off" state after all canvases are closed.
+    * The loop goes back to the "off" state once all canvases are closed.
     * Stopping the loop (via ``.stop()``) closes the canvases, which will then stop the loop.
     * From there it can go back to the ready state (which would call ``_rc_init()`` again).
     * In backends like Qt, the native loop can be started without us knowing: state "active".
     * In interactive settings like an IDE that runs an asyncio or Qt loop, the
       loop can become "active" as soon as the first canvas is created.
+
+    The lifecycle of this loop does not necessarily co-inside with the native loop's cycle:
+
+    * The rendercanvas loop can be in the 'off' state while the native loop is running.
+    * When we stop the loop, the native loop likely runs slightly longer.
+    * When the loop is interactive (asyncio or Qt) the native loop keeps running when rendercanvas' loop stops.
+    * For async loops (asyncio or trio), the native loop may run before and after this loop.
+    * On Qt, we detect the app's aboutToQuit to stop this loop.
+    * On wx, we detect all windows closed to stop this loop.
 
     """
 
@@ -56,117 +65,129 @@ class BaseLoop:
         self.__tasks = set()
         self.__canvas_groups = set()
         self.__should_stop = 0
-        self.__state = (
-            0  # 0: off, 1: ready, 2: detected-active, 3: inter-active, 4: running
-        )
+        # 0: off, 1: ready, 2: detected-active, 3: inter-active, 4: running
+        self.__state = 0
+        self.__is_initialized = False
         self._asyncgens = weakref.WeakSet()
+        # self._setup_debug_thread()
+
+    def _setup_debug_thread(self):
+        # Super-useful to track the loop's lifetime while running various examples / use-cases.
+
+        import threading, time  # noqa
+
+        def thread():
+            state = self.__state
+            print(f"loop state: {state}")
+            while True:
+                time.sleep(0.01)
+                cur_state = self.__state
+                if cur_state != state:
+                    state = cur_state
+                    print(f"loop state: {state}")
+                    if state == 0:
+                        print("bye")
+
+        self._debug_thread = threading.Thread(target=thread)
+        self._debug_thread.start()
 
     def __repr__(self):
         full_class_name = f"{self.__class__.__module__}.{self.__class__.__name__}"
         state = self.__state
-        state_str = ["off", "ready", "active", "active", "running"][state]
+        statemap = {0: "off", 1: "ready", 2: "active", 3: "active", 4: "running"}
+        state_str = statemap.get(state, str(state))
         return f"<{full_class_name} '{state_str}' ({state}) at {hex(id(self))}>"
 
     def _mark_as_interactive(self):
-        """For subclasses to set active from ``_rc_init()``"""
+        # For subclasses to set active from ``_rc_init()`` If the loop is
+        # interactive, run() becomes a no-op. The stop() will still close all
+        # canvases, but the backend loop should keep running.
         if self.__state in (1, 2):
             self.__state = 3
 
     def _register_canvas_group(self, canvas_group):
         # A CanvasGroup will call this every time that a new canvas is created for this loop.
         # So now is also a good time to initialize.
-        if self.__state == 0:
-            self.__state = 1
-            self._rc_init()
-            self.add_task(self._loop_task, name="loop-task")
+        self._ensure_initialized()
         self.__canvas_groups.add(canvas_group)
 
     def _unregister_canvas_group(self, canvas_group):
         # A CanvasGroup will call this when it selects a different loop.
         self.__canvas_groups.discard(canvas_group)
 
-    def get_canvases(self) -> list[BaseRenderCanvas]:
+    def get_canvases(self, *, close_closed=False) -> list[BaseRenderCanvas]:
         """Get a list of currently active (not-closed) canvases."""
         canvases = []
         for canvas_group in self.__canvas_groups:
-            canvases += canvas_group.get_canvases()
+            canvases += canvas_group.get_canvases(close_closed=close_closed)
         return canvases
+
+    def _ensure_initialized(self):
+        """Make sure that the loop is ready to run."""
+        if self.__is_initialized:
+            return
+
+        if self.__state == 0:
+            self.__state = 1
+
+        async def wrapper():
+            try:
+                with log_exception("Error in loop-task:"):
+                    await self._loop_task()
+            finally:
+                # We get here when the task is finished or cancelled.
+                self.__is_initialized = False
+
+        self.__is_initialized = True
+        self._rc_init()
+        self._rc_add_task(wrapper, "loop-task")
 
     async def _loop_task(self):
         # This task has multiple purposes:
         #
-        # * Detect closed windows. Relying on the backend alone is tricky, since the
-        #   loop usually stops when the last window is closed, so the close event may
-        #   not be fired.
-        # * Keep the GUI going even when the canvas loop is on pause e.g. because its
-        #   minimized (applies to backends that implement _rc_gui_poll).
+        # * Detect when the the loop starts running. When this code runs, it
+        #   means something is running the task.
+        # * Detect closed windows while the loop is running. This is nice,
+        #   because it means backends only have to mark the canvas as closed,
+        #   and the base canvas takes care that .close() is called and the close
+        #   event is emitted.
+        # * Stop the loop when there are no more canvases. Note that the loop
+        #   may also be stopped from the outside, in which case *this* task is
+        #   cancelled along with the other tasks.
+        # * Detect when the loop stops running, in case the native loop stops in
+        #   a friendly way, cancelling tasks, including *this* task.
+        # * Keep the GUI going even when the canvas loop is on pause e.g.
+        #   because its minimized (applies to backends that implement
+        #   _rc_gui_poll).
 
-        # Detect active loop
-        self.__state = max(self.__state, 2)
-
-        # Keep track of event emitter objects
-        event_emitters = {id(c): c._events for c in self.get_canvases()}
-
-        # def init(gen):
-        #     print("init gen", gen)
-
-        # def fin(gen):
-        #     print("fin gen", gen)
-
-        # print("in loop task", self._using_adapter)
-        # import sys
-
-        # old_agen_hooks = sys.get_asyncgen_hooks()
-        # sys.set_asyncgen_hooks(init, fin)
+        # The loop has started!
+        self.__start()
 
         try:
             while True:
                 await sleep(0.1)
 
-                # Get list of canvases, beware to delete the list when we're done with it!
-                canvases = self.get_canvases()
-
-                # Send close event for closed canvases
-                new_event_emitters = {id(c): c._events for c in canvases}
-                closed_canvas_ids = set(event_emitters) - set(new_event_emitters)
-                for canvas_id in closed_canvas_ids:
-                    events = event_emitters[canvas_id]
-                    events.close()
+                # Note that this triggers .close() on closed canvases, for proper cleanup and sending close event.
+                canvases = self.get_canvases(close_closed=True)
 
                 # Keep canvases alive
                 for canvas in canvases:
                     canvas._rc_gui_poll()
                     del canvas
 
+                # Break?
                 canvas_count = len(canvases)
                 del canvases
-
-                # Should we stop?
-
-                if canvas_count == 0:
-                    # Stop when there are no more canvases
+                if not canvas_count:
                     break
-                elif self.__should_stop >= 2:
-                    # Force a stop without waiting for the canvases to close.
-                    # We could call event.close() for the remaining canvases, but technically they have not closed.
-                    # Since this case is considered a failure, better be honest than consistent, I think.
-                    break
-                elif self.__should_stop:
-                    # Close all remaining canvases. Loop will stop in a next iteration.
-                    # We store a flag on the canvas, that we only use here.
-                    for canvas in self.get_canvases():
-                        try:
-                            closed_by_loop = canvas._rc_closed_by_loop  # type: ignore
-                        except AttributeError:
-                            closed_by_loop = False
-                        if not closed_by_loop:
-                            canvas._rc_closed_by_loop = True  # type: ignore
-                            canvas.close()
-                        del canvas
 
         finally:
-            # sys.set_asyncgen_hooks(*old_agen_hooks)  -> move into __stop
-            self.__stop()
+            # We get here when we break the while-loop, but also when the task
+            # is cancelled (e.g. because the asyncio loop stops). In both cases
+            # we call stop from the *end* of the task, which is important since
+            # __stop() cancels all tasks, but cannot cancel the task that it is
+            # currently in.
+            self.stop(force=True)
 
     def add_task(
         self,
@@ -181,6 +202,8 @@ class BaseLoop:
         """
         if not (callable(async_func) and iscoroutinefunction(async_func)):
             raise TypeError("add_task() expects an async function.")
+
+        self._ensure_initialized()
 
         async def wrapper():
             with log_exception(f"Error in {name} task:"):
@@ -253,32 +276,34 @@ class BaseLoop:
 
         # Can we enter the loop?
         if self.__state == 0:
-            # Euhm, I guess we can run it one iteration, just make sure our loop-task is running!
-            self._register_canvas_group(0)
-            self.__canvas_groups.discard(0)
-        if self.__state == 1:
-            # Yes we can
+            # We're in the off state, no canvases. Allow running one iteration.
+            pass
+        elif self.__state == 1:
+            # Yes we can.
             pass
         elif self.__state == 2:
-            # We look active, but have not been marked interactive
+            # The loop is running, but not sure how. Maybe natively, or maybe this is the offscreen's stub loop. Allow.
             pass
         elif self.__state == 3:
-            # No, already marked active (interactive mode)
+            # Already marked active (interactive mode). For code compat, silent return!
             return
         else:
-            # No, what are you doing??
-            raise RuntimeError(f"loop.run() is not reentrant ({self.__state}).")
+            # Already running via this method. Disallow re-entrance!
+            raise RuntimeError(f"loop is already running ({self.__state}).")
+
+        self._ensure_initialized()
 
         # Register interrupt handler
         prev_sig_handlers = self.__setup_interrupt()
 
         # Run. We could be in this loop for a long time. Or we can exit immediately if
         # the backend already has an (interactive) event loop and did not call _mark_as_interactive().
-        self.__state = 3
+        self.__state = 4
         try:
             self._rc_run()
         finally:
-            self.__state = min(self.__state, 1)
+            # Lower state to not 4, but also not 0 because we may still be running
+            self.__state = min(self.__state, 2)
             for sig, cb in prev_sig_handlers.items():
                 signal.signal(sig, cb)
 
@@ -289,42 +314,93 @@ class BaseLoop:
         """
 
         # Can we enter the loop?
-        if self.__state == 0:
-            # Euhm, I guess we can run it one iteration, just make sure our loop-task is running!
-            self._register_canvas_group(0)
-            self.__canvas_groups.discard(0)
-        if self.__state == 1:
-            # Yes we can
-            pass
-        else:
+        if self.__state >= 2:
             raise RuntimeError(
                 f"loop.run_async() can only be awaited once ({self.__state})."
             )
 
+        self._ensure_initialized()
         await self._rc_run_async()
 
-    def stop(self) -> None:
+    def stop(self, *, force=False) -> None:
         """Close all windows and stop the currently running event-loop.
 
         If the loop is active but not running via our ``run()`` method, the loop
         moves back to its off-state, but the underlying loop is not stopped.
+
+        Normally, the windows are closed and the underlying event loop is given
+        time to clean up and actually destroy the window. If ``force`` is set,
+        the loop stops immediately. This can be an effective way to stop the
+        loop when the native event loop has stopped.
         """
+
+        if self.__state == 0:
+            return
+
         # Only take action when we're inside the run() method
-        self.__should_stop += 1
-        if self.__should_stop >= 4:
-            # If for some reason the tick method is no longer being called, but the loop is still running, we can still stop it by spamming stop() :)
+        self.__should_stop += 2 if force else 1
+
+        # Close all canvases
+        canvases = self.get_canvases(close_closed=True)
+        for canvas in canvases:
+            try:
+                closed_by_loop = canvas._rc_closed_by_loop  # type: ignore
+            except AttributeError:
+                closed_by_loop = False
+            if not closed_by_loop:
+                canvas._rc_closed_by_loop = True  # type: ignore
+                canvas.close()
+            del canvas
+
+        # Do a real stop?
+        if len(canvases) == 0 or self.__should_stop >= 2:
             self.__stop()
+
+    def __start(self):
+        """Move to running state."""
+        self.__state = max(self.__state, 2)
+
+        # def init(gen):
+        #     print("init gen", gen)
+
+        # def fin(gen):
+        #     print("fin gen", gen)
+
+        # print("in loop task", self._using_adapter)
+        # import sys
+
+        # old_agen_hooks = sys.get_asyncgen_hooks()
+        # sys.set_asyncgen_hooks(init, fin)
 
     def __stop(self):
         """Move to the off-state."""
-        # If we used the async adapter, cancel any tasks
-        while self.__tasks:
-            task = self.__tasks.pop()
-            with log_exception("task cancel:"):
-                task.cancel()
-        # Turn off
+
+        # Note that in here, we must fully bring our loop to a stop.
+        # We cannot rely on future loop cycles.
+
+        # Set flags to off state
         self.__state = 0
         self.__should_stop = 0
+
+        # sys.set_asyncgen_hooks(*old_agen_hooks)  -> move into __stop
+
+        # If we used the async adapter, cancel any tasks. If we could assume
+        # that the backend processes pending events before actually shutting
+        # down, we could only call .cancel(), and leave the event-loop to do the
+        # final .step() that will do the cancellation (i.e. running code in
+        # finally blocks), but (I found) we cannot make that assumption, so we
+        # do it ourselves.
+        for task in list(self.__tasks):
+            with log_exception("task cancel:"):
+                task.cancel()
+                if not task.running:  # not *this* task
+                    task.step()
+
+        # Note that backends that do not use the asyncadapter are responsible
+        # for cancelling pending tasks.
+
+        # Tell the backend to stop the loop. This usually means it will stop
+        # soon, but not *now*; remember that we're currently in a task as well.
         self._rc_stop()
 
     def __setup_interrupt(self):
@@ -362,6 +438,7 @@ class BaseLoop:
         * Import any dependencies.
         * If this loop supports some kind of interactive mode, activate it!
         * Optionally call ``_mark_as_interactive()``.
+        * Make sure its ok if this is called a second time, after a run.
         * Return None.
         """
         pass

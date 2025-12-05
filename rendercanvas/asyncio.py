@@ -59,7 +59,7 @@ class AsyncioLoop(BaseLoop):
                 "Attempt to run AsyncioLoop with a different asyncio-loop than the initialized loop."
             )
 
-        # Create tasks if necessay
+        # Create tasks if necessary
         while self.__pending_tasks:
             self._rc_add_task(*self.__pending_tasks.pop(0))
 
@@ -69,7 +69,7 @@ class AsyncioLoop(BaseLoop):
         await self._stop_event.wait()
 
     def _rc_stop(self):
-        # Clean up our tasks
+        # Clean up our tasks. This includes the loop-task and scheduler tasks.
         while self.__tasks:
             task = self.__tasks.pop()
             task.cancel()  # is a no-op if the task is no longer running

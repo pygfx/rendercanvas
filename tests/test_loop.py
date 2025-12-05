@@ -13,6 +13,7 @@ from rendercanvas.base import BaseCanvasGroup, BaseRenderCanvas
 from rendercanvas.asyncio import AsyncioLoop
 from rendercanvas.trio import TrioLoop
 from rendercanvas.raw import RawLoop
+# from rendercanvas.pyside6 import QtLoop
 from rendercanvas.utils.asyncs import sleep as async_sleep
 from testutils import run_tests
 import trio
@@ -46,6 +47,7 @@ class FakeCanvas:
 
     def close(self):
         # Called by the loop to close a canvas
+        self._events.close()  # Mimic BaseRenderCanvas
         if not self.refuse_close:
             self.is_closed = True
 
@@ -54,6 +56,13 @@ class FakeCanvas:
 
     def manually_close(self):
         self.is_closed = True
+
+    def __del__(self):
+        # Mimic BaseRenderCanvas
+        try:
+            self.close()
+        except Exception:
+            pass
 
 
 real_loop = AsyncioLoop()
@@ -72,6 +81,9 @@ class RealRenderCanvas(BaseRenderCanvas):
     def _rc_request_draw(self):
         loop = self._rc_canvas_group.get_loop()
         loop.call_soon(self._draw_frame_and_present)
+
+
+# %%%%% running and closing
 
 
 @pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
@@ -249,7 +261,6 @@ def test_run_loop_and_close_by_deletion(SomeLoop):
 
     loop.call_later(0.3, canvases.clear)
     loop.call_later(1.3, loop.stop)  # failsafe
-
     t0 = time.time()
     loop.run()
     et = time.time() - t0
@@ -314,7 +325,10 @@ def test_run_loop_and_interrupt(SomeLoop):
 
 @pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
 def test_run_loop_and_interrupt_harder(SomeLoop):
-    # In the next tick after the second interupt, it stops the loop without closing the canvases
+    # In the first tick it attempts to close the canvas, clearing some
+    # stuff of the BaseRenderCanvase, like the events, but the native canvas
+    # won't close, so in the second try, the loop is closed regardless.
+    # after the second interupt, it stops the loop and closes the canvases
 
     loop = SomeLoop()
     group = CanvasGroup(loop)
@@ -343,9 +357,97 @@ def test_run_loop_and_interrupt_harder(SomeLoop):
     print(et)
     assert 0.6 < et < 0.75
 
-    # Now the close event is not send!
-    assert not canvas1._events.is_closed
-    assert not canvas2._events.is_closed
+    # The events are closed
+    assert canvas1._events.is_closed
+    assert canvas2._events.is_closed
+
+    # But the canvases themselves are still marked not-closed
+    assert not canvas1.is_closed
+    assert not canvas2.is_closed
+
+
+# %%%%% tasks
+
+
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop, TrioLoop])
+def test_loop_task_order(SomeLoop):
+    # Test that added tasks are started in their original order,
+    # and that the loop task always goes first.
+
+    flag = []
+
+    class MyLoop(SomeLoop):
+        async def _loop_task(self):
+            flag.append("loop-task")
+            return await super()._loop_task()
+
+    async def user_task(id):
+        flag.append(f"user-task{id}")
+
+    loop = MyLoop()
+
+    loop.add_task(user_task, 1)
+    loop.add_task(user_task, 2)
+    loop.call_later(0.2, loop.stop)
+    loop.run()
+
+    assert flag == ["loop-task", "user-task1", "user-task2"], flag
+
+    # Again
+
+    flag.clear()
+
+    loop.add_task(user_task, 1)
+    loop.add_task(user_task, 2)
+    loop.call_later(0.2, loop.stop)
+    loop.run()
+
+    assert flag == ["loop-task", "user-task1", "user-task2"], flag
+
+
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop, TrioLoop])
+def test_loop_task_cancellation(SomeLoop):
+    flag = []
+
+    async def user_task():
+        flag.append("start")
+        try:
+            await async_sleep(10)
+        finally:
+            flag.append("stop")
+
+    loop = SomeLoop()
+
+    loop.add_task(user_task)
+    loop.call_later(0.2, loop.stop)
+    loop.run()
+
+    assert flag == ["start", "stop"], flag
+
+    # Again
+
+    flag.clear()
+
+    loop.add_task(user_task)
+    loop.call_later(0.2, loop.stop)
+    loop.run()
+
+    assert flag == ["start", "stop"], flag
+
+
+# test_loop_task_cancellation(AsyncioLoop)
+# test_loop_task_cancellation(TrioLoop)
+# test_loop_task_cancellation(QtLoop)
+# test_loop_task_cancellation(RawLoop)
+#
+#
+# test_loop_task_order(AsyncioLoop)
+# test_loop_task_order(TrioLoop)
+# test_loop_task_order(QtLoop)
+# test_loop_task_order(RawLoop)
+
+
+# %%%%% Misc
 
 
 @pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
@@ -381,6 +483,9 @@ def test_async_loops_check_lib():
         asyncio.run(trio_loop.run_async())
 
     trio.run(trio_loop.run_async)
+
+
+# %%%%% async generator cleanup
 
 
 async def a_generator(flag):
@@ -453,7 +558,6 @@ def test_async_gens_cleanup2(SomeLoop):
     loop.run()
 
     assert flag == ["started", "except GeneratorExit", "closed"], flag
-
 
 
 @pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])

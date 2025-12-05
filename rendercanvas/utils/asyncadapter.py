@@ -59,13 +59,14 @@ class CancelledError(BaseException):
 
 
 class Task:
-    """Representation of task, exectuting a co-routine."""
+    """Representation of task, executing a co-routine."""
 
     def __init__(self, call_later_func, coro, name):
         self._call_later = call_later_func
         self._done_callbacks = []
         self.coro = coro
         self.name = name
+        self.running = False
         self.cancelled = False
         self.call_step_later(0)
 
@@ -87,6 +88,7 @@ class Task:
 
     def cancel(self):
         self.cancelled = True
+        self.call_step_later(0)
 
     def step(self):
         if self.coro is None:
@@ -96,6 +98,7 @@ class Task:
         stop = False
 
         old_name, sniffio_thread_local.name = sniffio_thread_local.name, __name__
+        self.running = True
         try:
             if self.cancelled:
                 stop = True
@@ -108,10 +111,11 @@ class Task:
         except StopIteration:
             stop = True
         except Exception as err:
-            # This should not happen, because the loop catches and logs all errors. But just in case.
+            # This catches some special cases where Python raises an error, such as 'coroutine already executing'
             logger.error(f"Error in task: {err}")
             stop = True
         finally:
+            self.running = False
             sniffio_thread_local.name = old_name
 
         # Clean up to help gc

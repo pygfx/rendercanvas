@@ -75,16 +75,24 @@ class BaseCanvasGroup:
         """Get the currently associated loop (can be None for canvases that don't run a scheduler)."""
         return self._loop
 
-    def get_canvases(self) -> list[BaseRenderCanvas]:
-        """Get a list of currently active (not-closed) canvases for this group."""
-        return [canvas for canvas in self._canvases if not canvas.get_closed()]
+    def get_canvases(self, *, close_closed=False) -> list[BaseRenderCanvas]:
+        if close_closed:
+            closed_canvases = [
+                canvas for canvas in self._canvases if canvas.get_closed()
+            ]
+            for canvas in closed_canvases:
+                canvas.close()
+                self._canvases.discard(canvas)
+            return self._canvases
+        else:
+            return [canvas for canvas in self._canvases if not canvas.get_closed()]
 
 
 class BaseRenderCanvas:
     """The base canvas class.
 
     This base class defines a uniform canvas API so render systems can use code
-    that is portable accross multiple GUI libraries and canvas targets. The
+    that is portable across multiple GUI libraries and canvas targets. The
     scheduling mechanics are generic, even though they run on different backend
     event systems.
 
@@ -563,7 +571,7 @@ class BaseRenderCanvas:
             pass
         self._canvas_context = None
         # Clean events. Should already have happened in loop, but the loop may not be running.
-        self._events._release()
+        self._events.close()
         # Let the subclass clean up.
         self._rc_close()
 
