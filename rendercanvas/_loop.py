@@ -9,6 +9,7 @@ import weakref
 from inspect import iscoroutinefunction
 from typing import TYPE_CHECKING
 
+from ._enums import LoopState
 from ._coreutils import logger, log_exception, call_later_from_thread
 from .utils.asyncs import sleep
 from .utils import asyncadapter
@@ -24,6 +25,9 @@ HANDLED_SIGNALS = (
     signal.SIGINT,  # Unix signal 2. Sent by Ctrl+C.
     signal.SIGTERM,  # Unix signal 15. Sent by `kill <pid>`.
 )
+
+STATEMAP = {0: "off", 1: "ready", 2: "active", 3: "interactive", 4: "running"}
+STATEMAP_REVERSED = {s: i for i, s in STATEMAP.items()}
 
 
 class BaseLoop:
@@ -65,8 +69,7 @@ class BaseLoop:
         self.__tasks = set()
         self.__canvas_groups = set()
         self.__should_stop = 0
-        # 0: off, 1: ready, 2: detected-active, 3: inter-active, 4: running
-        self.__state = 0
+        self.__state = LoopState.off
         self.__is_initialized = False
         self._asyncgens = weakref.WeakSet()
         # self._setup_debug_thread()
@@ -93,17 +96,14 @@ class BaseLoop:
 
     def __repr__(self):
         full_class_name = f"{self.__class__.__module__}.{self.__class__.__name__}"
-        state = self.__state
-        statemap = {0: "off", 1: "ready", 2: "active", 3: "active", 4: "running"}
-        state_str = statemap.get(state, str(state))
-        return f"<{full_class_name} '{state_str}' ({state}) at {hex(id(self))}>"
+        return f"<{full_class_name} '{self.__state}' at {hex(id(self))}>"
 
     def _mark_as_interactive(self):
         # For subclasses to set active from ``_rc_init()`` If the loop is
         # interactive, run() becomes a no-op. The stop() will still close all
         # canvases, but the backend loop should keep running.
-        if self.__state in (1, 2):
-            self.__state = 3
+        if self.__state in (LoopState.ready, LoopState.running):
+            self.__state = LoopState.interactive
 
     def _register_canvas_group(self, canvas_group):
         # A CanvasGroup will call this every time that a new canvas is created for this loop.
@@ -127,8 +127,8 @@ class BaseLoop:
         if self.__is_initialized:
             return
 
-        if self.__state == 0:
-            self.__state = 1
+        if self.__state == LoopState.off:
+            self.__state = LoopState.ready
 
         async def wrapper():
             try:
@@ -275,21 +275,17 @@ class BaseLoop:
         """
 
         # Can we enter the loop?
-        if self.__state == 0:
-            # We're in the off state, no canvases. Allow running one iteration.
+        if self.__state in (LoopState.off, LoopState.ready, LoopState.active):
+            # 'off': no canvases, but allow running one iteration.
+            # 'ready': normal operation.
+            # 'active': the loop is active, but not sure how. Maybe natively, or maybe this is the offscreen's stub loop. Allow.
             pass
-        elif self.__state == 1:
-            # Yes we can.
-            pass
-        elif self.__state == 2:
-            # The loop is running, but not sure how. Maybe natively, or maybe this is the offscreen's stub loop. Allow.
-            pass
-        elif self.__state == 3:
+        elif self.__state == LoopState.interactive:
             # Already marked active (interactive mode). For code compat, silent return!
             return
         else:
             # Already running via this method. Disallow re-entrance!
-            raise RuntimeError(f"loop is already running ({self.__state}).")
+            raise RuntimeError(f"loop is already {self.__state}.")
 
         self._ensure_initialized()
 
@@ -298,12 +294,13 @@ class BaseLoop:
 
         # Run. We could be in this loop for a long time. Or we can exit immediately if
         # the backend already has an (interactive) event loop and did not call _mark_as_interactive().
-        self.__state = 4
+        self.__state = LoopState.running
         try:
             self._rc_run()
         finally:
-            # Lower state to not 4, but also not 0 because we may still be running
-            self.__state = min(self.__state, 2)
+            # Mark state as not 'running', but also not to 'off', that happens elsewhere.
+            if self.__state == LoopState.running:
+                self.__state = LoopState.active
             for sig, cb in prev_sig_handlers.items():
                 signal.signal(sig, cb)
 
@@ -314,7 +311,7 @@ class BaseLoop:
         """
 
         # Can we enter the loop?
-        if self.__state >= 2:
+        if self.__state in (LoopState.active, LoopState.interactive, LoopState.running):
             raise RuntimeError(
                 f"loop.run_async() can only be awaited once ({self.__state})."
             )
@@ -334,7 +331,7 @@ class BaseLoop:
         loop when the native event loop has stopped.
         """
 
-        if self.__state == 0:
+        if self.__state == LoopState.off:
             return
 
         # Only take action when we're inside the run() method
@@ -358,7 +355,10 @@ class BaseLoop:
 
     def __start(self):
         """Move to running state."""
-        self.__state = max(self.__state, 2)
+
+        # Update state, but leave 'interactive' and 'running'
+        if self.__state in (LoopState.off, LoopState.ready):
+            self.__state = LoopState.active
 
         # def init(gen):
         #     print("init gen", gen)
@@ -379,7 +379,7 @@ class BaseLoop:
         # We cannot rely on future loop cycles.
 
         # Set flags to off state
-        self.__state = 0
+        self.__state = LoopState.off
         self.__should_stop = 0
 
         # sys.set_asyncgen_hooks(*old_agen_hooks)  -> move into __stop

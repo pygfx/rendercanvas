@@ -167,6 +167,14 @@ class EventType(BaseEnum):
 UpdateModeEnum = Literal["manual", "ondemand", "continuous", "fastest"]
 
 
+class LoopState(BaseEnum):
+    off = None  #: The loop is in the 'off' state.
+    ready = None  #: The loop is likely to be used, and is ready to start running.
+    active = None  #: The loop is active, but we don't know how.
+    interactive = None  #: The loop is in interactive mode, e.g. in an IDE or notebook.
+    running = None  #: The loop is running via our ``loop.run()``.
+
+
 class UpdateMode(BaseEnum):
     """The UpdateMode enum specifies the different modes to schedule draws for the canvas."""
 

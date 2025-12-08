@@ -13,6 +13,7 @@ from rendercanvas.base import BaseCanvasGroup, BaseRenderCanvas
 from rendercanvas.asyncio import AsyncioLoop
 from rendercanvas.trio import TrioLoop
 from rendercanvas.raw import RawLoop
+
 # from rendercanvas.pyside6 import QtLoop
 from rendercanvas.utils.asyncs import sleep as async_sleep
 from testutils import run_tests
