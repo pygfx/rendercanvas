@@ -4,6 +4,7 @@ Some tests for the base loop and asyncio loop.
 
 # ruff: noqa: N803
 
+import gc
 import time
 import signal
 import asyncio
@@ -468,6 +469,10 @@ def test_loop_lifetime_async(SomeLoop):
 def test_loop_lifetime_running_outside():
     # Run using asyncio.run.
     # Note how the rendercanvas loop is stopped earlier than the asyncio loop.
+    # Note that we use asyncio.run() here which has the logic to
+    # clean up tasks. When using asyncio.new_event_loop().run_xx() then
+    # it does *not* work, the user is expected to cancel tasks then.
+    # Or ... just exit Python when done *shrug*.
 
     states = []
     log_state = lambda loop: states.append(loop._BaseLoop__state)
@@ -592,6 +597,25 @@ def test_loop_task_cancellation(SomeLoop):
 
 
 # %%%%% Misc
+
+
+def test_not_using_loop_debug_thread():
+    key = "_debug_thread"
+    loop = RawLoop()
+    assert not hasattr(loop, key)
+
+    loop._setup_debug_thread()
+
+    thread = getattr(loop, key)
+    assert thread
+    assert thread.is_alive()
+
+    del loop
+    gc.collect()
+    gc.collect()
+    time.sleep(0.02)
+
+    assert not thread.is_alive()
 
 
 @pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])

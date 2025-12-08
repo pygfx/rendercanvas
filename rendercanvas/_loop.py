@@ -77,22 +77,26 @@ class BaseLoop:
 
     def _setup_debug_thread(self):
         # Super-useful to track the loop's lifetime while running various examples / use-cases.
+        # In test_loop.py -> test_not_using_loop_debug_thread()  we make sure that it's not accidentally active by default.
 
         import threading, time  # noqa
 
-        def thread():
-            state = self.__state
-            print(f"loop state: {state}")
-            while True:
-                time.sleep(0.01)
-                cur_state = self.__state
-                if cur_state != state:
-                    state = cur_state
-                    print(f"loop state: {state}")
-                    if state == 0:
-                        print("bye")
+        weakself = weakref.ref(self)
 
-        self._debug_thread = threading.Thread(target=thread)
+        def get_state():
+            self = weakself()
+            if self is not None:
+                return self.__state
+
+        def thread():
+            prev_state = None
+            while cur_state := get_state():
+                if cur_state != prev_state:
+                    prev_state = cur_state
+                    print(f"loop state: {cur_state}")
+                time.sleep(0.01)
+
+        self._debug_thread = threading.Thread(target=thread, daemon=True)
         self._debug_thread.start()
 
     def __repr__(self):
@@ -277,10 +281,13 @@ class BaseLoop:
         """
 
         # Can we enter the loop?
-        if self.__state in (LoopState.off, LoopState.ready, LoopState.active):
+        if self.__state in (LoopState.off, LoopState.ready):
             # 'off': no canvases, but allow running one iteration.
             # 'ready': normal operation.
-            # 'active': the loop is active, but not sure how. Maybe natively, or maybe this is the offscreen's stub loop. Allow.
+            pass
+        elif self.__state == LoopState.active:
+            # The loop is active, but not sure how. Maybe natively, or maybe this is the offscreen's stub loop.
+            # Allow, maybe the backend raises an error.
             pass
         elif self.__state == LoopState.interactive:
             # Already marked active (interactive mode). For code compat, silent return!
@@ -311,9 +318,10 @@ class BaseLoop:
 
         Only supported by the asyncio and trio loops.
         """
-
         # Can we enter the loop?
-        if self.__state in (LoopState.active, LoopState.interactive, LoopState.running):
+        if self.__state in (LoopState.off, LoopState.ready):
+            pass
+        else:
             raise RuntimeError(
                 f"loop.run_async() can only be awaited once ({self.__state})."
             )
@@ -324,7 +332,10 @@ class BaseLoop:
         # Mark as active, but not running, because we may just be a task in the native loop.
         self.__state = LoopState.active
 
-        await self._rc_run_async()
+        try:
+            await self._rc_run_async()
+        finally:
+            self.__state = LoopState.off
 
     def stop(self, *, force=False) -> None:
         """Close all windows and stop the currently running event-loop.
