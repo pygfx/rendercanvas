@@ -4,13 +4,14 @@ The base loop implementation.
 
 from __future__ import annotations
 
+import sys
 import signal
 import weakref
 from inspect import iscoroutinefunction
 from typing import TYPE_CHECKING
 
 from ._enums import LoopState
-from ._coreutils import logger, log_exception, call_later_from_thread
+from ._coreutils import logger, log_exception, call_later_from_thread, close_agen
 from .utils.asyncs import sleep
 from .utils import asyncadapter
 
@@ -366,17 +367,10 @@ class BaseLoop:
         if self.__state in (LoopState.off, LoopState.ready):
             self.__state = LoopState.active
 
-        # def init(gen):
-        #     print("init gen", gen)
-
-        # def fin(gen):
-        #     print("fin gen", gen)
-
-        # print("in loop task", self._using_adapter)
-        # import sys
-
-        # old_agen_hooks = sys.get_asyncgen_hooks()
-        # sys.set_asyncgen_hooks(init, fin)
+        # Setup asyncgen hooks. This is done when we detect the loop starting,
+        # not in run(), because most event-loops will handle interrupts, while
+        # e.g. qt won't care about async generators.
+        self.__setup_asyncgen_hooks()
 
     def __stop(self):
         """Move to the off-state."""
@@ -388,7 +382,7 @@ class BaseLoop:
         self.__state = LoopState.off
         self.__should_stop = 0
 
-        # sys.set_asyncgen_hooks(*old_agen_hooks)  -> move into __stop
+        self.__finish_asyncgen_hooks()
 
         # If we used the async adapter, cancel any tasks. If we could assume
         # that the backend processes pending events before actually shutting
@@ -432,6 +426,47 @@ class BaseLoop:
                 except ValueError:
                     break
         return prev_handlers
+
+    def __setup_asyncgen_hooks(self):
+        # We employ a simple strategy to deal with lingering async generators,
+        # in which we attempt to sync-close them. This fails (only) when the
+        # finalizer of the agen has an await in it. Technically this is allowed,
+        # but it's probably not a good idea, and it would make it hard for us,
+        # because we want to be able to stop synchronously. So when this happens
+        # we log an error with a hint on how to cleanly (asynchronously) close
+        # the generator in the user's code. Note that when a proper async
+        # framework (asyncio or trio) is used, all of this does not apply; only
+        # for the qt/wx/raw loop do we do this, an in these cases we don't
+        # expect fancy async stuff.
+
+        current_asyncgen_hooks = sys.get_asyncgen_hooks()
+        if (
+            current_asyncgen_hooks.firstiter is None
+            and current_asyncgen_hooks.finalizer is None
+        ):
+            sys.set_asyncgen_hooks(
+                firstiter=self._asyncgen_firstiter_hook,
+                finalizer=self._asyncgen_finalizer_hook,
+            )
+        else:
+            # Assume that the hooks are from asyncio/trio on which this loop is running.
+            pass
+
+    def __finish_asyncgen_hooks(self):
+        sys.set_asyncgen_hooks(None, None)
+
+        if len(self._asyncgens):
+            closing_agens = list(self._asyncgens)
+            self._asyncgens.clear()
+            for agen in closing_agens:
+                close_agen(agen)
+
+    def _asyncgen_firstiter_hook(self, agen):
+        self._asyncgens.add(agen)
+
+    def _asyncgen_finalizer_hook(self, agen):
+        self._asyncgens.discard(agen)
+        close_agen(agen)
 
     def _rc_init(self):
         """Put the loop in a ready state.

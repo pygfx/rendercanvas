@@ -591,18 +591,6 @@ def test_loop_task_cancellation(SomeLoop):
     assert flag == ["start", "stop"], flag
 
 
-# test_loop_task_cancellation(AsyncioLoop)
-# test_loop_task_cancellation(TrioLoop)
-# test_loop_task_cancellation(QtLoop)
-# test_loop_task_cancellation(RawLoop)
-#
-#
-# test_loop_task_order(AsyncioLoop)
-# test_loop_task_order(TrioLoop)
-# test_loop_task_order(QtLoop)
-# test_loop_task_order(RawLoop)
-
-
 # %%%%% Misc
 
 
@@ -644,7 +632,7 @@ def test_async_loops_check_lib():
 # %%%%% async generator cleanup
 
 
-async def a_generator(flag):
+async def a_generator(flag, *, await_in_finalizer=False):
     flag.append("started")
     try:
         for i in range(4):
@@ -656,6 +644,8 @@ async def a_generator(flag):
     else:
         flag.append("finished")
     finally:
+        if await_in_finalizer:
+            await async_sleep(0)
         flag.append("closed")
 
 
@@ -698,7 +688,7 @@ def test_async_gens_cleanup1(SomeLoop):
 @pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
 def test_async_gens_cleanup2(SomeLoop):
     # Break out of the generator, leaving it in a pending state.
-    # Just works, because gen.aclose() is called from gen.__del__ somehow?
+    # Just works, because gen.aclose() is called from gen.__del__
 
     async def tester_coroutine():
         g = a_generator(flag)
@@ -738,6 +728,30 @@ def test_async_gens_cleanup3(SomeLoop):
     loop.run()
 
     assert flag == ["started", "except GeneratorExit", "closed"], flag
+
+
+@pytest.mark.parametrize("SomeLoop", [RawLoop])
+def test_async_gens_cleanup_bad_agen(SomeLoop):
+    # Same as last but not with a bad-behaving finalizer.
+    # This will log an error.
+
+    g = None
+
+    async def tester_coroutine():
+        nonlocal g
+        g = a_generator(flag, await_in_finalizer=True)
+        # await async_sleep(0)
+        async for i in g:
+            if i > 2:
+                break
+
+    flag = []
+    loop = SomeLoop()
+    loop.add_task(tester_coroutine)
+    loop.call_later(0.2, loop.stop)
+    loop.run()
+
+    assert flag == ["started", "except GeneratorExit"], flag
 
 
 if __name__ == "__main__":
