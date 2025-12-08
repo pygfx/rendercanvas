@@ -203,12 +203,11 @@ class BaseLoop:
         if not (callable(async_func) and iscoroutinefunction(async_func)):
             raise TypeError("add_task() expects an async function.")
 
-        self._ensure_initialized()
-
         async def wrapper():
             with log_exception(f"Error in {name} task:"):
                 await async_func(*args)
 
+        self._ensure_initialized()
         self._rc_add_task(wrapper, name)
 
     def call_soon(self, callback: CallbackFunction, *args: Any) -> None:
@@ -229,6 +228,7 @@ class BaseLoop:
             with log_exception("Callback error:"):
                 callback(*args)
 
+        self._ensure_initialized()
         self._rc_add_task(wrapper, "call_soon")
 
     def call_soon_threadsafe(self, callback: CallbackFunction, *args: Any) -> None:
@@ -262,6 +262,7 @@ class BaseLoop:
                 await sleep(delay)
                 callback(*args)
 
+        self._ensure_initialized()
         self._rc_add_task(wrapper, "call_later")
 
     def run(self) -> None:
@@ -316,7 +317,12 @@ class BaseLoop:
                 f"loop.run_async() can only be awaited once ({self.__state})."
             )
 
+        # Get ready. If we were not initialized yet, this will probably mark us as interactive, because the loop is already running.
         self._ensure_initialized()
+
+        # Mark as active, but not running, because we may just be a task in the native loop.
+        self.__state = LoopState.active
+
         await self._rc_run_async()
 
     def stop(self, *, force=False) -> None:

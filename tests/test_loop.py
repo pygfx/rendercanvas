@@ -367,6 +367,161 @@ def test_run_loop_and_interrupt_harder(SomeLoop):
     assert not canvas2.is_closed
 
 
+# %%%%% lifetime
+
+
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
+def test_loop_lifetime_normal(SomeLoop):
+    states = []
+    log_state = lambda loop: states.append(loop._BaseLoop__state)
+
+    loop = SomeLoop()
+    log_state(loop)
+
+    loop.call_later(0.01, log_state, loop)
+    loop.call_later(0.1, loop.stop)
+
+    loop.run()
+    log_state(loop)
+
+    assert states == ["off", "running", "off"]
+
+    # Again
+
+    states.clear()
+    log_state(loop)
+
+    loop.call_later(0.01, log_state, loop)
+    loop.call_later(0.1, loop.stop)
+
+    loop.run()
+    log_state(loop)
+
+    assert states == ["off", "running", "off"]
+
+
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
+def test_loop_lifetime_with_ready(SomeLoop):
+    # Creating a canvas, or addding a task puts the loop in its ready state
+
+    states = []
+    log_state = lambda loop: states.append(loop._BaseLoop__state)
+
+    async def noop():
+        pass
+
+    loop = SomeLoop()
+    log_state(loop)
+
+    loop.add_task(noop)
+    log_state(loop)
+
+    loop.call_later(0.01, log_state, loop)
+    loop.call_later(0.1, loop.stop)
+
+    loop.run()
+    log_state(loop)
+
+    assert states == ["off", "ready", "running", "off"]
+
+    # Again
+
+    states.clear()
+    log_state(loop)
+
+    loop.add_task(noop)
+    log_state(loop)
+
+    loop.call_later(0.01, log_state, loop)
+    loop.call_later(0.1, loop.stop)
+
+    loop.run()
+    log_state(loop)
+
+    assert states == ["off", "ready", "running", "off"]
+
+
+@pytest.mark.parametrize("SomeLoop", [AsyncioLoop, TrioLoop])
+def test_loop_lifetime_async(SomeLoop):
+    # Run using loop.run_async
+
+    states = []
+    log_state = lambda loop: states.append(loop._BaseLoop__state)
+
+    loop = SomeLoop()
+    log_state(loop)
+
+    loop.call_later(0.01, log_state, loop)
+
+    if SomeLoop is AsyncioLoop:
+        asyncio.run(loop.run_async())
+    elif SomeLoop is TrioLoop:
+        trio.run(loop.run_async)
+    else:
+        raise NotImplementedError()
+
+    log_state(loop)
+
+    assert states == ["off", "active", "off"]
+
+
+def test_loop_lifetime_running_outside():
+    # Run using asyncio.run.
+    # Note how the rendercanvas loop is stopped earlier than the asyncio loop.
+
+    states = []
+    log_state = lambda loop: states.append(loop._BaseLoop__state)
+
+    loop = AsyncioLoop()
+    log_state(loop)
+
+    loop.call_later(0.01, log_state, loop)
+    loop.call_later(0.1, loop.stop)
+
+    async def main():
+        lop = asyncio.get_running_loop()
+        task = lop.create_task(loop.run_async())
+        lop.call_later(0.15, log_state, loop)  # by this time rc has stopped
+        await asyncio.sleep(0.25)
+        del task  # for ruff and good practice, we kept a ref to task
+
+    asyncio.run(main())
+
+    log_state(loop)
+
+    assert states == ["off", "active", "off", "off"]
+
+
+def test_loop_lifetime_interactive():
+    # Run using loop.run, but asyncio is already running: interactive mode.
+
+    times = []
+    states = []
+    log_state = lambda loop: states.append(loop._BaseLoop__state)
+
+    loop = AsyncioLoop()
+
+    async def main():
+        log_state(loop)
+
+        loop.call_later(0.01, log_state, loop)
+        loop.call_later(0.1, loop.stop)
+        times.append(time.perf_counter())
+        loop.run()
+        times.append(time.perf_counter())
+        await asyncio.sleep(0.25)
+        times.append(time.perf_counter())
+
+    asyncio.run(main())
+
+    log_state(loop)
+
+    assert states == ["off", "interactive", "off"]
+
+    assert (times[1] - times[0]) < 0.01
+    assert (times[2] - times[1]) > 0.20
+
+
 # %%%%% tasks
 
 
