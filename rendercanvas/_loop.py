@@ -27,9 +27,6 @@ HANDLED_SIGNALS = (
     signal.SIGTERM,  # Unix signal 15. Sent by `kill <pid>`.
 )
 
-STATEMAP = {0: "off", 1: "ready", 2: "active", 3: "interactive", 4: "running"}
-STATEMAP_REVERSED = {s: i for i, s in STATEMAP.items()}
-
 
 class BaseLoop:
     """The base class for an event-loop object.
@@ -40,11 +37,11 @@ class BaseLoop:
 
     The lifecycle states of a loop are:
 
-    * off (0): the initial state, the subclass should probably not even import dependencies yet.
-    * ready (1): the first canvas is created, ``_rc_init()`` is called to get the loop ready for running.
-    * active (2): the loop is active (we detect it because our task is running), but we don't know how.
-    * active (3): the loop is inter-active in e.g. an IDE, reported by the backend.
-    * running (4): the loop is running via ``_rc_run()`` or ``_rc_run_async()``.
+    * off: the initial state, the subclass should probably not even import dependencies yet.
+    * ready: the first canvas is created, ``_rc_init()`` is called to get the loop ready for running.
+    * active: the loop is active (we detect it because our task is running), but we don't know how.
+    * interactive: the loop is inter-active in e.g. an IDE, reported by the backend.
+    * running: the loop is running via ``_rc_run()`` or ``_rc_run_async()``.
 
     Notes:
 
