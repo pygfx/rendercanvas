@@ -22,7 +22,7 @@ class RawLoop(BaseLoop):
 
     def _rc_init(self):
         # This gets called when the first canvas is created (possibly after having run and stopped before).
-        pass
+        self._should_stop = False
 
     def _rc_run(self):
         while not self._should_stop:
@@ -31,6 +31,8 @@ class RawLoop(BaseLoop):
                 callback()
             except Exception as err:
                 logger.error(f"Error in RawLoop callback: {err}")
+        # Note that the queue may still contain pending callbacks, but these will
+        # mostly be task.step() for finished tasks (coro already deleted), so its ok.
 
     async def _rc_run_async(self):
         raise NotImplementedError()

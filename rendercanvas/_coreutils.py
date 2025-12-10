@@ -292,6 +292,45 @@ def asyncio_is_running():
     return loop is not None
 
 
+# %% Async generators
+
+
+# Taken from trio._util.py
+def name_asyncgen(agen) -> str:
+    """Return the fully-qualified name of the async generator function
+    that produced the async generator iterator *agen*.
+    """
+    if not hasattr(agen, "ag_code"):  # pragma: no cover
+        return repr(agen)
+    try:
+        module = agen.ag_frame.f_globals["__name__"]
+    except (AttributeError, KeyError):
+        module = f"<{agen.ag_code.co_filename}>"
+    try:
+        qualname = agen.__qualname__
+    except AttributeError:
+        qualname = agen.ag_code.co_name
+    return f"{module}.{qualname}"
+
+
+def close_agen(agen):
+    """Try to sync-close an async generator."""
+    closer = agen.aclose()
+    try:
+        # If the next thing is a yield, this will raise RuntimeError which we allow to propagate
+        closer.send(None)
+    except StopIteration:
+        pass
+    else:
+        # If the next thing is an await, we get here.
+        # Give a nicer error than the default "async generator ignored GeneratorExit"
+        agen_name = name_asyncgen(agen)
+        logger.error(
+            f"Async generator {agen_name!r} awaited something during finalization, "
+            "so we could not clean it up. Wrap it in 'async with aclosing(...):'",
+        )
+
+
 # %% Linux window managers
 
 

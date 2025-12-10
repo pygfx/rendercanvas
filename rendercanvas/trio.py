@@ -39,6 +39,7 @@ class TrioLoop(BaseLoop):
 
     def _rc_stop(self):
         # Cancel the main task and all its child tasks.
+        # So this also cancels the loop-task and scheduler tasks, like we want.
         if self._cancel_scope is not None:
             self._cancel_scope.cancel()
         self._token = None

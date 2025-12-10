@@ -4,6 +4,7 @@ Some tests for the base loop and asyncio loop.
 
 # ruff: noqa: N803
 
+import gc
 import time
 import signal
 import asyncio
@@ -13,6 +14,8 @@ from rendercanvas.base import BaseCanvasGroup, BaseRenderCanvas
 from rendercanvas.asyncio import AsyncioLoop
 from rendercanvas.trio import TrioLoop
 from rendercanvas.raw import RawLoop
+
+# from rendercanvas.pyside6 import QtLoop
 from rendercanvas.utils.asyncs import sleep as async_sleep
 from testutils import run_tests
 import trio
@@ -46,6 +49,7 @@ class FakeCanvas:
 
     def close(self):
         # Called by the loop to close a canvas
+        self._events.close()  # Mimic BaseRenderCanvas
         if not self.refuse_close:
             self.is_closed = True
 
@@ -54,6 +58,13 @@ class FakeCanvas:
 
     def manually_close(self):
         self.is_closed = True
+
+    def __del__(self):
+        # Mimic BaseRenderCanvas
+        try:
+            self.close()
+        except Exception:
+            pass
 
 
 real_loop = AsyncioLoop()
@@ -72,6 +83,9 @@ class RealRenderCanvas(BaseRenderCanvas):
     def _rc_request_draw(self):
         loop = self._rc_canvas_group.get_loop()
         loop.call_soon(self._draw_frame_and_present)
+
+
+# %%%%% running and closing
 
 
 @pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
@@ -249,7 +263,6 @@ def test_run_loop_and_close_by_deletion(SomeLoop):
 
     loop.call_later(0.3, canvases.clear)
     loop.call_later(1.3, loop.stop)  # failsafe
-
     t0 = time.time()
     loop.run()
     et = time.time() - t0
@@ -314,7 +327,10 @@ def test_run_loop_and_interrupt(SomeLoop):
 
 @pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
 def test_run_loop_and_interrupt_harder(SomeLoop):
-    # In the next tick after the second interupt, it stops the loop without closing the canvases
+    # In the first tick it attempts to close the canvas, clearing some
+    # stuff of the BaseRenderCanvase, like the events, but the native canvas
+    # won't close, so in the second try, the loop is closed regardless.
+    # after the second interupt, it stops the loop and closes the canvases
 
     loop = SomeLoop()
     group = CanvasGroup(loop)
@@ -343,9 +359,263 @@ def test_run_loop_and_interrupt_harder(SomeLoop):
     print(et)
     assert 0.6 < et < 0.75
 
-    # Now the close event is not send!
-    assert not canvas1._events.is_closed
-    assert not canvas2._events.is_closed
+    # The events are closed
+    assert canvas1._events.is_closed
+    assert canvas2._events.is_closed
+
+    # But the canvases themselves are still marked not-closed
+    assert not canvas1.is_closed
+    assert not canvas2.is_closed
+
+
+# %%%%% lifetime
+
+
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
+def test_loop_lifetime_normal(SomeLoop):
+    states = []
+    log_state = lambda loop: states.append(loop._BaseLoop__state)
+
+    loop = SomeLoop()
+    log_state(loop)
+
+    loop.call_later(0.01, log_state, loop)
+    loop.call_later(0.1, loop.stop)
+
+    loop.run()
+    log_state(loop)
+
+    assert states == ["off", "running", "off"]
+
+    # Again
+
+    states.clear()
+    log_state(loop)
+
+    loop.call_later(0.01, log_state, loop)
+    loop.call_later(0.1, loop.stop)
+
+    loop.run()
+    log_state(loop)
+
+    assert states == ["off", "running", "off"]
+
+
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
+def test_loop_lifetime_with_ready(SomeLoop):
+    # Creating a canvas, or addding a task puts the loop in its ready state
+
+    states = []
+    log_state = lambda loop: states.append(loop._BaseLoop__state)
+
+    async def noop():
+        pass
+
+    loop = SomeLoop()
+    log_state(loop)
+
+    loop.add_task(noop)
+    log_state(loop)
+
+    loop.call_later(0.01, log_state, loop)
+    loop.call_later(0.1, loop.stop)
+
+    loop.run()
+    log_state(loop)
+
+    assert states == ["off", "ready", "running", "off"]
+
+    # Again
+
+    states.clear()
+    log_state(loop)
+
+    loop.add_task(noop)
+    log_state(loop)
+
+    loop.call_later(0.01, log_state, loop)
+    loop.call_later(0.1, loop.stop)
+
+    loop.run()
+    log_state(loop)
+
+    assert states == ["off", "ready", "running", "off"]
+
+
+@pytest.mark.parametrize("SomeLoop", [AsyncioLoop, TrioLoop])
+def test_loop_lifetime_async(SomeLoop):
+    # Run using loop.run_async
+
+    states = []
+    log_state = lambda loop: states.append(loop._BaseLoop__state)
+
+    loop = SomeLoop()
+    log_state(loop)
+
+    loop.call_later(0.01, log_state, loop)
+
+    if SomeLoop is AsyncioLoop:
+        asyncio.run(loop.run_async())
+    elif SomeLoop is TrioLoop:
+        trio.run(loop.run_async)
+    else:
+        raise NotImplementedError()
+
+    log_state(loop)
+
+    assert states == ["off", "active", "off"]
+
+
+def test_loop_lifetime_running_outside():
+    # Run using asyncio.run.
+    # Note how the rendercanvas loop is stopped earlier than the asyncio loop.
+    # Note that we use asyncio.run() here which has the logic to
+    # clean up tasks. When using asyncio.new_event_loop().run_xx() then
+    # it does *not* work, the user is expected to cancel tasks then.
+    # Or ... just exit Python when done *shrug*.
+
+    states = []
+    log_state = lambda loop: states.append(loop._BaseLoop__state)
+
+    loop = AsyncioLoop()
+    log_state(loop)
+
+    loop.call_later(0.01, log_state, loop)
+    loop.call_later(0.1, loop.stop)
+
+    async def main():
+        lop = asyncio.get_running_loop()
+        task = lop.create_task(loop.run_async())
+        lop.call_later(0.15, log_state, loop)  # by this time rc has stopped
+        await asyncio.sleep(0.25)
+        del task  # for ruff and good practice, we kept a ref to task
+
+    asyncio.run(main())
+
+    log_state(loop)
+
+    assert states == ["off", "active", "off", "off"]
+
+
+def test_loop_lifetime_interactive():
+    # Run using loop.run, but asyncio is already running: interactive mode.
+
+    times = []
+    states = []
+    log_state = lambda loop: states.append(loop._BaseLoop__state)
+
+    loop = AsyncioLoop()
+
+    async def main():
+        log_state(loop)
+
+        loop.call_later(0.01, log_state, loop)
+        loop.call_later(0.1, loop.stop)
+        times.append(time.perf_counter())
+        loop.run()
+        times.append(time.perf_counter())
+        await asyncio.sleep(0.25)
+        times.append(time.perf_counter())
+
+    asyncio.run(main())
+
+    log_state(loop)
+
+    assert states == ["off", "interactive", "off"]
+
+    assert (times[1] - times[0]) < 0.01
+    assert (times[2] - times[1]) > 0.20
+
+
+# %%%%% tasks
+
+
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop, TrioLoop])
+def test_loop_task_order(SomeLoop):
+    # Test that added tasks are started in their original order,
+    # and that the loop task always goes first.
+
+    flag = []
+
+    class MyLoop(SomeLoop):
+        async def _loop_task(self):
+            flag.append("loop-task")
+            return await super()._loop_task()
+
+    async def user_task(id):
+        flag.append(f"user-task{id}")
+
+    loop = MyLoop()
+
+    loop.add_task(user_task, 1)
+    loop.add_task(user_task, 2)
+    loop.call_later(0.2, loop.stop)
+    loop.run()
+
+    assert flag == ["loop-task", "user-task1", "user-task2"], flag
+
+    # Again
+
+    flag.clear()
+
+    loop.add_task(user_task, 1)
+    loop.add_task(user_task, 2)
+    loop.call_later(0.2, loop.stop)
+    loop.run()
+
+    assert flag == ["loop-task", "user-task1", "user-task2"], flag
+
+
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop, TrioLoop])
+def test_loop_task_cancellation(SomeLoop):
+    flag = []
+
+    async def user_task():
+        flag.append("start")
+        try:
+            await async_sleep(10)
+        finally:
+            flag.append("stop")
+
+    loop = SomeLoop()
+
+    loop.add_task(user_task)
+    loop.call_later(0.2, loop.stop)
+    loop.run()
+
+    assert flag == ["start", "stop"], flag
+
+    # Again
+
+    flag.clear()
+
+    loop.add_task(user_task)
+    loop.call_later(0.2, loop.stop)
+    loop.run()
+
+    assert flag == ["start", "stop"], flag
+
+
+# %%%%% Misc
+
+
+def test_not_using_loop_debug_thread():
+    key = "_debug_thread"
+    loop = RawLoop()
+    assert not hasattr(loop, key)
+
+    loop._setup_debug_thread()
+
+    thread = getattr(loop, key)
+    assert thread
+    assert thread.is_alive()
+
+    del loop
+    gc.collect()
+    gc.collect()
+    time.sleep(0.02)
+
+    assert not thread.is_alive()
 
 
 @pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
@@ -381,6 +651,131 @@ def test_async_loops_check_lib():
         asyncio.run(trio_loop.run_async())
 
     trio.run(trio_loop.run_async)
+
+
+# %%%%% async generator cleanup
+
+
+async def a_generator(flag, *, await_in_finalizer=False):
+    flag.append("started")
+    try:
+        for i in range(4):
+            await async_sleep(0.01)  # yield back to the loop
+            yield i
+    except BaseException as err:
+        flag.append(f"except {err.__class__.__name__}")
+        raise
+    else:
+        flag.append("finished")
+    finally:
+        if await_in_finalizer:
+            await async_sleep(0)
+        flag.append("closed")
+
+
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
+def test_async_gens_cleanup0(SomeLoop):
+    # Don't even start the generator.
+    # Just works, because code of generator has not stated running.
+
+    async def tester_coroutine():
+        _g = a_generator(flag)
+
+    flag = []
+    loop = SomeLoop()
+    loop.add_task(tester_coroutine)
+    loop.call_later(0.2, loop.stop)
+    loop.run()
+
+    assert flag == [], flag
+
+
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
+def test_async_gens_cleanup1(SomeLoop):
+    # Run the generator to completion.
+    # Just works, because code of generator is done.
+
+    async def tester_coroutine():
+        g = a_generator(flag)
+        async for i in g:
+            pass
+
+    flag = []
+    loop = SomeLoop()
+    loop.add_task(tester_coroutine)
+    loop.call_later(0.2, loop.stop)
+    loop.run()
+
+    assert flag == ["started", "finished", "closed"], flag
+
+
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
+def test_async_gens_cleanup2(SomeLoop):
+    # Break out of the generator, leaving it in a pending state.
+    # Just works, because gen.aclose() is called from gen.__del__
+
+    async def tester_coroutine():
+        g = a_generator(flag)
+        # await async_sleep(0)  # this sleep made a difference at some point
+        async for i in g:
+            if i > 1:
+                break
+
+    flag = []
+    loop = SomeLoop()
+    loop.add_task(tester_coroutine)
+    loop.call_later(0.2, loop.stop)
+    loop.run()
+
+    assert flag == ["started", "except GeneratorExit", "closed"], flag
+
+
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
+def test_async_gens_cleanup3(SomeLoop):
+    # Break out of the generator, but hold a ref to the generator.
+    # For this case we need sys.set_asyncgen_hooks().
+
+    g = None
+
+    async def tester_coroutine():
+        nonlocal g
+        g = a_generator(flag)
+        # await async_sleep(0)
+        async for i in g:
+            if i > 2:
+                break
+
+    flag = []
+    loop = SomeLoop()
+    loop.add_task(tester_coroutine)
+    loop.call_later(0.2, loop.stop)
+    loop.run()
+
+    assert flag == ["started", "except GeneratorExit", "closed"], flag
+
+
+@pytest.mark.parametrize("SomeLoop", [RawLoop])
+def test_async_gens_cleanup_bad_agen(SomeLoop):
+    # Same as last but not with a bad-behaving finalizer.
+    # This will log an error.
+
+    g = None
+
+    async def tester_coroutine():
+        nonlocal g
+        g = a_generator(flag, await_in_finalizer=True)
+        # await async_sleep(0)
+        async for i in g:
+            if i > 2:
+                break
+
+    flag = []
+    loop = SomeLoop()
+    loop.add_task(tester_coroutine)
+    loop.call_later(0.2, loop.stop)
+    loop.run()
+
+    assert flag == ["started", "except GeneratorExit"], flag
 
 
 if __name__ == "__main__":

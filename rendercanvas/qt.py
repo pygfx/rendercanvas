@@ -226,16 +226,22 @@ class QtLoop(BaseLoop):
 
     def _rc_init(self):
         if self._app is None:
-            app = QtWidgets.QApplication.instance()
-            if app is None:
+            self._app = QtWidgets.QApplication.instance()
+            if self._app is None:
                 self._app = QtWidgets.QApplication([])
+        # We do detect when the canvas-widget is closed, and also when *our* toplevel wrapper is closed,
+        # but when embedded in an application, it seems hard/impossible to detect the canvas being closed
+        # when the app closes. So we explicitly detect that instead.
+        # Note that we should not use app.setQuitOnLastWindowClosed(False), because we (may) rely on the
+        # application's closing mechanic.
+        self._app.aboutToQuit.connect(lambda: self.stop(force=True))
         if already_had_app_on_import:
             self._mark_as_interactive()
         self._callback_pool = set()
         self._caller = CallerHelper()
 
     def _rc_run(self):
-        # Note: we could detect if asyncio is running (interactive session) and wheter
+        # Note: we could detect if asyncio is running (interactive session) and whether
         # we can use QtAsyncio. However, there's no point because that's up for the
         # end-user to decide.
 
@@ -250,7 +256,6 @@ class QtLoop(BaseLoop):
         self._we_run_the_loop = True
         try:
             app = self._app
-            app.setQuitOnLastWindowClosed(False)
             app.exec() if hasattr(app, "exec") else app.exec_()
         finally:
             self._we_run_the_loop = False
@@ -493,6 +498,8 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
             self.resize(width, height)  # See comment on pixel ratio
 
     def _rc_close(self):
+        if self._is_closed:
+            return
         parent = self.parent()
         if isinstance(parent, QRenderCanvas):
             QtWidgets.QWidget.close(parent)
@@ -652,8 +659,9 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         # self.update() / self.request_draw() is implicit
 
     def closeEvent(self, event):  # noqa: N802
+        # Happens e.g. when closing the widget from within an app that dynamically created and closes canvases.
+        super().closeEvent(event)
         self._is_closed = True
-        self.submit_event({"event_type": "close"})
 
 
 class QRenderCanvas(WrapperRenderCanvas, QtWidgets.QWidget):
