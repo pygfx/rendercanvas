@@ -4,8 +4,9 @@ Intended for internal use, but is fully standalone.
 """
 
 import logging
+import threading
 
-from sniffio import thread_local as sniffio_thread_local
+from sniffio import thread_local as _sniffio_thread_local
 
 
 logger = logging.getLogger("asyncadapter")
@@ -58,14 +59,56 @@ class CancelledError(BaseException):
     pass
 
 
-class Task:
-    """Representation of task, exectuting a co-routine."""
+class _ThreadLocalWithLoop(threading.local):
+    loop = None  # set default value as a class attr, like sniffio does
 
-    def __init__(self, call_later_func, coro, name):
+
+_ourloop_thread_local = _ThreadLocalWithLoop()
+
+
+def get_running_loop() -> object:
+    """Return the running event loop. Raise a RuntimeError if there is none.
+
+    This function is thread-specific.
+    """
+    # This is inspired by asyncio, and together with sniffio, allows the same
+    # code to handle asyncio and our adapter for some cases.
+    loop = _ourloop_thread_local.loop
+    if loop is None:
+        raise RuntimeError(f"no running {__name__} loop")
+    return loop
+
+
+class SniffioActivator:
+    def __init__(self, loop):
+        self.active = True
+        self.old_loop = _ourloop_thread_local.loop
+        self.old_name = _sniffio_thread_local.name
+        _sniffio_thread_local.name = __name__
+        _ourloop_thread_local.loop = loop
+
+    def restore(self):
+        if self.active:
+            self.active = False
+            _sniffio_thread_local.name = self.old_name
+            _ourloop_thread_local.loop = self.old_loop
+
+    def __del__(self):
+        if self.active:
+            logger.warning(
+                "asyncadapter's SniffioActivator.restore() was never called."
+            )
+
+
+class Task:
+    """Representation of a task, executing a co-routine."""
+
+    def __init__(self, call_later_func, coro, name, loop):
         self._call_later = call_later_func
         self._done_callbacks = []
         self.coro = coro
         self.name = name
+        self.loop = loop
         self.cancelled = False
         self.call_step_later(0)
 
@@ -95,7 +138,8 @@ class Task:
         result = None
         stop = False
 
-        old_name, sniffio_thread_local.name = sniffio_thread_local.name, __name__
+        sniffio_activator = SniffioActivator(self.loop)
+
         try:
             if self.cancelled:
                 stop = True
@@ -112,7 +156,7 @@ class Task:
             logger.error(f"Error in task: {err}")
             stop = True
         finally:
-            sniffio_thread_local.name = old_name
+            sniffio_activator.restore()
 
         # Clean up to help gc
         if stop:
