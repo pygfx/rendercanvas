@@ -479,12 +479,6 @@ class BaseRenderCanvas:
         self.__is_drawing = True
 
         try:
-            # sniffio_activator = self._rc_canvas_group?._loop?._get_sniffio_activator()
-            sniffio_activator = self._rc_canvas_group._loop._get_sniffio_activator()
-        except AttributeError:  # _rc_canvas_group or _loop can be None
-            sniffio_activator = None
-
-        try:
             # This method is called from the GUI layer. It can be called from a
             # "draw event" that we requested, or as part of a forced draw.
 
@@ -537,8 +531,6 @@ class BaseRenderCanvas:
 
         finally:
             self.__is_drawing = False
-            if sniffio_activator:
-                sniffio_activator.restore()
 
     # %% Primary canvas management methods
 
