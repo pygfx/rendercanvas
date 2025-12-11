@@ -125,6 +125,43 @@ jobs:
         "
         pytest -v tests
 
+  test-gui-frameworks:
+    name: 'Test ${{ matrix.loopname }}'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            pyversion: '3.13'
+            guilib: 'PySide6'
+            loopname: 'PySide6Loop'
+          - os: ubuntu-latest
+            pyversion: '3.13'
+            guilib: 'PyQt6'
+            loopname: 'PyQt6Loop'
+          - os: ubuntu-latest
+            pyversion: '3.13'
+            guilib: 'PyQt5'
+            loopname: 'PyQt5Loop'
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python ${{ matrix.pyversion }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.pyversion }}
+    - name: Install package and dev dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install .[tests]
+        pip install ${{ matrix.piplib }}
+        rm -r rendercanvas
+    - name: Unit tests
+      run: |
+        python -c "
+        pytest -v tests/test_loop.py -k ${{ matrix.loopname }}
+
+
   test-examples:
     name: Test examples ${{ matrix.pyversion }}
     runs-on: ${{ matrix.os }}
@@ -164,6 +201,7 @@ jobs:
         name: screenshots{{ matrix.pyversion }}
         path: examples/screenshots
 
+
   test-pyinstaller:
     name: Test pyinstaller
     runs-on: ubuntu-latest
@@ -182,6 +220,7 @@ jobs:
       run: |
         pushd $HOME
         pytest -v --pyargs rendercanvas.__pyinstaller
+
 
   build-release:
     name: Build release artifacts
