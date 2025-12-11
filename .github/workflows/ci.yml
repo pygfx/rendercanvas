@@ -157,7 +157,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: 3.13
+        python-version: '3.13'
     - name: Install xvfb
       run: sudo apt-get install -y xvfb
     - name: Install package and dev dependencies
@@ -173,7 +173,7 @@ jobs:
       run: |
         xvfb-run pytest -v tests/test_loop.py -k ${{ matrix.loopname }}
     - name: Test GUI canvas
-      if: matrix.backendname in ['glfw']
+      if: matrix.backendname == 'glfw'
       run: |
         xvfb-run pytest -v tests/test_gui_${{ matrix.backendname }}.py
 
