@@ -205,7 +205,7 @@ somewhat when the render area is large.
 Support for wx
 --------------
 
-RenderCanvas has support for wxPython.
+RenderCanvas has support for wxPython. However, because of wx's specific behavior, this backend is less well tested than the other backends.
 For a toplevel widget, the ``rendercanvas.wx.RenderCanvas`` class can be imported. If you want to
 embed the canvas as a subwidget, use ``rendercanvas.wx.RenderWidget`` instead.
 

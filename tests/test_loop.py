@@ -78,6 +78,9 @@ elif "PySide2Loop" in sys.argv:
 
     loop_classes.append(PySide2Loop)
 elif "WxLoop" in sys.argv:
+    # NOTE: because for wx we have to do a few things differently, the tests in
+    # this module do not pass for it. It's runtime behavior should be good, but
+    # we cannot test it in CI (without investing a lot of time in special tests)
     from rendercanvas.wx import WxLoop
 
     loop_classes.append(WxLoop)
