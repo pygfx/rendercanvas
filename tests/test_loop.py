@@ -12,7 +12,6 @@ Therefore, tests for these GUI framework need to be explicitly run:
 
 # ruff: noqa: N803
 
-import os
 import gc
 import sys
 import time
@@ -81,10 +80,9 @@ elif "WxLoop" in sys.argv:
     # NOTE: because for wx we have to do a few things differently, the tests in
     # this module do not pass for it. It's runtime behavior should be good, but
     # we cannot test it in CI (without investing a lot of time in special tests).
-    # The import is at least *some* test.
-    from rendercanvas.wx import WxLoop
-
-    # loop_classes.append(WxLoop)  # don't run tests
+    pass
+    # from rendercanvas.wx import WxLoop
+    # loop_classes.append(WxLoop)
 else:
     loop_classes[:] = default_loop_classes
 

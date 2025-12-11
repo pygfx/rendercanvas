@@ -132,26 +132,25 @@ jobs:
   # Test for the few GUI frameworks that we support.
   test-gui-frameworks:
     name: 'Test ${{ matrix.guilib }}'
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            pyversion: '3.13'
-            guilib: 'PySide6'
+          - guilib: 'glfw'
+            backendname: 'glfw'
+            loopname: 'AsyncioLoop'
+          - guilib: 'PySide6'
+            backendname: 'pyside6'
             loopname: 'PySide6Loop'
-          - os: ubuntu-latest
-            pyversion: '3.13'
-            guilib: 'PyQt6'
+          - guilib: 'PyQt6'
+            backendname: 'pyqt6'
             loopname: 'PyQt6Loop'
-          - os: ubuntu-latest
-            pyversion: '3.13'
-            guilib: 'PyQt5'
+          - guilib: 'PyQt5'
+            backendname: 'pyqt5'
             loopname: 'PyQt5Loop'
-          - os: ubuntu-latest
-            pyversion: '3.13'
-            guilib: 'wxPython'
+          - guilib: 'wxPython'
+            backendname: 'wx'
             loopname: 'WxLoop'
     steps:
     - uses: actions/checkout@v4
@@ -159,15 +158,24 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.pyversion }}
+    - name: Install xvfb
+      run: sudo apt-get install -y xvfb
     - name: Install package and dev dependencies
       run: |
         python -m pip install --upgrade pip
         pip install .[tests]
         pip install ${{ matrix.guilib }}
         rm -r rendercanvas
-    - name: Unit tests
+    - name: Test import
       run: |
-        pytest -v tests/test_loop.py -k ${{ matrix.loopname }}
+        xvfb-run pytest python -c 'import rendercanvas.${{ matrix.backendname }}'
+    - name: Test loop
+      run: |
+        xvfb-run pytest -v tests/test_loop.py -k ${{ matrix.loopname }}
+    - name: Test GUI canvas
+      if: matrix.backendname in ['glfw']
+      run: |
+        xvfb-run pytest -v tests/test_gui_${{ matrix.backendname }}.py
 
   # Test that the examples run without error, and screenshots match
   test-examples:
