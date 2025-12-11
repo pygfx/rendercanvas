@@ -89,7 +89,7 @@ else:
 
     # When Pyside6 is installed, run the tests with a QtLoop.
     try:
-       from rendercanvas.pyside6 import QtLoop
+        from rendercanvas.pyside6 import QtLoop
     except Exception:
         pass
     else:
