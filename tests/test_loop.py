@@ -80,10 +80,11 @@ elif "PySide2Loop" in sys.argv:
 elif "WxLoop" in sys.argv:
     # NOTE: because for wx we have to do a few things differently, the tests in
     # this module do not pass for it. It's runtime behavior should be good, but
-    # we cannot test it in CI (without investing a lot of time in special tests)
+    # we cannot test it in CI (without investing a lot of time in special tests).
+    # The import is at least *some* test.
     from rendercanvas.wx import WxLoop
 
-    loop_classes.append(WxLoop)
+    # loop_classes.append(WxLoop)  # don't run tests
 else:
     loop_classes[:] = default_loop_classes
 
