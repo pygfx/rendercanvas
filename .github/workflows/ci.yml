@@ -62,23 +62,19 @@ jobs:
 
   # Test majority of code for a variety of Python versions
   test-pythons:
-    name: ${{ matrix.name }}
+    name: 'Test Python ${{ matrix.pyversion }} on ${{ matrix.os }}'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: Test py310
-            os: ubuntu-latest
+          - os: ubuntu-latest
             pyversion: '3.10'
-          - name: Test py311
-            os: ubuntu-latest
+          - os: ubuntu-latest
             pyversion: '3.11'
-          - name: Test py312
-            os: ubuntu-latest
+          - os: ubuntu-latest
             pyversion: '3.12'
-          - name: Test py313
-            os: ubuntu-latest
+          - os: ubuntu-latest
             pyversion: '3.13'
     steps:
     - uses: actions/checkout@v4
@@ -97,14 +93,13 @@ jobs:
 
   # Test that wgpu is indeed optional
   test-without-wgpu:
-    name: ${{ matrix.name }} without wgpu
+    name: 'Test Python ${{ matrix.pyversion }} on ${{ matrix.os }} without wgpu'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: Test py313
-            os: ubuntu-latest
+          - os: ubuntu-latest
             pyversion: '3.13'
     steps:
     - uses: actions/checkout@v4
@@ -131,7 +126,7 @@ jobs:
 
   # Test for the few GUI frameworks that we support.
   test-gui-frameworks:
-    name: 'Test ${{ matrix.guilib }}'
+    name: 'Test gui ${{ matrix.guilib }}'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -168,7 +163,7 @@ jobs:
         rm -r rendercanvas
     - name: Test import
       run: |
-        xvfb-run pytest python -c 'import rendercanvas.${{ matrix.backendname }}'
+        xvfb-run python -c 'import rendercanvas.${{ matrix.backendname }}'
     - name: Test loop
       run: |
         xvfb-run pytest -v tests/test_loop.py -k ${{ matrix.loopname }}
@@ -179,7 +174,7 @@ jobs:
 
   # Test that the examples run without error, and screenshots match
   test-examples:
-    name: Test examples ${{ matrix.pyversion }}
+    name: Test examples on ${{ matrix.pyversion }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
