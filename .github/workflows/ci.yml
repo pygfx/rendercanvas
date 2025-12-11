@@ -154,7 +154,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install .[tests]
-        pip install ${{ matrix.piplib }}
+        pip install ${{ matrix.guilib }}
         rm -r rendercanvas
     - name: Unit tests
       run: |
