@@ -231,7 +231,7 @@ class QtLoop(BaseLoop):
                 self._app = QtWidgets.QApplication([])
         # We do detect when the canvas-widget is closed, and also when *our* toplevel wrapper is closed,
         # but when embedded in an application, it seems hard/impossible to detect the canvas being closed
-        # when the app closes. So we explicitly detect that instead.
+        # when the app closes. So we explicitly detect the app-closing instead.
         # Note that we should not use app.setQuitOnLastWindowClosed(False), because we (may) rely on the
         # application's closing mechanic.
         self._app.aboutToQuit.connect(lambda: self.stop(force=True))
