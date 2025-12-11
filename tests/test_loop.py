@@ -82,9 +82,18 @@ elif "WxLoop" in sys.argv:
     # on CI tries to build wx from scratch, so we don't run wx tests
     # on CI anyway.
     from rendercanvas.wx import WxLoop
+
     loop_classes.append(WxLoop)
 else:
     loop_classes[:] = default_loop_classes
+
+    # When Pyside6 is installed, run the tests with a QtLoop.
+    try:
+       from rendercanvas.pyside6 import QtLoop
+    except Exception:
+        pass
+    else:
+        loop_classes.append(QtLoop)
 
 
 async def fake_task():
