@@ -24,10 +24,13 @@ def setup_module():
 
 
 def teardown_module():
+    import glfw
     from rendercanvas.glfw import poll_glfw_briefly
 
     poll_glfw_briefly()
-    pass  # Do not glfw.terminate() because other tests may still need glfw
+
+    # Terminate; otherwise it gets in the way of tests for the Qt loop.
+    glfw.terminate()
 
 
 def test_is_canvas_base():

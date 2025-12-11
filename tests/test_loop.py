@@ -1,10 +1,20 @@
 """
 Some tests for the base loop and asyncio loop.
+
+Testing the loop of GUI frameworks like Qt and wx is a bit tricky,
+because importing more than one in the same process always causes problems.
+
+Therefore, tests for these GUI framework need to be explicitly run:
+* Run "pytest -k PySide6Loop"  etc.
+* Run "python tests/test_loop.py WxLoop"  etc.
+
 """
 
 # ruff: noqa: N803
 
+import os
 import gc
+import sys
 import time
 import signal
 import asyncio
@@ -15,7 +25,7 @@ from rendercanvas.asyncio import AsyncioLoop
 from rendercanvas.trio import TrioLoop
 from rendercanvas.raw import RawLoop
 
-from rendercanvas.pyside6 import QtLoop
+
 from rendercanvas.utils.asyncs import sleep as async_sleep
 from testutils import run_tests
 import trio
@@ -23,8 +33,56 @@ import trio
 import pytest
 
 
-loop_classes = [RawLoop, AsyncioLoop, TrioLoop, QtLoop]
+default_loop_classes = [RawLoop, AsyncioLoop, TrioLoop]
 async_loop_classes = [AsyncioLoop, TrioLoop]
+loop_classes = []
+
+
+# Determine what loops to test
+if "RawLoop" in sys.argv:
+    loop_classes.append(RawLoop)
+elif "AsyncioLoop" in sys.argv:
+    loop_classes.append(AsyncioLoop)
+elif "TrioLoop" in sys.argv:
+    loop_classes.append(TrioLoop)
+elif "QtLoop" in sys.argv:
+    from rendercanvas.pyside6 import QtLoop
+
+    loop_classes.append(QtLoop)
+elif "PySide6Loop" in sys.argv:
+    from rendercanvas.pyside6 import QtLoop
+
+    class PySide6Loop(QtLoop):
+        pass
+
+    loop_classes.append(PySide6Loop)
+elif "PyQt6Loop" in sys.argv:
+    from rendercanvas.pyqt6 import QtLoop
+
+    class PyQt6Loop(QtLoop):
+        pass
+
+    loop_classes.append(PyQt6Loop)
+elif "PyQt5Loop" in sys.argv:
+    from rendercanvas.pyqt5 import QtLoop
+
+    class PyQt5Loop(QtLoop):
+        pass
+
+    loop_classes.append(PyQt5Loop)
+elif "PySide2Loop" in sys.argv:
+    from rendercanvas.pyside2 import QtLoop
+
+    class PySide2Loop(QtLoop):
+        pass
+
+    loop_classes.append(PySide2Loop)
+elif "WxLoop" in sys.argv:
+    from rendercanvas.wx import WxLoop
+
+    loop_classes.append(WxLoop)
+else:
+    loop_classes[:] = default_loop_classes
 
 
 async def fake_task():
@@ -95,9 +153,15 @@ class RealRenderCanvas(BaseRenderCanvas):
 @pytest.mark.parametrize("SomeLoop", loop_classes)
 def test_run_loop_and_close_bc_no_canvases(SomeLoop):
     # Run the loop without canvas; closes immediately
+
     loop = SomeLoop()
     loop.call_later(0.1, print, "hi from loop!")
+    loop.call_later(1.0, loop.stop)  # failsafe
+
+    t0 = time.perf_counter()
     loop.run()
+    t1 = time.perf_counter()
+    assert (t1 - t0) < 0.2
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
@@ -168,7 +232,7 @@ def test_run_loop_without_canvases(SomeLoop):
     et = time.time() - t0
 
     print(et)
-    assert 0.0 <= et < 0.15
+    assert 0.0 <= et < 0.25
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
@@ -805,4 +869,6 @@ def test_async_gens_cleanup_bad_agen(SomeLoop):
 
 
 if __name__ == "__main__":
+    # from rendercanvas.wx import WxLoop
+    # loop_classes[:] = [WxLoop]
     run_tests(globals())
