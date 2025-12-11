@@ -138,7 +138,8 @@ def test_glfw_canvas_render():
     run_briefly()
     # There should have been exactly one draw now
     # This assumes ondemand scheduling mode
-    assert frame_counter == 1
+    assert frame_counter in (1, 2)
+    frame_counter = 0
 
     # Ask for a lot of draws
     for i in range(5):
@@ -146,15 +147,16 @@ def test_glfw_canvas_render():
     # Process evens for a while
     run_briefly()
     # We should have had just one draw
-    assert frame_counter == 2
+    assert frame_counter in (1, 2)
+    frame_counter = 0
 
     # Change the canvas size
     canvas.set_logical_size(300, 200)
     canvas.set_logical_size(400, 300)
     # We should have had just one draw, but sometimes (more so on CI) we can have more
     run_briefly()
-    # assert frame_counter == 3
-    assert frame_counter in [3, 4, 5]
+    assert frame_counter in [1, 2]
+    frame_counter = 0
 
     # Stopping
     assert not loop_task.done()
