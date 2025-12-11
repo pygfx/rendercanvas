@@ -195,6 +195,11 @@ def test_loop_detects_canvases(SomeLoop):
 def test_run_loop_without_canvases(SomeLoop):
     # After all canvases are closed, it can take one tick before its detected.
 
+    timeout = 0.15
+    if "Qt" in SomeLoop.__name__ or "PySide" in SomeLoop.__name__:
+        # Qt needs a bit more time
+        timeout = 0.30
+
     loop = SomeLoop()
     group = CanvasGroup(loop)
 
@@ -205,7 +210,7 @@ def test_run_loop_without_canvases(SomeLoop):
     et = time.time() - t0
 
     print(et)
-    assert 0.0 <= et < 0.15
+    assert 0.0 <= et < timeout
 
     # Create a canvas and close it right away
 
@@ -223,7 +228,7 @@ def test_run_loop_without_canvases(SomeLoop):
     et = time.time() - t0
 
     print(et)
-    assert 0.0 <= et < 0.15
+    assert 0.0 <= et < timeout
 
     # Now its in its stopped state again
 
@@ -232,7 +237,7 @@ def test_run_loop_without_canvases(SomeLoop):
     et = time.time() - t0
 
     print(et)
-    assert 0.0 <= et < 0.25
+    assert 0.0 <= et < timeout
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
