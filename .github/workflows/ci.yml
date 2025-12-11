@@ -93,7 +93,7 @@ jobs:
 
   # Test that wgpu is indeed optional
   test-without-wgpu:
-    name: 'Test Python ${{ matrix.pyversion }} on ${{ matrix.os }} without wgpu'
+    name: 'Test Python ${{ matrix.pyversion }} without wgpu'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -144,17 +144,19 @@ jobs:
           - guilib: 'PyQt5'
             backendname: 'pyqt5'
             loopname: 'PyQt5Loop'
-          - guilib: 'wxPython'
-            backendname: 'wx'
-            loopname: 'WxLoop'
+          # - guilib: 'wxPython'  CI tries to build wx from scratch
+          #   backendname: 'wx'
+          #   loopname: 'WxLoop'
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.13'
-    - name: Install xvfb
-      run: sudo apt-get install -y xvfb
+    - name: Install xvfb and Vulkan drivers
+      run: |
+        sudo apt install -y xvfb
+        sudo apt install -y libegl1-mesa-dev libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
     - name: Install package and dev dependencies
       run: |
         python -m pip install --upgrade pip
