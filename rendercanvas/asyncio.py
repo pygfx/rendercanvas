@@ -73,7 +73,8 @@ class AsyncioLoop(BaseLoop):
             task = self.__tasks.pop()
             task.cancel()  # is a no-op if the task is no longer running
         # Signal that we stopped
-        self._stop_event.set()
+        if self._stop_event is not None:
+            self._stop_event.set()
         self._stop_event = None
         self._run_loop = None
         # Note how we don't explicitly stop a loop, not the interactive loop, nor the running loop

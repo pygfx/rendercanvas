@@ -8,7 +8,7 @@ import threading
 
 # Support sniffio for older wgpu releases, and for code that relies on sniffio.
 try:
-    from sniffio_ import thread_local as sniffio_thread_local
+    from sniffio import thread_local as sniffio_thread_local
 except ImportError:
     sniffio_thread_local = threading.local()
 
@@ -79,7 +79,6 @@ class Task:
         self._done_callbacks.append(callback)
 
     def _close(self):
-        self.loop = None
         self.coro = None
         for callback in self._done_callbacks:
             try:

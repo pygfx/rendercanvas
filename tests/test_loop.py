@@ -23,6 +23,7 @@ from rendercanvas.base import BaseCanvasGroup, BaseRenderCanvas
 from rendercanvas.asyncio import AsyncioLoop
 from rendercanvas.trio import TrioLoop
 from rendercanvas.raw import RawLoop
+from rendercanvas import get_running_loop
 
 
 from rendercanvas.utils.asyncs import sleep as async_sleep
@@ -166,12 +167,12 @@ def test_run_loop_and_close_bc_no_canvases(SomeLoop):
     # Run the loop without canvas; closes immediately
 
     loop = SomeLoop()
-    loop.call_later(0.1, print, "hi from loop!")
     loop.call_later(1.0, loop.stop)  # failsafe
 
     t0 = time.perf_counter()
     loop.run()
     t1 = time.perf_counter()
+
     assert (t1 - t0) < 0.2
 
 
@@ -200,6 +201,17 @@ def test_loop_detects_canvases(SomeLoop):
 
     assert len(loop._BaseLoop__canvas_groups) == 2
     assert len(loop.get_canvases()) == 3
+
+    # Call stop explicitly. Because we created some canvases, but never ran the
+    # loops, they are in a 'ready' state, ready to move to the running state
+    # when the loop-task starts running. For raw/asyncio/trio this is fine,
+    # because cleanup will cancel all tasks. But for the QtLoop, the QTimer has
+    # a reference to the callback, which refs asyncadapter.Task, which refs the
+    # coroutine which refs the loop object. So there will not be any cleanup and
+    # *this* loop will start running at the next test func.
+    loop.stop()
+    loop.stop()
+    assert loop._BaseLoop__state == "off"
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
@@ -255,6 +267,8 @@ def test_run_loop_without_canvases(SomeLoop):
 def test_run_loop_and_close_canvases(SomeLoop):
     # After all canvases are closed, it can take one tick before its detected.
 
+    current_loops = []
+
     loop = SomeLoop()
     group = CanvasGroup(loop)
 
@@ -263,12 +277,16 @@ def test_run_loop_and_close_canvases(SomeLoop):
     group._register_canvas(canvas1, fake_task)
     group._register_canvas(canvas2, fake_task)
 
-    loop.call_later(0.1, print, "hi from loop!")
+    loop.call_later(
+        0.1, lambda: current_loops.append(get_running_loop().__class__.__name__)
+    )
     loop.call_later(0.1, canvas1.manually_close)
     loop.call_later(0.3, canvas2.manually_close)
 
     t0 = time.time()
+    current_loops.append(get_running_loop().__class__.__name__)
     loop.run()
+    current_loops.append(get_running_loop().__class__.__name__)
     et = time.time() - t0
 
     print(et)
@@ -276,6 +294,8 @@ def test_run_loop_and_close_canvases(SomeLoop):
 
     assert canvas1._events.is_closed
     assert canvas2._events.is_closed
+
+    assert current_loops == ["NoneType", SomeLoop.__name__, "NoneType"], current_loops
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
@@ -855,7 +875,6 @@ def test_async_gens_cleanup3(SomeLoop):
 @pytest.mark.parametrize("SomeLoop", loop_classes)
 def test_async_gens_cleanup_bad_agen(SomeLoop):
     # Same as last but not with a bad-behaving finalizer.
-    # This will log an error.
 
     g = None
 
@@ -873,13 +892,14 @@ def test_async_gens_cleanup_bad_agen(SomeLoop):
     loop.call_later(0.2, loop.stop)
     loop.run()
 
-    if SomeLoop in (AsyncioLoop,):
+    if SomeLoop in (AsyncioLoop, TrioLoop):
         # Handled properly
         ref_flag = ["started", "except GeneratorExit", "closed"]
     else:
-        # We accept to fail here with our async adapter.
-        # It looks like trio does too???
-        ref_flag = ["started", "except GeneratorExit"]
+        # Actually, our adapter also works, because the sleep and Event
+        # become no-ops once the loop is gone, and since there are no other things
+        # one can wait on with our asyncadapter, we're good!
+        ref_flag = ["started", "except GeneratorExit", "closed"]
 
     assert flag == ref_flag, flag
 

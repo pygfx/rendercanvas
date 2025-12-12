@@ -51,8 +51,11 @@ async def sleep(delay):
         await event.wait()
     else:
         libname = detect_current_async_lib()
-        sleep = sys.modules[libname].sleep
-        await sleep(delay)
+        if libname is None:
+            return  # the loop is gone, we're probably cleaning up
+        else:
+            sleep = sys.modules[libname].sleep
+            await sleep(delay)
 
 
 class Event:
@@ -60,5 +63,14 @@ class Event:
 
     def __new__(cls):
         libname = detect_current_async_lib()
-        Event = sys.modules[libname].Event  # noqa
-        return Event()
+        if libname is None:
+            return object.__new__(cls)
+        else:
+            Event = sys.modules[libname].Event  # noqa
+            return Event()
+
+    async def wait(self):
+        return
+
+    def set(self):
+        pass
