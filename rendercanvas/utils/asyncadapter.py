@@ -4,8 +4,13 @@ Intended for internal use, but is fully standalone.
 """
 
 import logging
+import threading
 
-from sniffio import thread_local as sniffio_thread_local
+# Support sniffio for older wgpu releases, and for code that relies on sniffio.
+try:
+    from sniffio_ import thread_local as sniffio_thread_local
+except ImportError:
+    sniffio_thread_local = threading.local()
 
 
 logger = logging.getLogger("asyncadapter")
@@ -97,7 +102,9 @@ class Task:
         result = None
         stop = False
 
-        old_name, sniffio_thread_local.name = sniffio_thread_local.name, __name__
+        old_name = getattr(sniffio_thread_local, "name", None)
+        sniffio_thread_local.name = __name__
+
         self.running = True
         try:
             if self.cancelled:

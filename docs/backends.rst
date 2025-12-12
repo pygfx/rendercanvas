@@ -297,7 +297,7 @@ An example using PyScript (which uses Pyodide):
     <body>
         <canvas id='canvas' style="background:#aaa; width: 640px; height: 480px;"></canvas>
         <br>
-        <script type="py" src="yourcode.py" config='{"packages": ["numpy", "sniffio", "rendercanvas"]}'>
+        <script type="py" src="yourcode.py" config='{"packages": ["numpy", "rendercanvas"]}'>
         </script>
     </body>
     </html>
@@ -335,7 +335,6 @@ An example using Pyodide directly:
             await pyodide.loadPackage("micropip");
             const micropip = pyodide.pyimport("micropip");
             await micropip.install("numpy");
-            await micropip.install("sniffio");
             await micropip.install("rendercanvas");
             // have to call as runPythonAsync
             pyodide.runPythonAsync(pythonCode);

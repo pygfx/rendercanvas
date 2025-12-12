@@ -1,55 +1,56 @@
 """
 This module implements all async functionality that one can use in any ``rendercanvas`` backend.
-This uses ``sniffio`` to detect the async framework in use.
 
-To give an idea how to use ``sniffio`` to get a generic async sleep function:
+To give an idea how to implement a generic async sleep function:
 
 .. code-block:: py
 
-    libname = sniffio.current_async_library()
+    libname = detect_current_async_lib()
     sleep = sys.modules[libname].sleep
 
 """
 
 import sys
 
-import sniffio
-
-from .._coreutils import IS_WIN, call_later_from_thread
+from .._coreutils import IS_WIN, call_later_from_thread, thread_local
 
 
 USE_THREADED_TIMER = IS_WIN
 
 
+def detect_current_async_lib():
+    """Get the lib name of the currently active async lib, or None.
+
+    This uses ``sys.get_asyncgen_hooks()`` for fast and robust detection.
+    Compared to sniffio, this is faster and also  works when not inside a task.
+    Compared to ``rendercanvas.get_running_loop()`` this also works when asyncio
+    is running while the rendercanvas loop is not.
+    """
+    ob = sys.get_asyncgen_hooks()[0]
+    if ob is not None:
+        try:
+            libname = ob.__module__.partition(".")[0]
+        except AttributeError:
+            return None
+        if libname == "rendercanvas":
+            libname = "rendercanvas.utils.asyncadapter"
+        return libname
+
+
 async def sleep(delay):
     """Generic async sleep. Works with trio, asyncio and rendercanvas-native.
 
-    On Windows, with asyncio or trio, this uses a special sleep routine that is more accurate than the standard ``sleep()``.
+    On Windows, with asyncio or trio, this uses a special sleep routine that is more accurate than the ``sleep()`` of asyncio/trio.
     """
 
-    # The commented code below would be quite elegant, but we don't have get_running_rendercanvas_loop(),
-    # so instead we replicate the call_soon_threadsafe logic for asyncio and trio here.
-    #
-    # if delay > 0 and USE_THREADED_TIMER:
-    #     event = Event()
-    #     rc_loop = get_running_rendercanvas_loop()
-    #     call_later_from_thread(delay, rc_loop.call_soon_threadsafe, event.set)
-    #     await event.wait()
+    rc_loop = getattr(thread_local, "loop", None)  # == get_running_loop
 
-    libname = sniffio.current_async_library()
-    if libname == "asyncio" and delay > 0 and USE_THREADED_TIMER:
-        asyncio = sys.modules[libname]
-        loop = asyncio.get_running_loop()
-        event = asyncio.Event()
-        call_later_from_thread(delay, loop.call_soon_threadsafe, event.set)
-        await event.wait()
-    elif libname == "trio" and delay > 0 and USE_THREADED_TIMER:
-        trio = sys.modules[libname]
-        event = trio.Event()
-        token = trio.lowlevel.current_trio_token()
-        call_later_from_thread(delay, token.run_sync_soon, event.set)
+    if delay > 0 and USE_THREADED_TIMER and rc_loop is not None:
+        event = Event()
+        call_later_from_thread(delay, rc_loop.call_soon_threadsafe, event.set)
         await event.wait()
     else:
+        libname = detect_current_async_lib()
         sleep = sys.modules[libname].sleep
         await sleep(delay)
 
@@ -58,6 +59,6 @@ class Event:
     """Generic async event object. Works with trio, asyncio and rendercanvas-native."""
 
     def __new__(cls):
-        libname = sniffio.current_async_library()
+        libname = detect_current_async_lib()
         Event = sys.modules[libname].Event  # noqa
         return Event()

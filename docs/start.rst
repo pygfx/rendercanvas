@@ -132,7 +132,7 @@ If you like callbacks, ``loop.call_later()`` always works. If you like async, us
 If you make use of async functions (co-routines), and want to keep your code portable across
 different canvas backends, restrict your use of async features to ``sleep``  and ``Event``;
 these are the only features currently implemented in our async adapter utility.
-We recommend importing these from :doc:`rendercanvas.utils.asyncs <utils_asyncs>` or use ``sniffio`` to detect the library that they can be imported from.
+We recommend importing these from :doc:`rendercanvas.utils.asyncs <utils_asyncs>` if you want your code to be portable across different event loop backends.
 
 On the other hand, if you know your code always runs on the asyncio loop, you can fully make use of ``asyncio``. Ditto for Trio.
 
