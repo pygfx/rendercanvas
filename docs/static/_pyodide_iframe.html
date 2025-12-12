@@ -22,7 +22,6 @@
                 let pyodide = await loadPyodide();
                 await pyodide.loadPackage("micropip");
                 const micropip = pyodide.pyimport("micropip");
-                await micropip.install('sniffio');
                 await micropip.install('numpy');
                 // The below loads rendercanvas from pypi. But we will replace it with the name of the wheel,
                 // so that it's loaded from the docs (in _static).

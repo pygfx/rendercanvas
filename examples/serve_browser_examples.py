@@ -104,7 +104,7 @@ pyscript_template = """
 
     <canvas id="canvas" style="background:#aaa; width: 90%; height: 480px;"></canvas>
     <script type="py" src="example.py" ,
-        config='{"packages": ["numpy", "sniffio", "rendercanvas"]}'>
+        config='{"packages": ["numpy", "rendercanvas"]}'>
     </script>
 </body>
 

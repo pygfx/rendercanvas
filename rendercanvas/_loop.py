@@ -11,7 +11,13 @@ from inspect import iscoroutinefunction
 from typing import TYPE_CHECKING
 
 from ._enums import LoopState
-from ._coreutils import logger, log_exception, call_later_from_thread, close_agen
+from ._coreutils import (
+    logger,
+    log_exception,
+    call_later_from_thread,
+    close_agen,
+    thread_local,
+)
 from .utils.asyncs import sleep
 from .utils import asyncadapter
 
@@ -26,6 +32,16 @@ HANDLED_SIGNALS = (
     signal.SIGINT,  # Unix signal 2. Sent by Ctrl+C.
     signal.SIGTERM,  # Unix signal 15. Sent by `kill <pid>`.
 )
+
+
+def get_running_loop():
+    """Get the running loop (for the current thread) or None.
+
+    This method is intended to obtain the currently running rendercanvas
+    loop object. To detect what async event-loop is actually running,
+    it's recommended to check ``sys.get_asyncgen_hooks`` or use ``sniffio``.
+    """
+    return getattr(thread_local, "loop", None)
 
 
 class BaseLoop:
@@ -64,11 +80,13 @@ class BaseLoop:
     """
 
     def __init__(self):
-        self.__tasks = set()
+        self.__tasks = set()  # only used by the async adapter
         self.__canvas_groups = set()
         self.__should_stop = 0
         self.__state = LoopState.off
         self.__is_initialized = False
+        self.__hook_data = None
+        self.__using_adapter = False  # set to True if using our asyncadapter
         self._asyncgens = weakref.WeakSet()
         # self._setup_debug_thread()
 
@@ -143,6 +161,7 @@ class BaseLoop:
         self.__is_initialized = True
         self._rc_init()
         self._rc_add_task(wrapper, "loop-task")
+        self.__using_adapter = len(self.__tasks) > 0
 
     async def _loop_task(self):
         # This task has multiple purposes:
@@ -161,6 +180,10 @@ class BaseLoop:
         # * Keep the GUI going even when the canvas loop is on pause e.g.
         #   because its minimized (applies to backends that implement
         #   _rc_gui_poll).
+
+        # In some cases the task may run after the loop was closed
+        if self.__state == LoopState.off:
+            return
 
         # The loop has started!
         self.__start()
@@ -295,8 +318,7 @@ class BaseLoop:
 
         self._ensure_initialized()
 
-        # Register interrupt handler
-        prev_sig_handlers = self.__setup_interrupt()
+        need_unregister = self.__setup_hooks()
 
         # Run. We could be in this loop for a long time. Or we can exit immediately if
         # the backend already has an (interactive) event loop and did not call _mark_as_interactive().
@@ -307,14 +329,15 @@ class BaseLoop:
             # Mark state as not 'running', but also not to 'off', that happens elsewhere.
             if self.__state == LoopState.running:
                 self.__state = LoopState.active
-            for sig, cb in prev_sig_handlers.items():
-                signal.signal(sig, cb)
+            if need_unregister:
+                self.__restore_hooks()
 
     async def run_async(self) -> None:
         """ "Alternative to ``run()``, to enter the mainloop from a running async framework.
 
         Only supported by the asyncio and trio loops.
         """
+
         # Can we enter the loop?
         if self.__state in (LoopState.off, LoopState.ready):
             pass
@@ -368,17 +391,53 @@ class BaseLoop:
         if len(canvases) == 0 or self.__should_stop >= 2:
             self.__stop()
 
+    def __setup_hooks(self):
+        """Activate current loop, setup asycgen hooks, and setup interrupts."""
+        if self.__hook_data is not None:
+            return False
+
+        # Set the running loop
+        prev_loop = get_running_loop()
+        thread_local.loop = self
+
+        # Setup asyncgen hooks
+        prev_asyncgen_hooks = self.__setup_asyncgen_hooks()
+
+        # Set interrupts
+        prev_interrupt_hooks = self.__setup_interrupt_hooks()
+
+        self.__hook_data = prev_loop, prev_asyncgen_hooks, prev_interrupt_hooks
+        return True
+
+    def __restore_hooks(self):
+        """Unregister hooks."""
+
+        # This is separated from stop(), so that a loop can be 'active' by repeated calls to ``run()``, but will only
+        # actually have registered hooks while inside ``run()``. The StubLoop has this behavior, and it may be a bit silly
+        # to organize for this special use-case, but it does make it more clean/elegant, and maybe someday we will want another
+        # loop class that runs for short periods. This now works, even when another loop is running.
+
+        if self.__hook_data is None:
+            return
+
+        prev_loop, prev_asyncgen_hooks, prev_interrupt_hooks = self.__hook_data
+        self.__hook_data = None
+
+        thread_local.loop = prev_loop
+
+        if prev_asyncgen_hooks is not None:
+            sys.set_asyncgen_hooks(*prev_asyncgen_hooks)
+
+        for sig, cb in prev_interrupt_hooks.items():
+            signal.signal(sig, cb)
+
     def __start(self):
         """Move to running state."""
-
         # Update state, but leave 'interactive' and 'running'
         if self.__state in (LoopState.off, LoopState.ready):
             self.__state = LoopState.active
 
-        # Setup asyncgen hooks. This is done when we detect the loop starting,
-        # not in run(), because most event-loops will handle interrupts, while
-        # e.g. qt won't care about async generators.
-        self.__setup_asyncgen_hooks()
+        self.__setup_hooks()
 
     def __stop(self):
         """Move to the off-state."""
@@ -389,8 +448,6 @@ class BaseLoop:
         # Set flags to off state
         self.__state = LoopState.off
         self.__should_stop = 0
-
-        self.__finish_asyncgen_hooks()
 
         # If we used the async adapter, cancel any tasks. If we could assume
         # that the backend processes pending events before actually shutting
@@ -407,11 +464,20 @@ class BaseLoop:
         # Note that backends that do not use the asyncadapter are responsible
         # for cancelling pending tasks.
 
+        self.__restore_hooks()
+
+        # Cancel async gens
+        if len(self._asyncgens):
+            closing_agens = list(self._asyncgens)
+            self._asyncgens.clear()
+            for agen in closing_agens:
+                close_agen(agen)
+
         # Tell the backend to stop the loop. This usually means it will stop
         # soon, but not *now*; remember that we're currently in a task as well.
         self._rc_stop()
 
-    def __setup_interrupt(self):
+    def __setup_interrupt_hooks(self):
         """Setup the interrupt handlers."""
 
         def on_interrupt(sig, _frame):
@@ -445,36 +511,29 @@ class BaseLoop:
         # the generator in the user's code. Note that when a proper async
         # framework (asyncio or trio) is used, all of this does not apply; only
         # for the qt/wx/raw loop do we do this, an in these cases we don't
-        # expect fancy async stuff.
+        # expect fancy async stuff. Oh, and the sleep and Event actually become no-ops when the
+        # asyncgen hooks are restored, so that error message should in theory never happen anyway.
 
-        current_asyncgen_hooks = sys.get_asyncgen_hooks()
-        if (
-            current_asyncgen_hooks.firstiter is None
-            and current_asyncgen_hooks.finalizer is None
-        ):
-            sys.set_asyncgen_hooks(
-                firstiter=self._asyncgen_firstiter_hook,
-                finalizer=self._asyncgen_finalizer_hook,
-            )
-        else:
-            # Assume that the hooks are from asyncio/trio on which this loop is running.
-            pass
+        # Only register hooks if we use the asyncadapter; async frameworks install their own hooks.
+        if not self.__using_adapter:
+            return None
 
-    def __finish_asyncgen_hooks(self):
-        sys.set_asyncgen_hooks(None, None)
+        asyncgens = self._asyncgens
 
-        if len(self._asyncgens):
-            closing_agens = list(self._asyncgens)
-            self._asyncgens.clear()
-            for agen in closing_agens:
-                close_agen(agen)
+        def asyncgen_firstiter_hook(agen):
+            asyncgens.add(agen)
 
-    def _asyncgen_firstiter_hook(self, agen):
-        self._asyncgens.add(agen)
+        def asyncgen_finalizer_hook(agen):
+            asyncgens.discard(agen)
+            close_agen(agen)
 
-    def _asyncgen_finalizer_hook(self, agen):
-        self._asyncgens.discard(agen)
-        close_agen(agen)
+        prev_asyncgen_hooks = sys.get_asyncgen_hooks()
+        sys.set_asyncgen_hooks(
+            firstiter=asyncgen_firstiter_hook,
+            finalizer=asyncgen_finalizer_hook,
+        )
+
+        return prev_asyncgen_hooks
 
     def _rc_init(self):
         """Put the loop in a ready state.

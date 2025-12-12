@@ -18,7 +18,7 @@ keywords = [
     "jupyter",
 ]
 requires-python = ">= 3.10"
-dependencies = ["sniffio"]
+dependencies = [] # Zero hard dependencies!
 [project.optional-dependencies]
 # For users
 jupyter = ["jupyter_rfb>=0.4.2"]
