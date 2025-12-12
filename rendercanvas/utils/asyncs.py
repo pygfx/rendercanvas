@@ -34,6 +34,8 @@ def detect_current_async_lib():
             return None
         if libname == "rendercanvas":
             libname = "rendercanvas.utils.asyncadapter"
+        elif libname == "pyodide":
+            libname = "asyncio"
         return libname
 
 
