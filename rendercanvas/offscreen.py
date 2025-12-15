@@ -119,7 +119,6 @@ class OffscreenRenderCanvas(BaseRenderCanvas):
         This object can be converted to a numpy array (without copying data)
         using ``np.asarray(arr)``.
         """
-        loop.process_tasks()  # Little trick to keep the event loop going
         self._draw_frame_and_present()
         return self._last_image
 
@@ -151,7 +150,7 @@ class StubLoop(BaseLoop):
         # This gets called when the first canvas is created (possibly after having run and stopped before).
         pass
 
-    def process_tasks(self):
+    def _process_tasks(self):
         callbacks_to_run = []
         new_callbacks = []
         for etime, callback in self._callbacks:
@@ -165,10 +164,15 @@ class StubLoop(BaseLoop):
                 callback()
 
     def _rc_run(self):
-        self.process_tasks()
+        # Only process tasks inside the run method. While in side ``run()``, the
+        # loop state is 'running' and its the current loop. If we'd process
+        # tasks outside the run method, the loop-task triggers, putting the loop
+        # in the 'active' mode, making it the current loop, and it will stay
+        # active until it's explicitly stopped.
+        self._process_tasks()
 
     def _rc_stop(self):
-        pass
+        self._callbacks.clear()
 
     def _rc_add_task(self, async_func, name):
         super()._rc_add_task(async_func, name)

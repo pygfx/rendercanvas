@@ -76,6 +76,7 @@ def test_namespace():
 @pytest.mark.skipif(sys.version_info < (3, 10), reason="Need py310+")
 def test_deps_plain_import():
     modules = get_loaded_modules("rendercanvas", 1)
+    modules.discard("sniffio")  # sniffio is imported if available
     assert modules == {"rendercanvas"}
     # Note, no wgpu
 
