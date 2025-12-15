@@ -7,6 +7,7 @@ __all__ = ["QRenderCanvas", "QRenderWidget", "QtLoop", "RenderCanvas", "loop"]
 
 import sys
 import ctypes
+import weakref
 import importlib
 
 
@@ -234,7 +235,10 @@ class QtLoop(BaseLoop):
         # when the app closes. So we explicitly detect the app-closing instead.
         # Note that we should not use app.setQuitOnLastWindowClosed(False), because we (may) rely on the
         # application's closing mechanic.
-        self._app.aboutToQuit.connect(lambda: self.stop(force=True))
+        loop_ref = weakref.ref(self)
+        self._app.aboutToQuit.connect(
+            lambda: (loop := loop_ref()) and loop.stop(force=True)
+        )
         if already_had_app_on_import:
             self._mark_as_interactive()
         self._callback_pool = set()

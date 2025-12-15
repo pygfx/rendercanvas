@@ -3,6 +3,7 @@ A micro async framework that only support ``sleep()`` and ``Event``. Behaves wel
 Intended for internal use, but is fully standalone.
 """
 
+import weakref
 import logging
 import threading
 
@@ -73,6 +74,11 @@ class Task:
         self.name = name
         self.running = False
         self.cancelled = False
+
+        # Trick to get a callback function that does not hold a ref to the task, and therefore not the loop (via the loop-task coro).
+        task_ref = weakref.ref(self)
+        self._step_cb = lambda: (task := task_ref()) and task.step()
+
         self.call_step_later(0)
 
     def add_done_callback(self, callback):
@@ -88,7 +94,7 @@ class Task:
         self._done_callbacks.clear()
 
     def call_step_later(self, delay):
-        self._call_later(delay, self.step)
+        self._call_later(delay, self._step_cb)
 
     def cancel(self):
         self.cancelled = True

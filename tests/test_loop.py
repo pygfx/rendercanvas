@@ -16,6 +16,7 @@ import gc
 import sys
 import time
 import signal
+import weakref
 import asyncio
 import threading
 
@@ -160,6 +161,64 @@ class RealRenderCanvas(BaseRenderCanvas):
 
 
 # %%%%% running and closing
+
+
+@pytest.mark.parametrize("SomeLoop", loop_classes)
+def test_loop_deletion1(SomeLoop):
+    # Loops get gc'd when instantiated but not used.
+
+    loop = SomeLoop()
+
+    loop_ref = weakref.ref(loop)
+    del loop
+    gc.collect()
+    gc.collect()
+
+    assert loop_ref() is None
+
+
+@pytest.mark.parametrize("SomeLoop", loop_classes)
+def test_loop_deletion2(SomeLoop):
+    # Loops get gc'd when in ready state
+
+    async def foo():
+        pass
+
+    loop = SomeLoop()
+    loop.add_task(foo)
+    assert "ready" in repr(loop)
+
+    loop_ref = weakref.ref(loop)
+    del loop
+    for _ in range(4):
+        time.sleep(0.01)
+        gc.collect()
+
+    assert loop_ref() is None
+
+
+@pytest.mark.parametrize("SomeLoop", loop_classes)
+def test_loop_deletion3(SomeLoop):
+    # Loops get gc'd when closed after use
+
+    flag = []
+
+    async def foo():
+        flag.append(True)
+
+    loop = SomeLoop()
+    loop.add_task(foo)
+    assert "ready" in repr(loop)
+    loop.run()
+    assert flag == [True]
+
+    loop_ref = weakref.ref(loop)
+    del loop
+    for _ in range(4):
+        time.sleep(0.01)
+        gc.collect()
+
+    assert loop_ref() is None
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
