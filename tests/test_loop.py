@@ -8,6 +8,10 @@ Therefore, tests for these GUI framework need to be explicitly run:
 * Run "pytest -k PySide6Loop"  etc.
 * Run "python tests/test_loop.py WxLoop"  etc.
 
+
+Note that in here we create *a lot* of different kind of loop objects.
+In practice though, an application will use (and even import) a single
+loop object and run it one time for the duration of the application.
 """
 
 # ruff: noqa: N803

@@ -43,39 +43,67 @@ def get_running_loop():
     """
     return getattr(thread_local, "loop", None)
 
+    # Note: if a loop is run while another is running, this is actually allowed, and the
+    # new loop object is responsible for resetting the old current loop object.
+    # When this all happens via ``loop.run()``, it's pretty solid. But when this involves loops
+    # become active outside of ``run()``, like Qt or interactive asyncio, this *can* get messy if
+    # the loop stops while an "inner loop" is running. Afaik, neither Qt nor asyncio does this.
+    # And remember that in practice users typically import one loop and run it once ...
+
 
 class BaseLoop:
     """The base class for an event-loop object.
+
+    The rendercanvas ``loop`` object is a proxy to a real event-loop. It abstracts away methods like ``run()``,
+    ``call_later``, ``call_soon_threadsafe()``, and more.
 
     Canvas backends can implement their own loop subclass (like qt and wx do), but a
     canvas backend can also rely on one of multiple loop implementations (like glfw
     running on asyncio or trio).
 
-    The lifecycle states of a loop are:
+    In the majority of use-cases, users don't need to know much about the loop. It will typically
+    run once. In more complex scenario's the section below explains the working of the loop in more detail.
 
-    * off: the initial state, the subclass should probably not even import dependencies yet.
-    * ready: the first canvas is created, ``_rc_init()`` is called to get the loop ready for running.
-    * active: the loop is active (we detect it because our task is running), but we don't know how.
-    * interactive: the loop is inter-active in e.g. an IDE, reported by the backend.
-    * running: the loop is running via ``_rc_run()`` or ``_rc_run_async()``.
+    **Details about loop lifetime**
 
-    Notes:
+    The rendercanvas loop object is a proxy, which has to support a variety of backends.
+    To realize this, it has the following lifetime model:
+
+    * off:
+        * Entered when the loop is instantiated, and when the loop has stopped.
+        * This is the 'idle' state.
+        * The backend probably has not even imported dependencies yet.
+    * ready:
+        * Entered when the first canvas is created that is associated with this loop, or when a task is added.
+        * It is assumed that the loop will become active soon.
+        * This is when ``_rc_init()`` is called to get the backend ready for running.
+        * A special 'loop-task' is created (a coroutine, which is not yet running).
+    * running:
+        * Entered when ``loop.run()`` is called.
+        * The loop is now running.
+        * Signal handlers and asyncgen hooks are installed if applicable.
+        * This is now the current loop (see ``get_running_loop()``).
+    * interactive:
+        * Entered in ``_rc_init()`` when the backend detects that the loop is interactive.
+        * Example use-cases are a notebook or interactive IDE, usually via asyncio.
+        * This means there is a persistent native loop already running, which rendercanvas makes use of.
+    * active:
+        * Entered when the backend-loop starts running, but not via the loop's ``run()`` method.
+        * This is detected via the loop-task.
+        * Signal handlers and asyncgen hooks are installed if applicable.
+        * Detecting loop stopping occurs by the loop-task being cancelled.
+
+    Notes related to starting and stopping:
 
     * The loop goes back to the "off" state once all canvases are closed.
     * Stopping the loop (via ``.stop()``) closes the canvases, which will then stop the loop.
     * From there it can go back to the ready state (which would call ``_rc_init()`` again).
     * In backends like Qt, the native loop can be started without us knowing: state "active".
     * In interactive settings like an IDE that runs an asyncio or Qt loop, the
-      loop can become "active" as soon as the first canvas is created.
-
-    The lifecycle of this loop does not necessarily co-inside with the native loop's cycle:
-
-    * The rendercanvas loop can be in the 'off' state while the native loop is running.
-    * When we stop the loop, the native loop likely runs slightly longer.
-    * When the loop is interactive (asyncio or Qt) the native loop keeps running when rendercanvas' loop stops.
-    * For async loops (asyncio or trio), the native loop may run before and after this loop.
-    * On Qt, we detect the app's aboutToQuit to stop this loop.
-    * On wx, we detect all windows closed to stop this loop.
+      loop becomes "interactive" as soon as the first canvas is created.
+    * The rendercanvas loop can be in the 'off' state while the native loop is running (especially for the 'interactive' case).
+    * On Qt, the app's 'aboutToQuit' signal is used to stop this loop.
+    * On wx, the loop is stopped when all windows are closed.
 
     """
 
@@ -360,7 +388,7 @@ class BaseLoop:
     def stop(self, *, force=False) -> None:
         """Close all windows and stop the currently running event-loop.
 
-        If the loop is active but not running via our ``run()`` method, the loop
+        If the loop is active but not running via the ``run()`` method, the loop
         moves back to its off-state, but the underlying loop is not stopped.
 
         Normally, the windows are closed and the underlying event loop is given
