@@ -546,22 +546,20 @@ class BaseLoop:
         if not self.__using_adapter:
             return None
 
-        asyncgens = self._asyncgens
-
-        def asyncgen_firstiter_hook(agen):
-            asyncgens.add(agen)
-
-        def asyncgen_finalizer_hook(agen):
-            asyncgens.discard(agen)
-            close_agen(agen)
-
         prev_asyncgen_hooks = sys.get_asyncgen_hooks()
         sys.set_asyncgen_hooks(
-            firstiter=asyncgen_firstiter_hook,
-            finalizer=asyncgen_finalizer_hook,
+            firstiter=self._asyncgen_firstiter_hook,
+            finalizer=self._asyncgen_finalizer_hook,
         )
 
         return prev_asyncgen_hooks
+
+    def _asyncgen_firstiter_hook(self, agen):
+        self._asyncgens.add(agen)
+
+    def _asyncgen_finalizer_hook(self, agen):
+        self._asyncgens.discard(agen)
+        close_agen(agen)
 
     def _rc_init(self):
         """Put the loop in a ready state.
