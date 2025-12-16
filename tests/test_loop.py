@@ -28,7 +28,6 @@ from rendercanvas.base import BaseCanvasGroup, BaseRenderCanvas
 from rendercanvas.asyncio import AsyncioLoop
 from rendercanvas.trio import TrioLoop
 from rendercanvas.raw import RawLoop
-from rendercanvas import get_running_loop
 
 
 from rendercanvas.utils.asyncs import sleep as async_sleep
@@ -164,7 +163,7 @@ class RealRenderCanvas(BaseRenderCanvas):
         loop.call_soon(self._draw_frame_and_present)
 
 
-# %%%%% running and closing
+# %%%%% deleting loops
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
@@ -223,6 +222,53 @@ def test_loop_deletion3(SomeLoop):
         gc.collect()
 
     assert loop_ref() is None
+
+
+# %%%%% loop detection
+
+
+@pytest.mark.parametrize("SomeLoop", loop_classes)
+def test_loop_detection(SomeLoop):
+    from rendercanvas.utils.asyncs import (
+        detect_current_async_lib,
+        detect_current_call_soon_threadsafe,
+    )
+
+    loop = SomeLoop()
+
+    flag = []
+
+    async def task():
+        # Our methods
+        flag.append(detect_current_async_lib())
+        flag.append(detect_current_call_soon_threadsafe())
+        # Test that the fast-path works
+        if SomeLoop is not TrioLoop:
+            flag.append(sys.get_asyncgen_hooks()[0].__self__.call_soon_threadsafe)
+        loop.stop()
+
+    loop.add_task(task)
+    loop.run()
+
+    if SomeLoop is AsyncioLoop:
+        assert flag[0] == "asyncio"
+        assert callable(flag[1])
+        assert flag[1].__name__ == "call_soon_threadsafe"
+        assert flag[1].__func__ is flag[2].__func__
+        # !! here we double-check that the fast-path for loop detection works for asyncio
+    elif SomeLoop is TrioLoop:
+        assert flag[0] == "trio"
+        assert callable(flag[1])
+        assert flag[1].__name__ == "run_sync_soon"
+    else:
+        # RawLoop or QtLoop
+        assert flag[0] == "rendercanvas.utils.asyncadapter"
+        assert callable(flag[1])
+        assert flag[1].__name__ == "call_soon_threadsafe"
+        assert flag[1].__func__ is flag[2].__func__
+
+
+# %%%%% running and closing
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
@@ -330,8 +376,6 @@ def test_run_loop_without_canvases(SomeLoop):
 def test_run_loop_and_close_canvases(SomeLoop):
     # After all canvases are closed, it can take one tick before its detected.
 
-    current_loops = []
-
     loop = SomeLoop()
     group = CanvasGroup(loop)
 
@@ -340,16 +384,11 @@ def test_run_loop_and_close_canvases(SomeLoop):
     group._register_canvas(canvas1, fake_task)
     group._register_canvas(canvas2, fake_task)
 
-    loop.call_later(
-        0.1, lambda: current_loops.append(get_running_loop().__class__.__name__)
-    )
     loop.call_later(0.1, canvas1.manually_close)
     loop.call_later(0.3, canvas2.manually_close)
 
     t0 = time.time()
-    current_loops.append(get_running_loop().__class__.__name__)
     loop.run()
-    current_loops.append(get_running_loop().__class__.__name__)
     et = time.time() - t0
 
     print(et)
@@ -357,8 +396,6 @@ def test_run_loop_and_close_canvases(SomeLoop):
 
     assert canvas1._events.is_closed
     assert canvas2._events.is_closed
-
-    assert current_loops == ["NoneType", SomeLoop.__name__, "NoneType"], current_loops
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)

@@ -1,10 +1,5 @@
 """
 Test the behaviour of our asyncadapter w.r.t. sniffio.
-
-We want to make sure that it reports the running lib and loop correctly,
-so that other code can use sniffio to get our loop and e.g.
-call_soon_threadsafe, without actually knowing about rendercanvas, other
-than that it's API is very similar to asyncio.
 """
 
 
@@ -52,11 +47,6 @@ def get_sniffio_name():
         return None
 
 
-def test_no_loop_running():
-    assert get_sniffio_name() is None
-    assert rendercanvas.get_running_loop() is None
-
-
 @pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
 def test_sniffio_on_loop(SomeLoop):
     loop = SomeLoop()
@@ -73,8 +63,7 @@ def test_sniffio_on_loop(SomeLoop):
         name = get_sniffio_name()
         names.append(("draw", name))
 
-        # Downstream code like wgpu-py can use this with sniffio
-        funcs.append(rendercanvas.get_running_loop().call_soon_threadsafe)
+        funcs.append(rendercanvas.utils.asyncs.detect_current_call_soon_threadsafe())
 
     @c.add_event_handler("*")
     def on_event(event):

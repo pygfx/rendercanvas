@@ -7,7 +7,6 @@ import gc
 import time
 import weakref
 
-from rendercanvas import get_running_loop
 from testutils import is_pypy, run_tests
 
 
@@ -79,8 +78,6 @@ def test_offscreen_event_loop():
     def check(arg):
         ran.add(arg)
 
-    assert get_running_loop() is None
-
     loop.call_soon(check, 1)
     loop.call_later(0, check, 2)
     loop.call_later(0.001, check, 3)
@@ -89,16 +86,12 @@ def test_offscreen_event_loop():
     assert 2 in ran  # call_later with zero
     assert 3 not in ran
 
-    assert get_running_loop() is None
-
     # When run is called, the task is started, so the delay kicks in from
     # that moment, so we need to wait here for the 3d to resolve
     # The delay starts from
     time.sleep(0.01)
     loop.run()
     assert 3 in ran  # call_later nonzero
-
-    assert get_running_loop() is None
 
 
 def test_offscreen_canvas_del():

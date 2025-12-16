@@ -11,13 +11,7 @@ from inspect import iscoroutinefunction
 from typing import TYPE_CHECKING
 
 from ._enums import LoopState
-from ._coreutils import (
-    logger,
-    log_exception,
-    call_later_from_thread,
-    close_agen,
-    thread_local,
-)
+from ._coreutils import logger, log_exception, call_later_from_thread, close_agen
 from .utils.asyncs import sleep
 from .utils import asyncadapter
 
@@ -32,23 +26,6 @@ HANDLED_SIGNALS = (
     signal.SIGINT,  # Unix signal 2. Sent by Ctrl+C.
     signal.SIGTERM,  # Unix signal 15. Sent by `kill <pid>`.
 )
-
-
-def get_running_loop():
-    """Get the running loop (for the current thread) or None.
-
-    This method is intended to obtain the currently running rendercanvas
-    loop object. To detect what async event-loop is actually running,
-    it's recommended to check ``sys.get_asyncgen_hooks`` or use ``sniffio``.
-    """
-    return getattr(thread_local, "loop", None)
-
-    # Note: if a loop is run while another is running, this is actually allowed, and the
-    # new loop object is responsible for resetting the old current loop object.
-    # When this all happens via ``loop.run()``, it's pretty solid. But when this involves loops
-    # become active outside of ``run()``, like Qt or interactive asyncio, this *can* get messy if
-    # the loop stops while an "inner loop" is running. Afaik, neither Qt nor asyncio does this.
-    # And remember that in practice users typically import one loop and run it once ...
 
 
 class BaseLoop:
@@ -82,7 +59,6 @@ class BaseLoop:
         * Entered when ``loop.run()`` is called.
         * The loop is now running.
         * Signal handlers and asyncgen hooks are installed if applicable.
-        * This is now the current loop (see ``get_running_loop()``).
     * interactive:
         * Entered in ``_rc_init()`` when the backend detects that the loop is interactive.
         * Example use-cases are a notebook or interactive IDE, usually via asyncio.
@@ -420,13 +396,9 @@ class BaseLoop:
             self.__stop()
 
     def __setup_hooks(self):
-        """Activate current loop, setup asycgen hooks, and setup interrupts."""
+        """Setup asycgen hooks and interrupt hooks."""
         if self.__hook_data is not None:
             return False
-
-        # Set the running loop
-        prev_loop = get_running_loop()
-        thread_local.loop = self
 
         # Setup asyncgen hooks
         prev_asyncgen_hooks = self.__setup_asyncgen_hooks()
@@ -434,7 +406,7 @@ class BaseLoop:
         # Set interrupts
         prev_interrupt_hooks = self.__setup_interrupt_hooks()
 
-        self.__hook_data = prev_loop, prev_asyncgen_hooks, prev_interrupt_hooks
+        self.__hook_data = prev_asyncgen_hooks, prev_interrupt_hooks
         return True
 
     def __restore_hooks(self):
@@ -448,10 +420,8 @@ class BaseLoop:
         if self.__hook_data is None:
             return
 
-        prev_loop, prev_asyncgen_hooks, prev_interrupt_hooks = self.__hook_data
+        prev_asyncgen_hooks, prev_interrupt_hooks = self.__hook_data
         self.__hook_data = None
-
-        thread_local.loop = prev_loop
 
         if prev_asyncgen_hooks is not None:
             sys.set_asyncgen_hooks(*prev_asyncgen_hooks)

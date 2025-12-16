@@ -21,11 +21,6 @@ from collections import namedtuple
 IS_WIN = sys.platform.startswith("win")  # Note that IS_WIN is false on Pyodide
 
 
-# %% One place to store thread-local info (like the current loop object)
-
-thread_local = threading.local()
-
-
 # %% Logging
 
 
