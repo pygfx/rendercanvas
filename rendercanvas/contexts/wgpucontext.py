@@ -186,7 +186,7 @@ class WgpuContextToBitmap(WgpuContext):
         # Canvas capabilities. Stored the first time it is obtained
         self._capabilities = self._get_capabilities()
 
-        # The last used texture
+        # The current texture to render to. Is replaced when the canvas resizes.
         self._texture = None
 
         # A ring-buffer to download the rendered images to the CPU/RAM. The
@@ -195,10 +195,10 @@ class WgpuContextToBitmap(WgpuContext):
         # Mapping the buffers to RAM takes time, and we want to wait for this
         # asynchronously.
         #
-        # I feel that using just one buffer is sufficient. Adding more costs
-        # memory, and does not necessarily improve the FPS. It can actually
-        # strain the GPU more, because it would be busy mapping multiple buffers
-        # at once. I leave the ring-mechanism in-place for now, so we can
+        # It looks like a single buffer is sufficient. Adding more costs memory,
+        # and does not necessarily improve the FPS. It can actually strain the
+        # GPU more, because it would be busy mapping multiple buffers at the
+        # same time. Let's leave the ring-mechanism in-place for now, so we can
         # experiment with it.
         self._downloaders = [None]  # Put as many None's as you want buffers
 
@@ -208,8 +208,10 @@ class WgpuContextToBitmap(WgpuContext):
         import wgpu
 
         # Store usage flags now that we have the wgpu namespace
-        self._our_texture_usage = wgpu.TextureUsage.COPY_SRC
-        self._our_buffer_usage = wgpu.BufferUsage.COPY_DST | wgpu.BufferUsage.MAP_READ
+        self._context_texture_usage = wgpu.TextureUsage.COPY_SRC
+        self._context_buffer_usage = (
+            wgpu.BufferUsage.COPY_DST | wgpu.BufferUsage.MAP_READ
+        )
 
         capabilities = {}
 
@@ -279,7 +281,8 @@ class WgpuContextToBitmap(WgpuContext):
 
         # (re)create downloaders
         self._downloaders[:] = [
-            ImageDownloader(config["device"], self._our_buffer_usage)
+            ImageDownloader(config["device"], self.context_buffer_usage)
+            for _ in self._downloaders
         ]
 
     def _unconfigure(self) -> None:
@@ -304,7 +307,7 @@ class WgpuContextToBitmap(WgpuContext):
                 label="present",
                 size=(width, height, 1),
                 format=self._config["format"],
-                usage=self._config["usage"] | self._our_texture_usage,
+                usage=self._config["usage"] | self._context_texture_usage,
             )
 
         return self._texture
@@ -339,6 +342,18 @@ class WgpuContextToBitmap(WgpuContext):
 
 class ImageDownloader:
     """A helper class that wraps a copy-buffer to async-download an image from a texture."""
+
+    # Some timings, to put things into perspective:
+    #
+    #   1 ms -> 1000 fps
+    #  10 ms ->  100 fps
+    #  16 ms ->   64 fps  (windows timer precision)
+    #  33 ms ->   30 fps
+    # 100 ms ->   10 fps
+    #
+    # If we sync-wait with 10ms means the fps is (way) less than 100.
+    # If we render at 30 fps, and only present right after the next frame is drawn, we introduce a 33ms delay.
+    # That's why we want to present asynchronously, and present the result as soon as it's available.
 
     def __init__(self, device, buffer_usage):
         self._device = device
