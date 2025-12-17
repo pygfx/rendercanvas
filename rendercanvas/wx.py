@@ -354,11 +354,8 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         dc.DrawBitmap(bitmap, 0, 0, False)
 
     def _rc_set_logical_size(self, width, height):
-        width, height = int(width), int(height)
-        parent = self.Parent
-        if isinstance(parent, WxRenderCanvas):
-            parent.SetSize(width, height)
-        elif parent is not None:
+        if self.Parent is not None:
+            width, height = int(width), int(height)
             self.SetSize(width, height)
         else:
             # The widget has no parent, likely because its going to inserted in a GUI later.
@@ -584,6 +581,20 @@ class WxRenderCanvas(WrapperRenderCanvas, wx.Frame):
 
         self.Show()
         self._final_canvas_init()
+
+    def set_logical_size(self, width: float, height: float) -> None:
+        # Overridden to avoid WrappedRenderCanvas delegating to the subwidget.
+        # In other words, we want to make use of the logic in
+        # BaseRenderCanvas.set_logical_size without calling the subwidget's method.
+        super(WrapperRenderCanvas, self).set_logical_size(width, height)
+
+    def _rc_set_logical_size(self, width, height):
+        # This method is intended to set the size of the renderable area.
+        # Wx.Window.SetSize() sets the size of the window including titlebar
+        # etc. on frames - we need to use SetClientSize() instead.
+        width, height = int(width), int(height)
+        self.SetClientSize(width, height)
+
 
 
 # Make available under a name that is the same for all gui backends
