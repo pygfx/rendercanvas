@@ -164,11 +164,11 @@ class StubLoop(BaseLoop):
                 callback()
 
     def _rc_run(self):
-        # Only process tasks inside the run method. While in side ``run()``, the
+        # Only process tasks inside the run method. While inside ``run()``, the
         # loop state is 'running' and its the current loop. If we'd process
         # tasks outside the run method, the loop-task triggers, putting the loop
-        # in the 'active' mode, making it the current loop, and it will stay
-        # active until it's explicitly stopped.
+        # in the 'active' mode, making it the current loop (via asyncgen hooks),
+        # and it will stay active until it's explicitly stopped.
         self._process_tasks()
 
     def _rc_stop(self):

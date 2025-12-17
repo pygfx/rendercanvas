@@ -573,7 +573,7 @@ class BaseLoop:
         raise NotImplementedError()
 
     def _rc_add_task(self, async_func, name):
-        """Add an async task to the running loop.
+        """Add an async task to this loop.
 
         True async loop-backends (like asyncio and trio) should implement this.
         When they do, ``_rc_call_later`` is not used.
