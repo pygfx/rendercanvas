@@ -168,16 +168,19 @@ class WxLoop(BaseLoop):
                 wx.App.SetInstance(self._app)
 
     def _rc_run(self):
+        # In wx we can, it seems, reliably detect widget destruction, so we don't rely on detecting the
+        # app from quitting (which we cannot reliably detect in wx). We could prevent the app from exiting,
+        # but we cannot do that when the wx app is started from the outside (which is likely), so we need
+        # to make it work without it anyway.
+        # self._app.SetExitOnFrameDelete(False)
+
         self._app.MainLoop()
 
     async def _rc_run_async(self):
         raise NotImplementedError()
 
     def _rc_stop(self):
-        # It looks like we cannot make wx stop the loop.
-        # In general not a problem, because the BaseLoop will try
-        # to close all windows before stopping a loop.
-        pass
+        self._app.ExitMainLoop()
 
     def _rc_add_task(self, async_func, name):
         # we use the async adapter with call_later
@@ -191,11 +194,16 @@ class WxLoop(BaseLoop):
         else:
             wx.CallLater(int(max(delay * 1000, 1)), callback)
 
+    def _rc_call_soon_threadsafe(self, callback):
+        wx.CallAfter(callback)
+
     def process_wx_events(self):
         old_loop = wx.GUIEventLoop.GetActive()
         event_loop = wx.GUIEventLoop()
         wx.EventLoop.SetActive(event_loop)
-        while event_loop.Pending():
+        count = 0
+        while event_loop.Pending() and count < 3:
+            count += 1
             event_loop.Dispatch()
         wx.EventLoop.SetActive(old_loop)
 
@@ -254,6 +262,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         self.Bind(wx.EVT_LEAVE_WINDOW, self._on_window_enter)
         self.Bind(wx.EVT_SET_FOCUS, self._on_focus)
         self.Bind(wx.EVT_KILL_FOCUS, self._on_focus)
+        self.Bind(wx.EVT_WINDOW_DESTROY, self._on_close)
 
         self.Show()
         self._final_canvas_init()
@@ -548,6 +557,14 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
                 self._pointer_inside = False
                 self.submit_event(ev)
 
+    def _on_close(self, _event):
+        if self._is_closed:
+            return
+        self._is_closed = True
+        loop = self._rc_canvas_group.get_loop()
+        if not loop.get_canvases():
+            loop.stop(force=True)
+
 
 class WxRenderCanvas(WrapperRenderCanvas, wx.Frame):
     """A toplevel wx Frame providing a render canvas."""
@@ -567,21 +584,6 @@ class WxRenderCanvas(WrapperRenderCanvas, wx.Frame):
 
         self.Show()
         self._final_canvas_init()
-
-    # wx methods
-
-    def Destroy(self):  # noqa: N802 - this is a wx method
-        self._subwidget._is_closed = True
-        super().Destroy()
-
-        # wx stops running its loop as soon as the last canvas closes.
-        # So when that happens, we manually run the loop for a short while
-        # so that we can clean up properly
-        if not self._subwidget._rc_canvas_group.get_canvases():
-            etime = time.perf_counter() + 0.15
-            while time.perf_counter() < etime:
-                time.sleep(0.01)
-                loop.process_wx_events()
 
 
 # Make available under a name that is the same for all gui backends

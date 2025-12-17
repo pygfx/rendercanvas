@@ -341,10 +341,10 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         self._set_logical_size((float(width), float(height)))
 
     def _rc_close(self):
-        if self._window is not None:
-            glfw.destroy_window(self._window)  # not just glfw.hide_window
-            self._window = None
-            self.submit_event({"event_type": "close"})
+        if self._window is None:
+            return
+        glfw.destroy_window(self._window)  # not just glfw.hide_window
+        self._window = None
         # If this is the last canvas to close, the loop will stop, and glfw will not be polled anymore.
         # But on some systems glfw needs a bit of time to properly close the window.
         if not self._rc_canvas_group.get_canvases():

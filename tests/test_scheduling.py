@@ -1,49 +1,23 @@
 """
-Test scheduling mechanics, by implememting a minimal canvas class to
+Test scheduling mechanics, by implementing a minimal canvas class to
 implement drawing. This tests the basic scheduling mechanics, as well
-as the behabior of the different update modes.
+as the behavior of the different update modes.
 """
 
 import time
 from testutils import run_tests
-from rendercanvas.base import BaseCanvasGroup, BaseRenderCanvas, BaseLoop
+from rendercanvas.base import BaseCanvasGroup, BaseRenderCanvas
+from rendercanvas.offscreen import StubLoop
 
 
 class MyCanvasGroup(BaseCanvasGroup):
     pass
 
 
-class MyLoop(BaseLoop):
-    def __init__(self):
-        super().__init__()
-        self.__stopped = False
-        self._callbacks = []
+class MyLoop(StubLoop):
+    pass
 
-    def process_tasks(self):
-        callbacks_to_run = []
-        new_callbacks = []
-        for etime, callback in self._callbacks:
-            if time.perf_counter() >= etime:
-                callbacks_to_run.append(callback)
-            else:
-                new_callbacks.append((etime, callback))
-        if callbacks_to_run:
-            self._callbacks = new_callbacks
-            for callback in callbacks_to_run:
-                callback()
-
-    def _rc_run(self):
-        self.__stopped = False
-
-    def _rc_stop(self):
-        self.__stopped = True
-
-    def _rc_add_task(self, async_func, name):
-        # Run tasks via call_later
-        super()._rc_add_task(async_func, name)
-
-    def _rc_call_later(self, delay, callback):
-        self._callbacks.append((time.perf_counter() + delay, callback))
+    # Note: run() is non-blocking and simply does one iteration to process pending tasks.
 
 
 class MyCanvas(BaseRenderCanvas):
@@ -83,7 +57,7 @@ class MyCanvas(BaseRenderCanvas):
         etime = time.perf_counter() + delay
         while time.perf_counter() < etime:
             time.sleep(0.001)
-            loop.process_tasks()
+            loop.run()
             self.draw_if_necessary()
 
 

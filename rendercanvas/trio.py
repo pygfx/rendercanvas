@@ -8,7 +8,7 @@ __all__ = ["TrioLoop", "loop"]
 from .base import BaseLoop
 
 import trio
-import sniffio
+from .utils.asyncs import detect_current_async_lib
 
 
 class TrioLoop(BaseLoop):
@@ -17,15 +17,18 @@ class TrioLoop(BaseLoop):
 
         self._cancel_scope = None
         self._send_channel, self._receive_channel = trio.open_memory_channel(99)
+        self._token = None
 
     def _rc_run(self):
         trio.run(self._rc_run_async, restrict_keyboard_interrupt_to_checkpoints=False)
 
     async def _rc_run_async(self):
         # Protect against usage of wrong loop object
-        libname = sniffio.current_async_library()
+        libname = detect_current_async_lib()
         if libname != "trio":
             raise TypeError(f"Attempt to run TrioLoop with {libname}.")
+
+        self._token = trio.lowlevel.current_trio_token()
 
         with trio.CancelScope() as self._cancel_scope:
             async with trio.open_nursery() as nursery:
@@ -36,8 +39,10 @@ class TrioLoop(BaseLoop):
 
     def _rc_stop(self):
         # Cancel the main task and all its child tasks.
+        # So this also cancels the loop-task and scheduler tasks, like we want.
         if self._cancel_scope is not None:
             self._cancel_scope.cancel()
+        self._token = None
 
     def _rc_add_task(self, async_func, name):
         self._send_channel.send_nowait((async_func, name))
@@ -45,6 +50,9 @@ class TrioLoop(BaseLoop):
 
     def _rc_call_later(self, delay, callback):
         raise NotImplementedError()  # we implement _rc_add_task() instead
+
+    def _rc_call_soon_threadsafe(self, callback):
+        self._token.run_sync_soon(callback)
 
 
 loop = TrioLoop()

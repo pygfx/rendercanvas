@@ -119,7 +119,6 @@ class OffscreenRenderCanvas(BaseRenderCanvas):
         This object can be converted to a numpy array (without copying data)
         using ``np.asarray(arr)``.
         """
-        loop.process_tasks()  # Little trick to keep the event loop going
         self._draw_frame_and_present()
         return self._last_image
 
@@ -147,7 +146,11 @@ class StubLoop(BaseLoop):
         super().__init__()
         self._callbacks = []
 
-    def process_tasks(self):
+    def _rc_init(self):
+        # This gets called when the first canvas is created (possibly after having run and stopped before).
+        pass
+
+    def _process_tasks(self):
         callbacks_to_run = []
         new_callbacks = []
         for etime, callback in self._callbacks:
@@ -161,16 +164,24 @@ class StubLoop(BaseLoop):
                 callback()
 
     def _rc_run(self):
-        self.process_tasks()
+        # Only process tasks inside the run method. While inside ``run()``, the
+        # loop state is 'running' and its the current loop. If we'd process
+        # tasks outside the run method, the loop-task triggers, putting the loop
+        # in the 'active' mode, making it the current loop (via asyncgen hooks),
+        # and it will stay active until it's explicitly stopped.
+        self._process_tasks()
 
     def _rc_stop(self):
-        self._callbacks = []
+        self._callbacks.clear()
 
     def _rc_add_task(self, async_func, name):
         super()._rc_add_task(async_func, name)
 
     def _rc_call_later(self, delay, callback):
         self._callbacks.append((time.perf_counter() + delay, callback))
+
+    def _rc_call_soon_threadsafe(self, callback):
+        self._callbacks.append((0, callback))
 
 
 loop = StubLoop()

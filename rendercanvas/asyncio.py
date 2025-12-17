@@ -6,8 +6,7 @@ Also supports a asyncio-friendly way to run or wait for the loop using ``run_asy
 __all__ = ["AsyncioLoop", "loop"]
 
 from .base import BaseLoop
-
-import sniffio
+from .utils.asyncs import detect_current_async_lib
 
 
 class AsyncioLoop(BaseLoop):
@@ -42,8 +41,8 @@ class AsyncioLoop(BaseLoop):
     async def _rc_run_async(self):
         import asyncio
 
-        # Protect agsinst usage of wrong loop object
-        libname = sniffio.current_async_library()
+        # Protect against usage of wrong loop object
+        libname = detect_current_async_lib()
         if libname != "asyncio":
             raise TypeError(f"Attempt to run AsyncioLoop with {libname}.")
 
@@ -59,9 +58,9 @@ class AsyncioLoop(BaseLoop):
                 "Attempt to run AsyncioLoop with a different asyncio-loop than the initialized loop."
             )
 
-        # Create tasks if necessay
+        # Create tasks if necessary
         while self.__pending_tasks:
-            self._rc_add_task(*self.__pending_tasks.pop(-1))
+            self._rc_add_task(*self.__pending_tasks.pop(0))
 
         # Wait for loop to finish
         if self._stop_event is None:
@@ -69,12 +68,13 @@ class AsyncioLoop(BaseLoop):
         await self._stop_event.wait()
 
     def _rc_stop(self):
-        # Clean up our tasks
+        # Clean up our tasks. This includes the loop-task and scheduler tasks.
         while self.__tasks:
             task = self.__tasks.pop()
             task.cancel()  # is a no-op if the task is no longer running
         # Signal that we stopped
-        self._stop_event.set()
+        if self._stop_event is not None:
+            self._stop_event.set()
         self._stop_event = None
         self._run_loop = None
         # Note how we don't explicitly stop a loop, not the interactive loop, nor the running loop
@@ -88,8 +88,12 @@ class AsyncioLoop(BaseLoop):
             self.__tasks.add(task)
             task.add_done_callback(self.__tasks.discard)
 
-    def _rc_call_later(self, *args):
+    def _rc_call_later(self, delay, callback):
         raise NotImplementedError()  # we implement _rc_add_task instead
+
+    def _rc_call_soon_threadsafe(self, callback):
+        loop = self._interactive_loop or self._run_loop
+        loop.call_soon_threadsafe(callback)
 
 
 loop = AsyncioLoop()

@@ -205,7 +205,7 @@ somewhat when the render area is large.
 Support for wx
 --------------
 
-RenderCanvas has support for wxPython.
+RenderCanvas has support for wxPython. However, because of wx's specific behavior, this backend is less well tested than the other backends.
 For a toplevel widget, the ``rendercanvas.wx.RenderCanvas`` class can be imported. If you want to
 embed the canvas as a subwidget, use ``rendercanvas.wx.RenderWidget`` instead.
 
@@ -297,7 +297,7 @@ An example using PyScript (which uses Pyodide):
     <body>
         <canvas id='canvas' style="background:#aaa; width: 640px; height: 480px;"></canvas>
         <br>
-        <script type="py" src="yourcode.py" config='{"packages": ["numpy", "sniffio", "rendercanvas"]}'>
+        <script type="py" src="yourcode.py" config='{"packages": ["numpy", "rendercanvas"]}'>
         </script>
     </body>
     </html>
@@ -335,7 +335,6 @@ An example using Pyodide directly:
             await pyodide.loadPackage("micropip");
             const micropip = pyodide.pyimport("micropip");
             await micropip.install("numpy");
-            await micropip.install("sniffio");
             await micropip.install("rendercanvas");
             // have to call as runPythonAsync
             pyodide.runPythonAsync(pythonCode);

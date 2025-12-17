@@ -3,9 +3,15 @@ A micro async framework that only support ``sleep()`` and ``Event``. Behaves wel
 Intended for internal use, but is fully standalone.
 """
 
+import weakref
 import logging
+import threading
 
-from sniffio import thread_local as sniffio_thread_local
+# Support sniffio for older wgpu releases, and for code that relies on sniffio.
+try:
+    from sniffio import thread_local as sniffio_thread_local
+except ImportError:
+    sniffio_thread_local = threading.local()
 
 
 logger = logging.getLogger("asyncadapter")
@@ -59,21 +65,26 @@ class CancelledError(BaseException):
 
 
 class Task:
-    """Representation of task, exectuting a co-routine."""
+    """Representation of task, executing a co-routine."""
 
     def __init__(self, call_later_func, coro, name):
         self._call_later = call_later_func
         self._done_callbacks = []
         self.coro = coro
         self.name = name
+        self.running = False
         self.cancelled = False
+
+        # Trick to get a callback function that does not hold a ref to the task, and therefore not the loop (via the loop-task coro).
+        task_ref = weakref.ref(self)
+        self._step_cb = lambda: (task := task_ref()) and task.step()
+
         self.call_step_later(0)
 
     def add_done_callback(self, callback):
         self._done_callbacks.append(callback)
 
     def _close(self):
-        self.loop = None
         self.coro = None
         for callback in self._done_callbacks:
             try:
@@ -83,10 +94,11 @@ class Task:
         self._done_callbacks.clear()
 
     def call_step_later(self, delay):
-        self._call_later(delay, self.step)
+        self._call_later(delay, self._step_cb)
 
     def cancel(self):
         self.cancelled = True
+        self.call_step_later(0)
 
     def step(self):
         if self.coro is None:
@@ -95,7 +107,10 @@ class Task:
         result = None
         stop = False
 
-        old_name, sniffio_thread_local.name = sniffio_thread_local.name, __name__
+        old_name = getattr(sniffio_thread_local, "name", None)
+        sniffio_thread_local.name = __name__
+
+        self.running = True
         try:
             if self.cancelled:
                 stop = True
@@ -108,10 +123,11 @@ class Task:
         except StopIteration:
             stop = True
         except Exception as err:
-            # This should not happen, because the loop catches and logs all errors. But just in case.
+            # This catches some special cases where Python raises an error, such as 'coroutine already executing'
             logger.error(f"Error in task: {err}")
             stop = True
         finally:
+            self.running = False
             sniffio_thread_local.name = old_name
 
         # Clean up to help gc

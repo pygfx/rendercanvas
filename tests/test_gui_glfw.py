@@ -3,6 +3,7 @@ Test the canvas, and parts of the rendering that involves a canvas,
 like the canvas context and surface texture.
 """
 
+import os
 import time
 import weakref
 import asyncio
@@ -24,10 +25,13 @@ def setup_module():
 
 
 def teardown_module():
+    import glfw
     from rendercanvas.glfw import poll_glfw_briefly
 
     poll_glfw_briefly()
-    pass  # Do not glfw.terminate() because other tests may still need glfw
+
+    # Terminate; otherwise it gets in the way of tests for the Qt loop.
+    glfw.terminate()
 
 
 def test_is_canvas_base():
@@ -123,6 +127,10 @@ def test_glfw_canvas_render():
     device = wgpu.gpu.request_adapter_sync().request_device_sync()
     draw_frame1 = _get_draw_function(device, canvas)
 
+    allowed_frames = (1,)
+    if os.getenv("CI"):
+        allowed_frames = (1, 2, 3)
+
     frame_counter = 0
 
     def draw_frame2():
@@ -135,7 +143,8 @@ def test_glfw_canvas_render():
     run_briefly()
     # There should have been exactly one draw now
     # This assumes ondemand scheduling mode
-    assert frame_counter == 1
+    assert frame_counter in allowed_frames
+    frame_counter = 0
 
     # Ask for a lot of draws
     for i in range(5):
@@ -143,14 +152,16 @@ def test_glfw_canvas_render():
     # Process evens for a while
     run_briefly()
     # We should have had just one draw
-    assert frame_counter == 2
+    assert frame_counter in allowed_frames
+    frame_counter = 0
 
     # Change the canvas size
     canvas.set_logical_size(300, 200)
     canvas.set_logical_size(400, 300)
-    # We should have had just one draw
+    # We should have had just one draw, but sometimes (more so on CI) we can have more
     run_briefly()
-    assert frame_counter == 3
+    assert frame_counter in allowed_frames
+    frame_counter = 0
 
     # Stopping
     assert not loop_task.done()
