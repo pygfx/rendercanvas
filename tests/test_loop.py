@@ -8,6 +8,10 @@ Therefore, tests for these GUI framework need to be explicitly run:
 * Run "pytest -k PySide6Loop"  etc.
 * Run "python tests/test_loop.py WxLoop"  etc.
 
+
+Note that in here we create *a lot* of different kind of loop objects.
+In practice though, an application will use (and even import) a single
+loop object and run it one time for the duration of the application.
 """
 
 # ruff: noqa: N803
@@ -16,6 +20,7 @@ import gc
 import sys
 import time
 import signal
+import weakref
 import asyncio
 import threading
 
@@ -158,6 +163,111 @@ class RealRenderCanvas(BaseRenderCanvas):
         loop.call_soon(self._draw_frame_and_present)
 
 
+# %%%%% deleting loops
+
+
+@pytest.mark.parametrize("SomeLoop", loop_classes)
+def test_loop_deletion1(SomeLoop):
+    # Loops get gc'd when instantiated but not used.
+
+    loop = SomeLoop()
+
+    loop_ref = weakref.ref(loop)
+    del loop
+    gc.collect()
+    gc.collect()
+
+    assert loop_ref() is None
+
+
+@pytest.mark.parametrize("SomeLoop", loop_classes)
+def test_loop_deletion2(SomeLoop):
+    # Loops get gc'd when in ready state
+
+    async def foo():
+        pass
+
+    loop = SomeLoop()
+    loop.add_task(foo)
+    assert "ready" in repr(loop)
+
+    loop_ref = weakref.ref(loop)
+    del loop
+    for _ in range(4):
+        time.sleep(0.01)
+        gc.collect()
+
+    assert loop_ref() is None
+
+
+@pytest.mark.parametrize("SomeLoop", loop_classes)
+def test_loop_deletion3(SomeLoop):
+    # Loops get gc'd when closed after use
+
+    flag = []
+
+    async def foo():
+        flag.append(True)
+
+    loop = SomeLoop()
+    loop.add_task(foo)
+    assert "ready" in repr(loop)
+    loop.run()
+    assert flag == [True]
+
+    loop_ref = weakref.ref(loop)
+    del loop
+    for _ in range(4):
+        time.sleep(0.01)
+        gc.collect()
+
+    assert loop_ref() is None
+
+
+# %%%%% loop detection
+
+
+@pytest.mark.parametrize("SomeLoop", loop_classes)
+def test_loop_detection(SomeLoop):
+    from rendercanvas.utils.asyncs import (
+        detect_current_async_lib,
+        detect_current_call_soon_threadsafe,
+    )
+
+    loop = SomeLoop()
+
+    flag = []
+
+    async def task():
+        # Our methods
+        flag.append(detect_current_async_lib())
+        flag.append(detect_current_call_soon_threadsafe())
+        # Test that the fast-path works
+        if SomeLoop is not TrioLoop:
+            flag.append(sys.get_asyncgen_hooks()[0].__self__.call_soon_threadsafe)
+        loop.stop()
+
+    loop.add_task(task)
+    loop.run()
+
+    if SomeLoop is AsyncioLoop:
+        assert flag[0] == "asyncio"
+        assert callable(flag[1])
+        assert flag[1].__name__ == "call_soon_threadsafe"
+        assert flag[1].__func__ is flag[2].__func__
+        # !! here we double-check that the fast-path for loop detection works for asyncio
+    elif SomeLoop is TrioLoop:
+        assert flag[0] == "trio"
+        assert callable(flag[1])
+        assert flag[1].__name__ == "run_sync_soon"
+    else:
+        # RawLoop or QtLoop
+        assert flag[0] == "rendercanvas.utils.asyncadapter"
+        assert callable(flag[1])
+        assert flag[1].__name__ == "call_soon_threadsafe"
+        assert flag[1].__func__ is flag[2].__func__
+
+
 # %%%%% running and closing
 
 
@@ -166,12 +276,12 @@ def test_run_loop_and_close_bc_no_canvases(SomeLoop):
     # Run the loop without canvas; closes immediately
 
     loop = SomeLoop()
-    loop.call_later(0.1, print, "hi from loop!")
     loop.call_later(1.0, loop.stop)  # failsafe
 
     t0 = time.perf_counter()
     loop.run()
     t1 = time.perf_counter()
+
     assert (t1 - t0) < 0.2
 
 
@@ -200,6 +310,17 @@ def test_loop_detects_canvases(SomeLoop):
 
     assert len(loop._BaseLoop__canvas_groups) == 2
     assert len(loop.get_canvases()) == 3
+
+    # Call stop explicitly. Because we created some canvases, but never ran the
+    # loops, they are in a 'ready' state, ready to move to the running state
+    # when the loop-task starts running. For raw/asyncio/trio this is fine,
+    # because cleanup will cancel all tasks. But for the QtLoop, the QTimer has
+    # a reference to the callback, which refs asyncadapter.Task, which refs the
+    # coroutine which refs the loop object. So there will not be any cleanup and
+    # *this* loop will start running at the next test func.
+    loop.stop()
+    loop.stop()
+    assert loop._BaseLoop__state == "off"
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
@@ -263,7 +384,6 @@ def test_run_loop_and_close_canvases(SomeLoop):
     group._register_canvas(canvas1, fake_task)
     group._register_canvas(canvas2, fake_task)
 
-    loop.call_later(0.1, print, "hi from loop!")
     loop.call_later(0.1, canvas1.manually_close)
     loop.call_later(0.3, canvas2.manually_close)
 
@@ -855,7 +975,6 @@ def test_async_gens_cleanup3(SomeLoop):
 @pytest.mark.parametrize("SomeLoop", loop_classes)
 def test_async_gens_cleanup_bad_agen(SomeLoop):
     # Same as last but not with a bad-behaving finalizer.
-    # This will log an error.
 
     g = None
 
@@ -873,13 +992,18 @@ def test_async_gens_cleanup_bad_agen(SomeLoop):
     loop.call_later(0.2, loop.stop)
     loop.run()
 
-    if SomeLoop in (AsyncioLoop,):
+    if SomeLoop is AsyncioLoop:
         # Handled properly
         ref_flag = ["started", "except GeneratorExit", "closed"]
-    else:
-        # We accept to fail here with our async adapter.
-        # It looks like trio does too???
+    elif SomeLoop is TrioLoop:
+        # Not handled correctly? It did at some point.
+        # Anyway, rather adversarial use-case, so I don't care too much.
         ref_flag = ["started", "except GeneratorExit"]
+    else:
+        # Actually, our adapter also works, because the sleep and Event
+        # become no-ops once the loop is gone, and since there are no other things
+        # one can wait on with our asyncadapter, we're good!
+        ref_flag = ["started", "except GeneratorExit", "closed"]
 
     assert flag == ref_flag, flag
 

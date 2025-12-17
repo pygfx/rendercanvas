@@ -8,7 +8,7 @@ __all__ = ["TrioLoop", "loop"]
 from .base import BaseLoop
 
 import trio
-import sniffio
+from .utils.asyncs import detect_current_async_lib
 
 
 class TrioLoop(BaseLoop):
@@ -24,7 +24,7 @@ class TrioLoop(BaseLoop):
 
     async def _rc_run_async(self):
         # Protect against usage of wrong loop object
-        libname = sniffio.current_async_library()
+        libname = detect_current_async_lib()
         if libname != "trio":
             raise TypeError(f"Attempt to run TrioLoop with {libname}.")
 

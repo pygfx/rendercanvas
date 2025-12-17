@@ -6,8 +6,7 @@ Also supports a asyncio-friendly way to run or wait for the loop using ``run_asy
 __all__ = ["AsyncioLoop", "loop"]
 
 from .base import BaseLoop
-
-import sniffio
+from .utils.asyncs import detect_current_async_lib
 
 
 class AsyncioLoop(BaseLoop):
@@ -43,7 +42,7 @@ class AsyncioLoop(BaseLoop):
         import asyncio
 
         # Protect against usage of wrong loop object
-        libname = sniffio.current_async_library()
+        libname = detect_current_async_lib()
         if libname != "asyncio":
             raise TypeError(f"Attempt to run AsyncioLoop with {libname}.")
 
@@ -74,7 +73,8 @@ class AsyncioLoop(BaseLoop):
             task = self.__tasks.pop()
             task.cancel()  # is a no-op if the task is no longer running
         # Signal that we stopped
-        self._stop_event.set()
+        if self._stop_event is not None:
+            self._stop_event.set()
         self._stop_event = None
         self._run_loop = None
         # Note how we don't explicitly stop a loop, not the interactive loop, nor the running loop
