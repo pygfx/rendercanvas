@@ -3,7 +3,6 @@ Test the canvas, and parts of the rendering that involves a canvas,
 like the canvas context and surface texture.
 """
 
-import time
 import pytest
 from testutils import run_tests
 
@@ -38,17 +37,21 @@ def teardown_module():
 def test_wx_canvas_sizing():
     """Ensures resizing a wx.RenderCanvas correctly sets the size of the renderable area."""
 
-    canvas = RenderCanvas()
-    original_size = canvas.get_logical_size()
-    new_size = (original_size[0] * 2, original_size[1] * 2)
-
-    canvas.set_logical_size(*new_size)
+    canvas = RenderCanvas(size=(640, 480))
     loop.process_wx_events()
-    
+
     lsize = canvas.get_logical_size()
     assert isinstance(lsize, tuple) and len(lsize) == 2
     assert isinstance(lsize[0], float) and isinstance(lsize[1], float)
-    assert lsize == new_size
+    assert lsize == (640, 480)
+
+    canvas.set_logical_size(700, 800)
+    loop.process_wx_events()
+
+    lsize = canvas.get_logical_size()
+    assert isinstance(lsize, tuple) and len(lsize) == 2
+    assert isinstance(lsize[0], float) and isinstance(lsize[1], float)
+    assert lsize == (700, 800)
 
     assert len(canvas.get_physical_size()) == 2
     assert isinstance(canvas.get_pixel_ratio(), float)
