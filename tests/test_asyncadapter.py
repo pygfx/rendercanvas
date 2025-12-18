@@ -20,9 +20,8 @@ def test_sleep():
         await asyncadapter.sleep(0.1)
         times.append(time.perf_counter())
 
-    task = asyncadapter.Task(loop.call_later, coro(), "test")
     loop = asyncio.new_event_loop()
-
+    task = asyncadapter.Task(loop.call_later, coro(), "test")
 
     loop.call_later(0.25, loop.stop)
     loop.run_forever()
