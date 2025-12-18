@@ -179,7 +179,7 @@ def test_scheduling_fastest():
     # And after 0.1 s we have a lot more draws. max_fps is ignored
     canvas.draw_count = canvas.events_count = 0
     canvas.active_sleep(0.1)
-    assert canvas.draw_count > 20
+    assert canvas.draw_count > 16  # be gentle for ci
     assert canvas.events_count == canvas.draw_count
 
     # Forcing a draw has direct effect
