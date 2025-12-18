@@ -357,7 +357,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         width, height = int(width), int(height)
         parent = self.Parent
         if isinstance(parent, WxRenderCanvas):
-            parent.SetSize(width, height)
+            parent.SetClientSize(width, height)
         elif parent is not None:
             self.SetSize(width, height)
         else:
