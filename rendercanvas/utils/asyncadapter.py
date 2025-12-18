@@ -41,12 +41,12 @@ class Event:
 
     async def wait(self):
         if self._is_set:
-            return
+            pass
         else:
-            return self  # triggers __await__
+            await self  # triggers __await__
 
     def __await__(self):
-        return {"wait_method": "event", "event": self}
+        yield {"wait_method": "event", "event": self}
 
     def _add_task(self, task):
         self._tasks.append(task)
