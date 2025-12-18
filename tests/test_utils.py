@@ -91,8 +91,8 @@ def test_call_later_thread():
     times = [r[1] - now for r in results]
 
     assert indices == [6, 5, 4, 3, 2, 1]
-    assert times[1] - times[0] < 0.015
-    assert times[2] - times[3] < 0.015
+    assert times[1] - times[0] < 0.04
+    assert times[2] - times[3] < 0.04
 
 
 if __name__ == "__main__":

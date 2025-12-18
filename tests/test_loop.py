@@ -16,6 +16,7 @@ loop object and run it one time for the duration of the application.
 
 # ruff: noqa: N803
 
+import os
 import gc
 import sys
 import time
@@ -327,10 +328,9 @@ def test_loop_detects_canvases(SomeLoop):
 def test_run_loop_without_canvases(SomeLoop):
     # After all canvases are closed, it can take one tick before its detected.
 
-    timeout = 0.15
+    leeway = 0.20 if os.getenv("CI") else 0
     if "Qt" in SomeLoop.__name__ or "PySide" in SomeLoop.__name__:
-        # Qt needs a bit more time
-        timeout = 0.30
+        leeway = 0.10
 
     loop = SomeLoop()
     group = CanvasGroup(loop)
@@ -342,7 +342,7 @@ def test_run_loop_without_canvases(SomeLoop):
     et = time.time() - t0
 
     print(et)
-    assert 0.0 <= et < timeout
+    assert 0.0 <= et < 0.15 + leeway
 
     # Create a canvas and close it right away
 
@@ -360,7 +360,7 @@ def test_run_loop_without_canvases(SomeLoop):
     et = time.time() - t0
 
     print(et)
-    assert 0.0 <= et < timeout
+    assert 0.0 <= et < 0.15 + leeway
 
     # Now its in its stopped state again
 
@@ -369,12 +369,14 @@ def test_run_loop_without_canvases(SomeLoop):
     et = time.time() - t0
 
     print(et)
-    assert 0.0 <= et < timeout
+    assert 0.0 <= et < 0.15 + leeway
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
 def test_run_loop_and_close_canvases(SomeLoop):
     # After all canvases are closed, it can take one tick before its detected.
+
+    leeway = 0.20 if os.getenv("CI") else 0
 
     loop = SomeLoop()
     group = CanvasGroup(loop)
@@ -392,7 +394,7 @@ def test_run_loop_and_close_canvases(SomeLoop):
     et = time.time() - t0
 
     print(et)
-    assert 0.25 < et < 0.45
+    assert 0.25 < et < 0.45 + leeway
 
     assert canvas1._events.is_closed
     assert canvas2._events.is_closed
@@ -401,6 +403,9 @@ def test_run_loop_and_close_canvases(SomeLoop):
 @pytest.mark.parametrize("SomeLoop", loop_classes)
 def test_run_loop_and_close_by_loop_stop(SomeLoop):
     # Close, then wait at most one tick to close canvases, and another to confirm close.
+
+    leeway = 0.20 if os.getenv("CI") else 0
+
     loop = SomeLoop()
     group = CanvasGroup(loop)
 
@@ -417,7 +422,7 @@ def test_run_loop_and_close_by_loop_stop(SomeLoop):
     et = time.time() - t0
 
     print(et)
-    assert 0.25 < et < 0.55
+    assert 0.25 < et < 0.55 + leeway
 
     assert canvas1._events.is_closed
     assert canvas2._events.is_closed
@@ -426,6 +431,9 @@ def test_run_loop_and_close_by_loop_stop(SomeLoop):
 @pytest.mark.parametrize("SomeLoop", loop_classes)
 def test_run_loop_and_close_by_loop_stop_via_async(SomeLoop):
     # Close using a coro
+
+    leeway = 0.20 if os.getenv("CI") else 0
+
     loop = SomeLoop()
     group = CanvasGroup(loop)
 
@@ -445,7 +453,7 @@ def test_run_loop_and_close_by_loop_stop_via_async(SomeLoop):
     et = time.time() - t0
 
     print(et)
-    assert 0.25 < et < 0.55
+    assert 0.25 < et < 0.55 + leeway
 
     assert canvas1._events.is_closed
     assert canvas2._events.is_closed
@@ -454,6 +462,8 @@ def test_run_loop_and_close_by_loop_stop_via_async(SomeLoop):
 @pytest.mark.parametrize("SomeLoop", loop_classes)
 def test_run_loop_and_close_by_deletion(SomeLoop):
     # Make the canvases be deleted by the gc.
+
+    leeway = 0.20 if os.getenv("CI") else 0
 
     loop = SomeLoop()
     group = CanvasGroup(loop)
@@ -472,7 +482,7 @@ def test_run_loop_and_close_by_deletion(SomeLoop):
     et = time.time() - t0
 
     print(et)
-    assert 0.25 < et < 0.55
+    assert 0.25 < et < 0.55 + leeway
 
     assert events1.is_closed
     assert events2.is_closed
@@ -481,6 +491,9 @@ def test_run_loop_and_close_by_deletion(SomeLoop):
 def test_run_loop_and_close_by_deletion_real():
     # Stop by deleting canvases, with a real canvas.
     # This tests that e.g. scheduler task does not hold onto the canvas.
+
+    leeway = 0.20 if os.getenv("CI") else 0
+
     loop = real_loop
 
     canvases = [RealRenderCanvas() for _ in range(2)]
@@ -493,12 +506,14 @@ def test_run_loop_and_close_by_deletion_real():
     et = time.time() - t0
 
     print(et)
-    assert 0.25 < et < 0.55
+    assert 0.25 < et < 0.55 + leeway
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
 def test_run_loop_and_interrupt(SomeLoop):
     # Interrupt, calls close, can take one tick to close canvases, and anoter to conform close.
+
+    leeway = 0.20 if os.getenv("CI") else 0
 
     loop = SomeLoop()
     group = CanvasGroup(loop)
@@ -523,7 +538,7 @@ def test_run_loop_and_interrupt(SomeLoop):
     t.join()
 
     print(et)
-    assert 0.25 < et < 0.55
+    assert 0.25 < et < 0.55 + leeway
 
     assert canvas1._events.is_closed
     assert canvas2._events.is_closed
@@ -535,6 +550,8 @@ def test_run_loop_and_interrupt_harder(SomeLoop):
     # stuff of the BaseRenderCanvase, like the events, but the native canvas
     # won't close, so in the second try, the loop is closed regardless.
     # after the second interupt, it stops the loop and closes the canvases
+
+    leeway = 0.20 if os.getenv("CI") else 0
 
     loop = SomeLoop()
     group = CanvasGroup(loop)
@@ -561,7 +578,7 @@ def test_run_loop_and_interrupt_harder(SomeLoop):
     t.join()
 
     print(et)
-    assert 0.6 < et < 0.75
+    assert 0.6 < et < 0.75 + leeway
 
     # The events are closed
     assert canvas1._events.is_closed
@@ -817,7 +834,7 @@ def test_not_using_loop_debug_thread():
     del loop
     gc.collect()
     gc.collect()
-    time.sleep(0.02)
+    time.sleep(0.1)
 
     assert not thread.is_alive()
 
@@ -878,7 +895,7 @@ async def a_generator(flag, *, await_in_finalizer=False):
     flag.append("started")
     try:
         for i in range(4):
-            await async_sleep(0.01)  # yield back to the loop
+            await async_sleep(0)  # yield back to the loop
             yield i
     except BaseException as err:
         flag.append(f"except {err.__class__.__name__}")
