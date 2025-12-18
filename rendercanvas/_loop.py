@@ -31,44 +31,66 @@ HANDLED_SIGNALS = (
 class BaseLoop:
     """The base class for an event-loop object.
 
+    The rendercanvas ``loop`` object is a proxy to a real event-loop. It abstracts away methods like ``run()``,
+    ``call_later``, ``call_soon_threadsafe()``, and more.
+
     Canvas backends can implement their own loop subclass (like qt and wx do), but a
     canvas backend can also rely on one of multiple loop implementations (like glfw
     running on asyncio or trio).
 
-    The lifecycle states of a loop are:
+    In the majority of use-cases, users don't need to know much about the loop. It will typically
+    run once. In more complex scenario's the section below explains the working of the loop in more detail.
 
-    * off: the initial state, the subclass should probably not even import dependencies yet.
-    * ready: the first canvas is created, ``_rc_init()`` is called to get the loop ready for running.
-    * active: the loop is active (we detect it because our task is running), but we don't know how.
-    * interactive: the loop is inter-active in e.g. an IDE, reported by the backend.
-    * running: the loop is running via ``_rc_run()`` or ``_rc_run_async()``.
+    **Details about loop lifetime**
 
-    Notes:
+    The rendercanvas loop object is a proxy, which has to support a variety of backends.
+    To realize this, it has the following lifetime model:
+
+    * off:
+        * Entered when the loop is instantiated, and when the loop has stopped.
+        * This is the 'idle' state.
+        * The backend probably has not even imported dependencies yet.
+    * ready:
+        * Entered when the first canvas is created that is associated with this loop, or when a task is added.
+        * It is assumed that the loop will become active soon.
+        * This is when ``_rc_init()`` is called to get the backend ready for running.
+        * A special 'loop-task' is created (a coroutine, which is not yet running).
+    * running:
+        * Entered when ``loop.run()`` is called.
+        * The loop is now running.
+        * Signal handlers and asyncgen hooks are installed if applicable.
+    * interactive:
+        * Entered in ``_rc_init()`` when the backend detects that the loop is interactive.
+        * Example use-cases are a notebook or interactive IDE, usually via asyncio.
+        * This means there is a persistent native loop already running, which rendercanvas makes use of.
+    * active:
+        * Entered when the backend-loop starts running, but not via the loop's ``run()`` method.
+        * This is detected via the loop-task.
+        * Signal handlers and asyncgen hooks are installed if applicable.
+        * Detecting loop stopping occurs by the loop-task being cancelled.
+
+    Notes related to starting and stopping:
 
     * The loop goes back to the "off" state once all canvases are closed.
     * Stopping the loop (via ``.stop()``) closes the canvases, which will then stop the loop.
     * From there it can go back to the ready state (which would call ``_rc_init()`` again).
     * In backends like Qt, the native loop can be started without us knowing: state "active".
     * In interactive settings like an IDE that runs an asyncio or Qt loop, the
-      loop can become "active" as soon as the first canvas is created.
-
-    The lifecycle of this loop does not necessarily co-inside with the native loop's cycle:
-
-    * The rendercanvas loop can be in the 'off' state while the native loop is running.
-    * When we stop the loop, the native loop likely runs slightly longer.
-    * When the loop is interactive (asyncio or Qt) the native loop keeps running when rendercanvas' loop stops.
-    * For async loops (asyncio or trio), the native loop may run before and after this loop.
-    * On Qt, we detect the app's aboutToQuit to stop this loop.
-    * On wx, we detect all windows closed to stop this loop.
+      loop becomes "interactive" as soon as the first canvas is created.
+    * The rendercanvas loop can be in the 'off' state while the native loop is running (especially for the 'interactive' case).
+    * On Qt, the app's 'aboutToQuit' signal is used to stop this loop.
+    * On wx, the loop is stopped when all windows are closed.
 
     """
 
     def __init__(self):
-        self.__tasks = set()
+        self.__tasks = set()  # only used by the async adapter
         self.__canvas_groups = set()
         self.__should_stop = 0
         self.__state = LoopState.off
         self.__is_initialized = False
+        self.__hook_data = None
+        self.__using_adapter = False  # set to True if using our asyncadapter
         self._asyncgens = weakref.WeakSet()
         # self._setup_debug_thread()
 
@@ -143,6 +165,7 @@ class BaseLoop:
         self.__is_initialized = True
         self._rc_init()
         self._rc_add_task(wrapper, "loop-task")
+        self.__using_adapter = len(self.__tasks) > 0
 
     async def _loop_task(self):
         # This task has multiple purposes:
@@ -161,6 +184,10 @@ class BaseLoop:
         # * Keep the GUI going even when the canvas loop is on pause e.g.
         #   because its minimized (applies to backends that implement
         #   _rc_gui_poll).
+
+        # In some cases the task may run after the loop was closed
+        if self.__state == LoopState.off:
+            return
 
         # The loop has started!
         self.__start()
@@ -295,8 +322,7 @@ class BaseLoop:
 
         self._ensure_initialized()
 
-        # Register interrupt handler
-        prev_sig_handlers = self.__setup_interrupt()
+        need_unregister = self.__setup_hooks()
 
         # Run. We could be in this loop for a long time. Or we can exit immediately if
         # the backend already has an (interactive) event loop and did not call _mark_as_interactive().
@@ -307,14 +333,15 @@ class BaseLoop:
             # Mark state as not 'running', but also not to 'off', that happens elsewhere.
             if self.__state == LoopState.running:
                 self.__state = LoopState.active
-            for sig, cb in prev_sig_handlers.items():
-                signal.signal(sig, cb)
+            if need_unregister:
+                self.__restore_hooks()
 
     async def run_async(self) -> None:
         """ "Alternative to ``run()``, to enter the mainloop from a running async framework.
 
         Only supported by the asyncio and trio loops.
         """
+
         # Can we enter the loop?
         if self.__state in (LoopState.off, LoopState.ready):
             pass
@@ -337,7 +364,7 @@ class BaseLoop:
     def stop(self, *, force=False) -> None:
         """Close all windows and stop the currently running event-loop.
 
-        If the loop is active but not running via our ``run()`` method, the loop
+        If the loop is active but not running via the ``run()`` method, the loop
         moves back to its off-state, but the underlying loop is not stopped.
 
         Normally, the windows are closed and the underlying event loop is given
@@ -368,17 +395,47 @@ class BaseLoop:
         if len(canvases) == 0 or self.__should_stop >= 2:
             self.__stop()
 
+    def __setup_hooks(self):
+        """Setup asycgen hooks and interrupt hooks."""
+        if self.__hook_data is not None:
+            return False
+
+        # Setup asyncgen hooks
+        prev_asyncgen_hooks = self.__setup_asyncgen_hooks()
+
+        # Set interrupts
+        prev_interrupt_hooks = self.__setup_interrupt_hooks()
+
+        self.__hook_data = prev_asyncgen_hooks, prev_interrupt_hooks
+        return True
+
+    def __restore_hooks(self):
+        """Unregister hooks."""
+
+        # This is separated from stop(), so that a loop can be 'active' by repeated calls to ``run()``, but will only
+        # actually have registered hooks while inside ``run()``. The StubLoop has this behavior, and it may be a bit silly
+        # to organize for this special use-case, but it does make it more clean/elegant, and maybe someday we will want another
+        # loop class that runs for short periods. This now works, even when another loop is running.
+
+        if self.__hook_data is None:
+            return
+
+        prev_asyncgen_hooks, prev_interrupt_hooks = self.__hook_data
+        self.__hook_data = None
+
+        if prev_asyncgen_hooks is not None:
+            sys.set_asyncgen_hooks(*prev_asyncgen_hooks)
+
+        for sig, cb in prev_interrupt_hooks.items():
+            signal.signal(sig, cb)
+
     def __start(self):
         """Move to running state."""
-
         # Update state, but leave 'interactive' and 'running'
         if self.__state in (LoopState.off, LoopState.ready):
             self.__state = LoopState.active
 
-        # Setup asyncgen hooks. This is done when we detect the loop starting,
-        # not in run(), because most event-loops will handle interrupts, while
-        # e.g. qt won't care about async generators.
-        self.__setup_asyncgen_hooks()
+        self.__setup_hooks()
 
     def __stop(self):
         """Move to the off-state."""
@@ -389,8 +446,6 @@ class BaseLoop:
         # Set flags to off state
         self.__state = LoopState.off
         self.__should_stop = 0
-
-        self.__finish_asyncgen_hooks()
 
         # If we used the async adapter, cancel any tasks. If we could assume
         # that the backend processes pending events before actually shutting
@@ -407,11 +462,20 @@ class BaseLoop:
         # Note that backends that do not use the asyncadapter are responsible
         # for cancelling pending tasks.
 
+        self.__restore_hooks()
+
+        # Cancel async gens
+        if len(self._asyncgens):
+            closing_agens = list(self._asyncgens)
+            self._asyncgens.clear()
+            for agen in closing_agens:
+                close_agen(agen)
+
         # Tell the backend to stop the loop. This usually means it will stop
         # soon, but not *now*; remember that we're currently in a task as well.
         self._rc_stop()
 
-    def __setup_interrupt(self):
+    def __setup_interrupt_hooks(self):
         """Setup the interrupt handlers."""
 
         def on_interrupt(sig, _frame):
@@ -445,29 +509,20 @@ class BaseLoop:
         # the generator in the user's code. Note that when a proper async
         # framework (asyncio or trio) is used, all of this does not apply; only
         # for the qt/wx/raw loop do we do this, an in these cases we don't
-        # expect fancy async stuff.
+        # expect fancy async stuff. Oh, and the sleep and Event actually become no-ops when the
+        # asyncgen hooks are restored, so that error message should in theory never happen anyway.
 
-        current_asyncgen_hooks = sys.get_asyncgen_hooks()
-        if (
-            current_asyncgen_hooks.firstiter is None
-            and current_asyncgen_hooks.finalizer is None
-        ):
-            sys.set_asyncgen_hooks(
-                firstiter=self._asyncgen_firstiter_hook,
-                finalizer=self._asyncgen_finalizer_hook,
-            )
-        else:
-            # Assume that the hooks are from asyncio/trio on which this loop is running.
-            pass
+        # Only register hooks if we use the asyncadapter; async frameworks install their own hooks.
+        if not self.__using_adapter:
+            return None
 
-    def __finish_asyncgen_hooks(self):
-        sys.set_asyncgen_hooks(None, None)
+        prev_asyncgen_hooks = sys.get_asyncgen_hooks()
+        sys.set_asyncgen_hooks(
+            firstiter=self._asyncgen_firstiter_hook,
+            finalizer=self._asyncgen_finalizer_hook,
+        )
 
-        if len(self._asyncgens):
-            closing_agens = list(self._asyncgens)
-            self._asyncgens.clear()
-            for agen in closing_agens:
-                close_agen(agen)
+        return prev_asyncgen_hooks
 
     def _asyncgen_firstiter_hook(self, agen):
         self._asyncgens.add(agen)
@@ -518,7 +573,7 @@ class BaseLoop:
         raise NotImplementedError()
 
     def _rc_add_task(self, async_func, name):
-        """Add an async task to the running loop.
+        """Add an async task to this loop.
 
         True async loop-backends (like asyncio and trio) should implement this.
         When they do, ``_rc_call_later`` is not used.

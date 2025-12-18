@@ -3,9 +3,15 @@ A micro async framework that only support ``sleep()`` and ``Event``. Behaves wel
 Intended for internal use, but is fully standalone.
 """
 
+import weakref
 import logging
+import threading
 
-from sniffio import thread_local as sniffio_thread_local
+# Support sniffio for older wgpu releases, and for code that relies on sniffio.
+try:
+    from sniffio import thread_local as sniffio_thread_local
+except ImportError:
+    sniffio_thread_local = threading.local()
 
 
 logger = logging.getLogger("asyncadapter")
@@ -35,12 +41,12 @@ class Event:
 
     async def wait(self):
         if self._is_set:
-            return
+            pass
         else:
-            return self  # triggers __await__
+            await self  # triggers __await__
 
     def __await__(self):
-        return {"wait_method": "event", "event": self}
+        yield {"wait_method": "event", "event": self}
 
     def _add_task(self, task):
         self._tasks.append(task)
@@ -68,13 +74,17 @@ class Task:
         self.name = name
         self.running = False
         self.cancelled = False
+
+        # Trick to get a callback function that does not hold a ref to the task, and therefore not the loop (via the loop-task coro).
+        task_ref = weakref.ref(self)
+        self._step_cb = lambda: (task := task_ref()) and task.step()
+
         self.call_step_later(0)
 
     def add_done_callback(self, callback):
         self._done_callbacks.append(callback)
 
     def _close(self):
-        self.loop = None
         self.coro = None
         for callback in self._done_callbacks:
             try:
@@ -84,7 +94,7 @@ class Task:
         self._done_callbacks.clear()
 
     def call_step_later(self, delay):
-        self._call_later(delay, self.step)
+        self._call_later(delay, self._step_cb)
 
     def cancel(self):
         self.cancelled = True
@@ -97,7 +107,9 @@ class Task:
         result = None
         stop = False
 
-        old_name, sniffio_thread_local.name = sniffio_thread_local.name, __name__
+        old_name = getattr(sniffio_thread_local, "name", None)
+        sniffio_thread_local.name = __name__
+
         self.running = True
         try:
             if self.cancelled:
