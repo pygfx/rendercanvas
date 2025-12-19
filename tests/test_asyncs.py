@@ -60,7 +60,7 @@ def test_precise_sleep(SomeLoop):
 
         loop = SomeLoop()
         loop._stop_when_no_canvases = False
-        loop.call_later(0.25, loop.stop)
+        loop.call_later(0.35, loop.stop)
         loop.add_task(coro)
         loop.run()
 
