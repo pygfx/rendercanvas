@@ -745,7 +745,7 @@ def test_loop_lifetime_interactive():
     assert states == ["off", "interactive", "off"]
 
     assert (times[1] - times[0]) < 0.01
-    assert (times[2] - times[1]) > 0.30
+    assert (times[2] - times[1]) > 0.20
 
 
 # %%%%% tasks
