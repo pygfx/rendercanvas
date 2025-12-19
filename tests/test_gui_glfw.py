@@ -13,12 +13,11 @@ import gc
 
 import pytest
 from testutils import run_tests, can_use_glfw, can_use_wgpu_lib, is_pypy
-# from renderutils import render_to_texture, render_to_screen
 
 
-if not can_use_glfw or not can_use_wgpu_lib:
+if not can_use_glfw:
     pytest.skip(
-        "Skipping tests that need a window or the wgpu lib", allow_module_level=True
+        "Skipping tests that needs glfw", allow_module_level=True
     )
 
 
@@ -57,13 +56,13 @@ def test_canvas_sizing():
     assert isinstance(lsize[0], float) and isinstance(lsize[1], float)
     assert lsize == (640, 480)
 
-    canvas.set_logical_size(700, 800)
+    canvas.set_logical_size(700, 600)
     canvas._rc_gui_poll()
 
     lsize = canvas.get_logical_size()
     assert isinstance(lsize, tuple) and len(lsize) == 2
     assert isinstance(lsize[0], float) and isinstance(lsize[1], float)
-    assert lsize == (700, 800)
+    assert lsize == (700, 600)
 
     assert len(canvas.get_physical_size()) == 2
     assert isinstance(canvas.get_pixel_ratio(), float)
@@ -118,6 +117,9 @@ fn fs_main() -> @location(0) vec4<f32> {
 
 def test_glfw_canvas_render():
     """Render an orange square ... in a glfw window."""
+
+    if not can_use_wgpu_lib:
+        pytest.skip("Skipping tests that needs the wgpu lib")
 
     import wgpu
     from rendercanvas.glfw import RenderCanvas

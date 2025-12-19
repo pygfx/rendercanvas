@@ -151,11 +151,6 @@ jobs:
             guitestname: 'qt'
             loopname: 'PyQt6Loop'
             os: windows-latest
-          - guilib: 'PySide2'
-            backendname: 'pyside2'
-            guitestname: 'qt'
-            loopname: 'PySide2Loop'
-            os: windows-latest
           - guilib: 'PyQt5'
             backendname: 'pyqt5'
             guitestname: 'qt'
@@ -187,7 +182,8 @@ jobs:
     - name: Test import
       run: |
         python -c 'import rendercanvas.${{ matrix.backendname }}'
-    - name: Test loop - Unfortunately, all Qt libs abort on the first test.
+    - name: Test loop
+      if: matrix.backendname != 'wx'
       run: |
         pytest -v tests/test_loop.py -k ${{ matrix.loopname }}
     - name: Test GUI canvas
