@@ -61,18 +61,21 @@ def test_precise_sleep(SomeLoop):
         asyncs.USE_THREADED_TIMER = prev_use_threaded_timer
 
 
+@pytest.mark.parametrize("SomeLoop", loop_classes)
 def test_event(SomeLoop):
-    event1 = asyncs.Event()
+    event = None
 
     times = []
 
     async def coro1():
         await asyncs.sleep(0.05)
-        event1.set()
+        event.set()
 
     async def coro2():
+        nonlocal event
+        event = asyncs.Event()
         times.append(time.perf_counter())
-        await event1.wait()
+        await event.wait()
         times.append(time.perf_counter())
 
     loop = SomeLoop()
