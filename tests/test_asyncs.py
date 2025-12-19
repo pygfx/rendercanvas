@@ -22,7 +22,6 @@ loop_classes = [RawLoop, AsyncioLoop, TrioLoop]
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
 def test_sleep(SomeLoop):
-
     leeway = 0.20 if os.getenv("CI") else 0
 
     times = []
@@ -48,7 +47,6 @@ def test_sleep(SomeLoop):
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
 def test_precise_sleep(SomeLoop):
-
     leeway = 0.20 if os.getenv("CI") else 0
 
     # This test uses the threaded timer on all os's
@@ -82,7 +80,6 @@ def test_precise_sleep(SomeLoop):
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
 def test_event(SomeLoop):
-
     leeway = 0.20 if os.getenv("CI") else 0
 
     event1 = None
