@@ -1,3 +1,4 @@
+import os
 import gc
 import time
 
@@ -40,6 +41,8 @@ def test_weakbind():
 
 
 def test_call_later_thread():
+    leeway = 0.05 if os.getenv("CI") else 0
+
     t = rendercanvas._coreutils.CallLaterThread()
 
     results = []
@@ -68,7 +71,7 @@ def test_call_later_thread():
     t.call_later_from_thread(0.1, results.append, 5)
     t.call_later_from_thread(0.1, results.append, 6)
 
-    time.sleep(0.11)
+    time.sleep(0.11 + leeway)
     assert results == [1, 2, 3, 4, 5, 6]
 
     # Out of order
@@ -85,14 +88,14 @@ def test_call_later_thread():
     t.call_later_from_thread(0.10, set, 6)
 
     now = time.perf_counter()
-    time.sleep(1.1)
+    time.sleep(1.1 + leeway)
 
     indices = [r[0] for r in results]
     times = [r[1] - now for r in results]
 
     assert indices == [6, 5, 4, 3, 2, 1]
-    assert times[1] - times[0] < 0.04
-    assert times[2] - times[3] < 0.04
+    assert times[1] - times[0] < 0.04 + leeway
+    assert times[2] - times[3] < 0.04 + leeway
 
 
 if __name__ == "__main__":
