@@ -83,6 +83,8 @@ class BaseLoop:
 
     """
 
+    _stop_when_no_canvases = True
+
     def __init__(self):
         self.__tasks = set()  # only used by the async adapter
         self.__canvas_groups = set()
@@ -207,7 +209,7 @@ class BaseLoop:
                 # Break?
                 canvas_count = len(canvases)
                 del canvases
-                if not canvas_count:
+                if not canvas_count and self._stop_when_no_canvases:
                     break
 
         finally:

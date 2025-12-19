@@ -27,13 +27,19 @@ def test_sleep(SomeLoop):
         times.append(time.perf_counter())
         await asyncs.sleep(0.05)
         times.append(time.perf_counter())
+        await asyncs.sleep(0.1)
+        times.append(time.perf_counter())
 
     loop = SomeLoop()
+    loop._stop_when_no_canvases = False
+    loop.call_later(0.25, loop.stop)
     loop.add_task(coro)
     loop.run()
 
     sleep_time1 = times[1] - times[0]
+    sleep_time2 = times[2] - times[1]
     assert 0.04 < sleep_time1 < 0.15
+    assert 0.09 < sleep_time2 < 0.20
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
@@ -49,13 +55,19 @@ def test_precise_sleep(SomeLoop):
             times.append(time.perf_counter())
             await asyncs.precise_sleep(0.05)
             times.append(time.perf_counter())
+            await asyncs.precise_sleep(0.1)
+            times.append(time.perf_counter())
 
         loop = SomeLoop()
+        loop._stop_when_no_canvases = False
+        loop.call_later(0.25, loop.stop)
         loop.add_task(coro)
         loop.run()
 
         sleep_time1 = times[1] - times[0]
+        sleep_time2 = times[2] - times[1]
         assert 0.04 < sleep_time1 < 0.15
+        assert 0.09 < sleep_time2 < 0.20
 
     finally:
         asyncs.USE_THREADED_TIMER = prev_use_threaded_timer
@@ -63,28 +75,38 @@ def test_precise_sleep(SomeLoop):
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
 def test_event(SomeLoop):
-    event = None
+    event1 = None
+    event2 = None
 
     times = []
 
     async def coro1():
         await asyncs.sleep(0.05)
-        event.set()
+        event1.set()
+        await asyncs.sleep(0.1)
+        event2.set()
 
     async def coro2():
-        nonlocal event
-        event = asyncs.Event()
+        nonlocal event1, event2
+        event1 = asyncs.Event()
+        event2 = asyncs.Event()
         times.append(time.perf_counter())
-        await event.wait()
+        await event1.wait()
+        times.append(time.perf_counter())
+        await event2.wait()
         times.append(time.perf_counter())
 
     loop = SomeLoop()
+    loop._stop_when_no_canvases = False
+    loop.call_later(0.25, loop.stop)
     loop.add_task(coro1)
     loop.add_task(coro2)
     loop.run()
 
     sleep_time1 = times[1] - times[0]
+    sleep_time2 = times[2] - times[1]
     assert 0.04 < sleep_time1 < 0.15
+    assert 0.09 < sleep_time2 < 0.20
 
 
 if __name__ == "__main__":
