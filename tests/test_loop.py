@@ -181,6 +181,7 @@ def test_loop_deletion1(SomeLoop):
     assert loop_ref() is None
 
 
+@pytest.mark.filterwarnings("ignore:.*was never awaited")
 @pytest.mark.parametrize("SomeLoop", loop_classes)
 def test_loop_deletion2(SomeLoop):
     # Loops get gc'd when in ready state

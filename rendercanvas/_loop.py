@@ -83,6 +83,8 @@ class BaseLoop:
 
     """
 
+    _stop_when_no_canvases = True
+
     def __init__(self):
         self.__tasks = set()  # only used by the async adapter
         self.__canvas_groups = set()
@@ -207,7 +209,7 @@ class BaseLoop:
                 # Break?
                 canvas_count = len(canvases)
                 del canvases
-                if not canvas_count:
+                if not canvas_count and self._stop_when_no_canvases:
                     break
 
         finally:
@@ -222,7 +224,7 @@ class BaseLoop:
         self,
         async_func: Callable[[], Coroutine],
         *args: Any,
-        name: str = "unnamed",
+        name: str | None = None,
     ) -> None:
         """Run an async function in the event-loop.
 
@@ -231,6 +233,8 @@ class BaseLoop:
         """
         if not (callable(async_func) and iscoroutinefunction(async_func)):
             raise TypeError("add_task() expects an async function.")
+        if name is None:
+            name = async_func.__name__
 
         async def wrapper():
             with log_exception(f"Error in {name} task:"):
@@ -606,6 +610,7 @@ class BaseLoop:
           internally.
         * Return None.
         """
+        # Default that always works, subclasses probably want to do something different when delay <= 0
         call_later_from_thread(delay, self._rc_call_soon_threadsafe, callback)
 
     def _rc_call_soon_threadsafe(self, callback):

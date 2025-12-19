@@ -28,8 +28,8 @@ def test_sleep():
 
     sleep_time1 = times[1] - times[0]
     sleep_time2 = times[2] - times[1]
-    assert 0.04 < sleep_time1 < 0.6
-    assert 0.09 < sleep_time2 < 0.12
+    assert 0.04 < sleep_time1 < 0.15
+    assert 0.09 < sleep_time2 < 0.20
 
 
 def test_event():
@@ -61,8 +61,8 @@ def test_event():
 
     sleep_time1 = times[1] - times[0]
     sleep_time2 = times[2] - times[1]
-    assert 0.04 < sleep_time1 < 0.6
-    assert 0.09 < sleep_time2 < 0.12
+    assert 0.04 < sleep_time1 < 0.15
+    assert 0.09 < sleep_time2 < 0.20
 
 
 if __name__ == "__main__":

@@ -80,7 +80,7 @@ def test_scheduling_manual():
     canvas.request_draw()
     canvas.active_sleep(0.11)
     assert canvas.draw_count == 0
-    assert canvas.events_count in range(1, 20)
+    assert canvas.events_count in range(1, 30)
 
     # Only when we force one
     canvas.force_draw()

@@ -85,11 +85,24 @@ def detect_current_call_soon_threadsafe():
 
 
 async def sleep(delay):
-    """Generic async sleep. Works with trio, asyncio and rendercanvas-native.
+    """Generic async sleep. Works with trio, asyncio and rendercanvas-native."""
+    # Note that we could decide to run all tasks (created via loop.add_task)
+    # via the asyncadapter, which would converge the async code paths more.
+    # But we deliberately chose for the async bits to be 'real'; on asyncio
+    # they are actual asyncio tasks using e.g. asyncio.Event.
 
-    On Windows, with asyncio or trio, this uses a special sleep routine that is more accurate than the ``sleep()`` of asyncio/trio.
+    libname = detect_current_async_lib()
+    if libname is not None:
+        sleep = sys.modules[libname].sleep
+        await sleep(delay)
+
+
+async def precise_sleep(delay):
+    """Generic async sleep that is precise. Works with trio, asyncio and rendercanvas-native.
+
+    On Windows, OS timers are notoriously imprecise, with a resolution of 15.625 ms (64 ticks per second).
+    This function, when on Windows, uses a thread to sleep with a much better precision.
     """
-
     if delay > 0 and USE_THREADED_TIMER:
         call_soon_threadsafe = detect_current_call_soon_threadsafe()
         if call_soon_threadsafe:
