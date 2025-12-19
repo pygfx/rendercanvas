@@ -53,13 +53,13 @@ def test_canvas_sizing():
     assert isinstance(lsize[0], float) and isinstance(lsize[1], float)
     assert lsize == (640, 480)
 
-    canvas.set_logical_size(700, 800)
+    canvas.set_logical_size(700, 600)
     canvas._rc_gui_poll()
 
     lsize = canvas.get_logical_size()
     assert isinstance(lsize, tuple) and len(lsize) == 2
     assert isinstance(lsize[0], float) and isinstance(lsize[1], float)
-    assert lsize == (700, 800)
+    assert lsize == (700, 600)
 
     assert len(canvas.get_physical_size()) == 2
     assert isinstance(canvas.get_pixel_ratio(), float)
