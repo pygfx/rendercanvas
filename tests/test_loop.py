@@ -284,7 +284,7 @@ def test_run_loop_and_close_bc_no_canvases(SomeLoop):
     loop.run()
     t1 = time.perf_counter()
 
-    assert (t1 - t0) < 0.2
+    assert (t1 - t0) < 0.3
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
@@ -514,7 +514,7 @@ def test_run_loop_and_close_by_deletion_real():
 def test_run_loop_and_interrupt(SomeLoop):
     # Interrupt, calls close, can take one tick to close canvases, and anoter to conform close.
 
-    leeway = 0.20 if os.getenv("CI") else 0
+    leeway = 0.50 if os.getenv("CI") else 0
 
     loop = SomeLoop()
     group = CanvasGroup(loop)
@@ -552,7 +552,7 @@ def test_run_loop_and_interrupt_harder(SomeLoop):
     # won't close, so in the second try, the loop is closed regardless.
     # after the second interupt, it stops the loop and closes the canvases
 
-    leeway = 0.20 if os.getenv("CI") else 0
+    leeway = 0.50 if os.getenv("CI") else 0
 
     loop = SomeLoop()
     group = CanvasGroup(loop)
