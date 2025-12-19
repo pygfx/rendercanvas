@@ -4,6 +4,7 @@ Test basics of rendercanvas.utils.asyncs.
 
 # ruff: noqa: N803
 
+import os
 import time
 
 from rendercanvas.asyncio import AsyncioLoop
@@ -21,6 +22,9 @@ loop_classes = [RawLoop, AsyncioLoop, TrioLoop]
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
 def test_sleep(SomeLoop):
+
+    leeway = 0.20 if os.getenv("CI") else 0
+
     times = []
 
     async def coro():
@@ -38,12 +42,15 @@ def test_sleep(SomeLoop):
 
     sleep_time1 = times[1] - times[0]
     sleep_time2 = times[2] - times[1]
-    assert 0.04 < sleep_time1 < 0.15
-    assert 0.09 < sleep_time2 < 0.20
+    assert 0.04 < sleep_time1 < 0.08 + leeway
+    assert 0.09 < sleep_time2 < 0.13 + leeway
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
 def test_precise_sleep(SomeLoop):
+
+    leeway = 0.20 if os.getenv("CI") else 0
+
     # This test uses the threaded timer on all os's
     prev_use_threaded_timer = asyncs.USE_THREADED_TIMER
     asyncs.USE_THREADED_TIMER = True
@@ -66,8 +73,8 @@ def test_precise_sleep(SomeLoop):
 
         sleep_time1 = times[1] - times[0]
         sleep_time2 = times[2] - times[1]
-        assert 0.04 < sleep_time1 < 0.15
-        assert 0.09 < sleep_time2 < 0.20
+        assert 0.04 < sleep_time1 < 0.08 + leeway
+        assert 0.09 < sleep_time2 < 0.13 + leeway
 
     finally:
         asyncs.USE_THREADED_TIMER = prev_use_threaded_timer
@@ -75,6 +82,9 @@ def test_precise_sleep(SomeLoop):
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
 def test_event(SomeLoop):
+
+    leeway = 0.20 if os.getenv("CI") else 0
+
     event1 = None
     event2 = None
 
@@ -105,8 +115,8 @@ def test_event(SomeLoop):
 
     sleep_time1 = times[1] - times[0]
     sleep_time2 = times[2] - times[1]
-    assert 0.04 < sleep_time1 < 0.15
-    assert 0.09 < sleep_time2 < 0.20
+    assert 0.04 < sleep_time1 < 0.08 + leeway
+    assert 0.09 < sleep_time2 < 0.13 + leeway
 
 
 if __name__ == "__main__":
