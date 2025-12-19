@@ -130,7 +130,7 @@ jobs:
 
   # Test for the few GUI frameworks that we support.
   test-gui-frameworks:
-    name: 'Test gui ${{ matrix.guilib }}'
+    name: 'Test gui ${{ matrix.backendname }}'
     runs-on:  ${{ matrix.os }}
     strategy:
       fail-fast: false
