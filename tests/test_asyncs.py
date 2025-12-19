@@ -29,10 +29,10 @@ def test_sleep(SomeLoop):
         times.append(time.perf_counter())
         await asyncs.sleep(0.1)
         times.append(time.perf_counter())
+        loop.stop()
 
     loop = SomeLoop()
     loop._stop_when_no_canvases = False
-    loop.call_later(0.25, loop.stop)
     loop.add_task(coro)
     loop.run()
 
@@ -57,10 +57,10 @@ def test_precise_sleep(SomeLoop):
             times.append(time.perf_counter())
             await asyncs.precise_sleep(0.1)
             times.append(time.perf_counter())
+            loop.stop()
 
         loop = SomeLoop()
         loop._stop_when_no_canvases = False
-        loop.call_later(0.35, loop.stop)
         loop.add_task(coro)
         loop.run()
 
@@ -95,10 +95,10 @@ def test_event(SomeLoop):
         times.append(time.perf_counter())
         await event2.wait()
         times.append(time.perf_counter())
+        loop.stop()
 
     loop = SomeLoop()
     loop._stop_when_no_canvases = False
-    loop.call_later(0.25, loop.stop)
     loop.add_task(coro1)
     loop.add_task(coro2)
     loop.run()
