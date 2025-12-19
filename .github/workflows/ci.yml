@@ -161,7 +161,7 @@ jobs:
             guitestname: 'qt'
             loopname: 'PyQt5Loop'
             os: windows-latest
-          - guilib: 'wxPython'  CI tries to build wx from scratch
+          - guilib: 'wxPython'
             backendname: 'wx'
             guitestname: 'wx'
             loopname: 'WxLoop'
