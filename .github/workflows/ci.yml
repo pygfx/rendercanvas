@@ -130,27 +130,37 @@ jobs:
 
   # Test for the few GUI frameworks that we support.
   test-gui-frameworks:
-    name: 'Test gui ${{ matrix.guilib }}'
-    runs-on: ubuntu-latest
+    name: 'Test gui ${{ matrix.backendname }}'
+    runs-on:  ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - guilib: 'glfw'
             backendname: 'glfw'
+            guitestname: 'glfw'
             loopname: 'AsyncioLoop'
+            os: windows-latest
           - guilib: 'PySide6'
             backendname: 'pyside6'
+            guitestname: 'qt'
             loopname: 'PySide6Loop'
+            os: windows-latest
           - guilib: 'PyQt6'
             backendname: 'pyqt6'
+            guitestname: 'qt'
             loopname: 'PyQt6Loop'
+            os: windows-latest
           - guilib: 'PyQt5'
             backendname: 'pyqt5'
+            guitestname: 'qt'
             loopname: 'PyQt5Loop'
-          # - guilib: 'wxPython'  CI tries to build wx from scratch
-          #   backendname: 'wx'
-          #   loopname: 'WxLoop'
+            os: windows-latest
+          - guilib: 'wxPython'
+            backendname: 'wx'
+            guitestname: 'wx'
+            loopname: 'WxLoop'
+            os: windows-latest
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python
@@ -158,6 +168,7 @@ jobs:
       with:
         python-version: '3.13'
     - name: Install xvfb and Vulkan drivers
+      if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt update -y -qq
         sudo apt install -y xvfb
@@ -170,14 +181,14 @@ jobs:
         rm -r rendercanvas
     - name: Test import
       run: |
-        xvfb-run python -c 'import rendercanvas.${{ matrix.backendname }}'
-    # - name: Test loop - Unfortunately, all Qt libs abort on the first test.
-    #   run: |
-    #     xvfb-run pytest -v tests/test_loop.py -k ${{ matrix.loopname }}
-    - name: Test GUI canvas
-      if: matrix.backendname == 'glfw'
+        python -c 'import rendercanvas.${{ matrix.backendname }}'
+    - name: Test loop
+      if: matrix.backendname != 'wx'
       run: |
-        xvfb-run pytest -v tests/test_gui_${{ matrix.backendname }}.py
+        pytest -v tests/test_loop.py -k ${{ matrix.loopname }}
+    - name: Test GUI canvas
+      run: |
+        pytest -v tests/test_gui_${{ matrix.guitestname }}.py
 
   # Test that the examples run without error, and screenshots match
   test-examples:

@@ -1,11 +1,14 @@
 """
-Tests specific to wx
+Tests specific for qt.
 
 Only runs when explicitly targeted, because running multiple GUI
 frameworks in the same process never works.
 """
 
+# ruff: noqa: E402
+
 import sys
+import importlib
 
 import pytest
 from testutils import run_tests
@@ -16,22 +19,29 @@ if not (__name__ == "__main__" or any(__name__ in a for a in sys.argv)):
     pytest.skip("Skipping tests that need wx", allow_module_level=True)
 
 
-import wx
+for lib in ("PySide6", "PyQt6", "PySide2", "PyQt5"):
+    try:
+        QtWidgets = importlib.import_module(".QtWidgets", lib)
+        break
+    except ModuleNotFoundError:
+        pass
+
+
 from rendercanvas.base import BaseRenderCanvas, WrapperRenderCanvas
-from rendercanvas.wx import RenderCanvas, RenderWidget
-from rendercanvas.wx import WxRenderWidget, WxRenderCanvas
+from rendercanvas.qt import RenderCanvas, RenderWidget
+from rendercanvas.qt import QRenderWidget, QRenderCanvas
 
 
 def test_is_canvas_classes():
-    assert WxRenderCanvas is RenderCanvas
-    assert WxRenderWidget is RenderWidget
+    assert QRenderCanvas is RenderCanvas
+    assert QRenderWidget is RenderWidget
 
     assert issubclass(RenderWidget, BaseRenderCanvas)
     assert issubclass(RenderCanvas, BaseRenderCanvas)
     assert issubclass(RenderCanvas, WrapperRenderCanvas)
 
-    assert issubclass(RenderWidget, wx.Window)
-    assert issubclass(RenderCanvas, wx.Frame)
+    assert issubclass(RenderWidget, QtWidgets.QWidget)
+    assert issubclass(RenderCanvas, QtWidgets.QWidget)  # toplevel
 
 
 def test_canvas_sizing():
