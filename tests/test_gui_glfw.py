@@ -16,9 +16,7 @@ from testutils import run_tests, can_use_glfw, can_use_wgpu_lib, is_pypy
 
 
 if not can_use_glfw:
-    pytest.skip(
-        "Skipping tests that needs glfw", allow_module_level=True
-    )
+    pytest.skip("Skipping tests that needs glfw", allow_module_level=True)
 
 
 def setup_module():
