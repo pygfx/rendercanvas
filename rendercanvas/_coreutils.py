@@ -204,7 +204,11 @@ class CallLaterThread(threading.Thread):
                 try:
                     item.callback(*item.args)
                 except Exception as err:
-                    logger.error(f"Error in CallLaterThread callback: {err}")
+                    msg = str(err)
+                    if "loop is closed" in msg or "run() has exited" in msg:
+                        pass  # asyncio/trio loop is closed: ignore; consider this a cancelled task
+                    else:
+                        logger.error(f"Error in CallLaterThread callback: {msg}")
 
             del item
 

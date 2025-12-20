@@ -115,6 +115,8 @@ def test_asyncio():
     for name, running_loop in running_loops:
         assert running_loop is loop
 
+    loop.close()
+
 
 if __name__ == "__main__":
     run_tests(globals())
