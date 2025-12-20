@@ -945,7 +945,7 @@ def test_async_gens_cleanup1(SomeLoop):
     assert flag == ["started", "finished", "closed"], flag
 
 
-@pytest.mark.filterwarnings("ignore:.*was garbage collected before it had been exhausted")
+@pytest.mark.filterwarnings("ignore:.*garbage collected before it had been exhausted")
 @pytest.mark.parametrize("SomeLoop", loop_classes)
 def test_async_gens_cleanup2(SomeLoop):
     # Break out of the generator, leaving it in a pending state.
