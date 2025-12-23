@@ -29,6 +29,7 @@ class Sleeper:
 
 async def sleep(delay):
     """Async sleep for delay seconds."""
+    # This effectively runs via the call_later_func passed to the task.
     await Sleeper(delay)
 
 
@@ -39,14 +40,18 @@ class Event:
         self._is_set = False
         self._tasks = []
 
+    def __repr__(self):
+        set = "set" if self._is_set else "unset"
+        return f"<{self.__module__}.{self.__class__.__name__} object ({set}) at {hex(id(self))}>"
+
     async def wait(self):
         if self._is_set:
-            return
+            pass
         else:
-            return self  # triggers __await__
+            await self  # triggers __await__
 
     def __await__(self):
-        return {"wait_method": "event", "event": self}
+        yield {"wait_method": "event", "event": self}
 
     def _add_task(self, task):
         self._tasks.append(task)

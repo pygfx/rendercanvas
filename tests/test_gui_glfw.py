@@ -1,21 +1,22 @@
 """
 Test the canvas, and parts of the rendering that involves a canvas,
 like the canvas context and surface texture.
+
+In contrast to the other test_gui_xx.py tests, this test is run when glfw is
+available.
 """
 
 import os
-import time
 import weakref
 import asyncio
 import gc
 
-from pytest import skip
+import pytest
 from testutils import run_tests, can_use_glfw, can_use_wgpu_lib, is_pypy
-# from renderutils import render_to_texture, render_to_screen
 
 
-if not can_use_glfw or not can_use_wgpu_lib:
-    skip("Skipping tests that need a window or the wgpu lib", allow_module_level=True)
+if not can_use_glfw:
+    pytest.skip("Skipping tests that needs glfw", allow_module_level=True)
 
 
 def setup_module():
@@ -30,33 +31,36 @@ def teardown_module():
 
     poll_glfw_briefly()
 
-    # Terminate; otherwise it gets in the way of tests for the Qt loop.
+    # Terminate; otherwise it gets in the way of tests for the Qt or wx loop.
     glfw.terminate()
 
 
-def test_is_canvas_base():
-    from rendercanvas import BaseRenderCanvas
-    from rendercanvas.glfw import RenderCanvas
+def test_is_canvas_classes():
+    from rendercanvas.base import BaseRenderCanvas
+    from rendercanvas.glfw import RenderCanvas, GlfwRenderCanvas
 
+    assert GlfwRenderCanvas is RenderCanvas
     assert issubclass(RenderCanvas, BaseRenderCanvas)
 
 
-def test_glfw_canvas_basics():
-    """Create a window and check some of its behavior. No wgpu calls here."""
-
-    import glfw
+def test_canvas_sizing():
     from rendercanvas.glfw import RenderCanvas
 
-    canvas = RenderCanvas()
+    canvas = RenderCanvas(size=(640, 480))
+    canvas._rc_gui_poll()
 
-    canvas.set_logical_size(300, 200)
-    etime = time.time() + 0.1
-    while time.time() < etime:
-        glfw.poll_events()
     lsize = canvas.get_logical_size()
     assert isinstance(lsize, tuple) and len(lsize) == 2
     assert isinstance(lsize[0], float) and isinstance(lsize[1], float)
-    assert lsize == (300.0, 200.0)
+    assert lsize == (640, 480)
+
+    canvas.set_logical_size(700, 600)
+    canvas._rc_gui_poll()
+
+    lsize = canvas.get_logical_size()
+    assert isinstance(lsize, tuple) and len(lsize) == 2
+    assert isinstance(lsize[0], float) and isinstance(lsize[1], float)
+    assert lsize == (700, 600)
 
     assert len(canvas.get_physical_size()) == 2
     assert isinstance(canvas.get_pixel_ratio(), float)
@@ -64,7 +68,7 @@ def test_glfw_canvas_basics():
     # Close
     assert not canvas.get_closed()
     canvas.close()
-    glfw.poll_events()
+    canvas._rc_gui_poll()
     assert canvas.get_closed()
 
 
@@ -93,6 +97,8 @@ def test_glfw_canvas_del():
     run_briefly()
     assert loop_task.done()
 
+    aio_loop.close()
+
 
 shader_source = """
 @vertex
@@ -111,6 +117,9 @@ fn fs_main() -> @location(0) vec4<f32> {
 
 def test_glfw_canvas_render():
     """Render an orange square ... in a glfw window."""
+
+    if not can_use_wgpu_lib:
+        pytest.skip("Skipping tests that needs the wgpu lib")
 
     import wgpu
     from rendercanvas.glfw import RenderCanvas
@@ -169,6 +178,8 @@ def test_glfw_canvas_render():
     assert not loop_task.done()
     run_briefly()
     assert loop_task.done()
+
+    aio_loop.close()
 
 
 def _get_draw_function(device, canvas):

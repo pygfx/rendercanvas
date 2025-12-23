@@ -85,11 +85,24 @@ def detect_current_call_soon_threadsafe():
 
 
 async def sleep(delay):
-    """Generic async sleep. Works with trio, asyncio and rendercanvas-native.
+    """Generic async sleep. Works with trio, asyncio and rendercanvas-native."""
+    # Note that we could decide to run all tasks (created via loop.add_task)
+    # via the asyncadapter, which would converge the async code paths more.
+    # But we deliberately chose for the async bits to be 'real'; on asyncio
+    # they are actual asyncio tasks using e.g. asyncio.Event.
 
-    On Windows, with asyncio or trio, this uses a special sleep routine that is more accurate than the ``sleep()`` of asyncio/trio.
+    libname = detect_current_async_lib()
+    if libname is not None:
+        sleep = sys.modules[libname].sleep
+        await sleep(delay)
+
+
+async def precise_sleep(delay):
+    """Generic async sleep that is precise. Works with trio, asyncio and rendercanvas-native.
+
+    On Windows, OS timers are notoriously imprecise, with a resolution of 15.625 ms (64 ticks per second).
+    This function, when on Windows, uses a thread to sleep with a much better precision.
     """
-
     if delay > 0 and USE_THREADED_TIMER:
         call_soon_threadsafe = detect_current_call_soon_threadsafe()
         if call_soon_threadsafe:
@@ -101,6 +114,18 @@ async def sleep(delay):
         if libname is not None:
             sleep = sys.modules[libname].sleep
             await sleep(delay)
+
+    # Note: At some point I thought that the precise sleep had a problem:
+    # consider having an interactive asyncio loop, e.g. in a notebook, and
+    # creating a rendecanvas AsyncioLoop. Consider a coroutine/task in that loop
+    # that does a 2 sec precise sleep and then does *something*. Now, if the
+    # loop is closed before these 2 sec expires, what happens when the loop is
+    # re-run? At first I thought that since the real (interactive) asyncio loop
+    # is still running, it would cause that *something* to happen. But this is
+    # not the case, because as soon as the rendercanvas loop stops, all
+    # co-routines are cancelled. So although the thread *is* able to schedule
+    # the event to be set (which the sleep is waiting for), the task is already
+    # gone.
 
 
 class Event:

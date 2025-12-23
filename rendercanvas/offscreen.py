@@ -170,6 +170,7 @@ class StubLoop(BaseLoop):
         # in the 'active' mode, making it the current loop (via asyncgen hooks),
         # and it will stay active until it's explicitly stopped.
         self._process_tasks()
+        self._process_tasks()  # twice to resolve one-step indirection of thread-call-later
 
     def _rc_stop(self):
         self._callbacks.clear()

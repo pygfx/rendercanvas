@@ -17,8 +17,6 @@ from ._coreutils import (
     SYSTEM_IS_WAYLAND,
     get_alt_x11_display,
     get_alt_wayland_display,
-    IS_WIN,
-    call_later_from_thread,
 )
 from .base import (
     WrapperRenderCanvas,
@@ -26,9 +24,6 @@ from .base import (
     BaseCanvasGroup,
     BaseLoop,
 )
-
-
-USE_THREADED_TIMER = IS_WIN
 
 
 BUTTON_MAP = {
@@ -189,8 +184,6 @@ class WxLoop(BaseLoop):
     def _rc_call_later(self, delay, callback):
         if delay <= 0:
             wx.CallAfter(callback)
-        elif USE_THREADED_TIMER:
-            call_later_from_thread(delay, wx.CallAfter, callback)
         else:
             wx.CallLater(int(max(delay * 1000, 1)), callback)
 
@@ -357,7 +350,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         width, height = int(width), int(height)
         parent = self.Parent
         if isinstance(parent, WxRenderCanvas):
-            parent.SetSize(width, height)
+            parent.SetClientSize(width, height)
         elif parent is not None:
             self.SetSize(width, height)
         else:

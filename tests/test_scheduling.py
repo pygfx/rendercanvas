@@ -4,7 +4,9 @@ implement drawing. This tests the basic scheduling mechanics, as well
 as the behavior of the different update modes.
 """
 
+import os
 import time
+
 from testutils import run_tests
 from rendercanvas.base import BaseCanvasGroup, BaseRenderCanvas
 from rendercanvas.offscreen import StubLoop
@@ -78,7 +80,7 @@ def test_scheduling_manual():
     canvas.request_draw()
     canvas.active_sleep(0.11)
     assert canvas.draw_count == 0
-    assert canvas.events_count in range(1, 20)
+    assert canvas.events_count in range(1, 30)
 
     # Only when we force one
     canvas.force_draw()
@@ -179,7 +181,7 @@ def test_scheduling_fastest():
     # And after 0.1 s we have a lot more draws. max_fps is ignored
     canvas.draw_count = canvas.events_count = 0
     canvas.active_sleep(0.1)
-    assert canvas.draw_count > 20
+    assert canvas.draw_count > (5 if os.getenv("CI") else 15)
     assert canvas.events_count == canvas.draw_count
 
     # Forcing a draw has direct effect

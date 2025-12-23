@@ -88,7 +88,6 @@ def test_offscreen_event_loop():
 
     # When run is called, the task is started, so the delay kicks in from
     # that moment, so we need to wait here for the 3d to resolve
-    # The delay starts from
     time.sleep(0.01)
     loop.run()
     assert 3 in ran  # call_later nonzero
