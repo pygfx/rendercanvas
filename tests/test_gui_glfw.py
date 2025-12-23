@@ -97,6 +97,8 @@ def test_glfw_canvas_del():
     run_briefly()
     assert loop_task.done()
 
+    aio_loop.close()
+
 
 shader_source = """
 @vertex
@@ -176,6 +178,8 @@ def test_glfw_canvas_render():
     assert not loop_task.done()
     run_briefly()
     assert loop_task.done()
+
+    aio_loop.close()
 
 
 def _get_draw_function(device, canvas):

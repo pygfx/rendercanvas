@@ -204,7 +204,14 @@ class CallLaterThread(threading.Thread):
                 try:
                     item.callback(*item.args)
                 except Exception as err:
-                    logger.error(f"Error in CallLaterThread callback: {err}")
+                    # This is not an exception from the callback, but from *scheduling* the callback.
+                    # So this very likely means that the main loop cannot schedule, e.g. because it was
+                    # closed in the mean time. We detect the cases that we know of and warn for others.
+                    msg = str(err)
+                    if "loop is closed" in msg or "run() has exited" in msg:
+                        pass  # asyncio and trio, respectively
+                    else:
+                        logger.warning(f"Error in CallLaterThread callback: {msg}")
 
             del item
 
@@ -325,7 +332,7 @@ def close_agen(agen):
         # If the next thing is an await, we get here.
         # Give a nicer error than the default "async generator ignored GeneratorExit"
         agen_name = name_asyncgen(agen)
-        logger.error(
+        logger.warning(
             f"Async generator {agen_name!r} awaited something during finalization, "
             "so we could not clean it up. Wrap it in 'async with aclosing(...):'",
         )

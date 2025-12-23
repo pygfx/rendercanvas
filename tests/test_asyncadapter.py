@@ -25,6 +25,7 @@ def test_sleep():
 
     loop.call_later(0.25, loop.stop)
     loop.run_forever()
+    loop.close()
 
     sleep_time1 = times[1] - times[0]
     sleep_time2 = times[2] - times[1]
@@ -58,6 +59,7 @@ def test_event():
 
     loop.call_later(0.25, loop.stop)
     loop.run_forever()
+    loop.close()
 
     sleep_time1 = times[1] - times[0]
     sleep_time2 = times[2] - times[1]

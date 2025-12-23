@@ -115,6 +115,18 @@ async def precise_sleep(delay):
             sleep = sys.modules[libname].sleep
             await sleep(delay)
 
+    # Note: At some point I thought that the precise sleep had a problem:
+    # consider having an interactive asyncio loop, e.g. in a notebook, and
+    # creating a rendecanvas AsyncioLoop. Consider a coroutine/task in that loop
+    # that does a 2 sec precise sleep and then does *something*. Now, if the
+    # loop is closed before these 2 sec expires, what happens when the loop is
+    # re-run? At first I thought that since the real (interactive) asyncio loop
+    # is still running, it would cause that *something* to happen. But this is
+    # not the case, because as soon as the rendercanvas loop stops, all
+    # co-routines are cancelled. So although the thread *is* able to schedule
+    # the event to be set (which the sleep is waiting for), the task is already
+    # gone.
+
 
 class Event:
     """Generic async event object. Works with trio, asyncio and rendercanvas-native."""
