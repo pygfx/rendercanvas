@@ -281,7 +281,7 @@ class WgpuContextToBitmap(WgpuContext):
 
         # (re)create downloaders
         self._downloaders[:] = [
-            ImageDownloader(config["device"], self.context_buffer_usage)
+            ImageDownloader(config["device"], self._context_buffer_usage)
             for _ in self._downloaders
         ]
 
