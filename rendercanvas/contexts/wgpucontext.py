@@ -126,7 +126,7 @@ class WgpuContext(BaseContext):
     def _get_current_texture(self):
         raise NotImplementedError()
 
-    def _rc_present(self) -> None:
+    def _rc_present(self, callback) -> None:
         """Hook for the canvas to present the rendered result.
 
         Present what has been drawn to the current texture, by compositing it to the
@@ -143,6 +143,8 @@ class WgpuContextToScreen(WgpuContext):
     """
 
     present_methods = ["screen"]
+
+    draw_must_be_in_native_animation_frame = True
 
     def __init__(self, present_info: dict):
         super().__init__(present_info)
@@ -318,23 +320,28 @@ class WgpuContextToBitmap(WgpuContext):
 
         # TODO: in some cases, like offscreen backend, we don't want to skip the first frame!
 
-        # Get bitmap from oldest downloader
-        bitmap = None
-        downloader = self._downloaders.pop(0)
-        try:
-            bitmap = downloader.get_bitmap()
-        finally:
-            self._downloaders.append(downloader)
+        # # Get bitmap from oldest downloader
+        # bitmap = None
+        # downloader = self._downloaders.pop(0)
+        # try:
+        #     bitmap = downloader.get_bitmap()
+        # finally:
+        #     self._downloaders.append(downloader)
+
+        def resolver(buf):
+            bitmap = downloader.get_bitmap()  # todo: read from mapped buffer instead? or have an awaitable that returns memory
+            if bitmap is None:
+                return {"method": "skip"}
+            else:
+                return {"method": "bitmap", "format": "rgba-u8", "data": bitmap}
 
         # Select new downloader
         downloader = self._downloaders[-1]
-        downloader.initiate_download(self._texture)
+        awaitable = downloader.initiate_download(self._texture).then(resolver)
 
-        self._drop_texture()
-        if bitmap is None:
-            return {"method": "skip"}
-        else:
-            return {"method": "bitmap", "format": "rgba-u8", "data": bitmap}
+        return {"method": "async", "awaitable": awaitable}
+
+        # downloader._awaitable
 
     def _rc_close(self):
         self._drop_texture()
@@ -372,6 +379,7 @@ class ImageDownloader:
         # Note: the buffer.map_async() method by default also does a flush, to hide a bug in wgpu-core (https://github.com/gfx-rs/wgpu/issues/5173).
         # That bug does not affect this use-case, so we use a special (undocumented :/) map-mode to prevent wgpu-py from doing its sync thing.
         self._awaitable = self._buffer.map_async("READ_NOSYNC", 0, nbytes)
+        return self._awaitable
 
     def _parse_texture_metadata(self, texture):
         size = texture.size

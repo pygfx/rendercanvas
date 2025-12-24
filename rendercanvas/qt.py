@@ -284,6 +284,7 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
 
         # Determine present method
         self._last_image = None
+        self._image_count = 0
         self._last_winid = None
         self._surface_ids = None
         if not present_method:
@@ -358,14 +359,9 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
             return super().paintEngine()
 
     def paintEvent(self, event):  # noqa: N802 - this is a Qt method
-        if self._present_to_screen:
-            self._draw_frame_and_present()
-        else:
-            self._draw_frame_and_present()  # TODO: probably should not call this here eventually
-
+        self._on_animation_frame()
+        if self._last_image is not None:
             image = self._last_image
-            if image is None:
-                return
 
             # Prep drawImage rects
             rect1 = QtCore.QRect(0, 0, image.width(), image.height())
@@ -414,7 +410,7 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
             methods["bitmap"] = {"formats": list(BITMAP_FORMAT_MAP.keys())}
         return methods
 
-    def _rc_request_draw(self):
+    def _rc_request_animation_frame(self):
         # Ask Qt to do a paint event
         QtWidgets.QWidget.update(self)
 
@@ -464,6 +460,7 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         qtformat = BITMAP_FORMAT_MAP[format]
         bytes_per_line = data.strides[0]
         self._last_image = QtGui.QImage(data, width, height, bytes_per_line, qtformat)
+        self._image_count += 1
 
     def _rc_set_logical_size(self, width, height):
         width, height = int(width), int(height)

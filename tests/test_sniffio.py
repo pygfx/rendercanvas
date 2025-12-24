@@ -35,9 +35,9 @@ class RealRenderCanvas(BaseRenderCanvas):
     def _rc_get_closed(self):
         return self._is_closed
 
-    def _rc_request_draw(self):
+    def _rc_request_animation_frame(self):
         loop = self._rc_canvas_group.get_loop()
-        loop.call_soon(self._draw_frame_and_present)
+        loop.call_soon(self._on_animation_frame)
 
 
 def get_sniffio_name():

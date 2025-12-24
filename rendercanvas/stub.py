@@ -68,7 +68,7 @@ class StubRenderCanvas(BaseRenderCanvas):
     Backends must call ``self._final_canvas_init()`` at the end of its
     ``__init__()``. This will set the canvas' logical size and title.
 
-    Backends must call ``self._draw_frame_and_present()`` to make the actual
+    Backends must call ``self._on_animation_frame()`` to make the actual
     draw. This should typically be done inside the backend's native draw event.
 
     Backends must call ``self._size_info.set_physical_size(width, height, native_pixel_ratio)``,
@@ -91,11 +91,11 @@ class StubRenderCanvas(BaseRenderCanvas):
     def _rc_get_present_methods(self):
         raise NotImplementedError()
 
-    def _rc_request_draw(self):
+    def _rc_request_animation_frame(self):
         pass
 
     def _rc_force_draw(self):
-        self._draw_frame_and_present()
+        self._on_animation_frame()
 
     def _rc_present_bitmap(self, *, data, format, **kwargs):
         raise NotImplementedError()
