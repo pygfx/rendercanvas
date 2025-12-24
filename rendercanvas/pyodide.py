@@ -440,16 +440,14 @@ class PyodideRenderCanvas(BaseRenderCanvas):
             },
         }
 
-    def _rc_request_draw(self):
-        window.requestAnimationFrame(
-            create_proxy(lambda _: self._draw_frame_and_present())
-        )
+    def _rc_request_animation_frame(self):
+        window.requestAnimationFrame(create_proxy(lambda _: self._on_animation_frame()))
 
     def _rc_force_draw(self):
         # Not very clean to do this, and not sure if it works in a browser;
         # you can draw all you want, but the browser compositer only uses the last frame, I expect.
         # But that's ok, since force-drawing is not recommended in general.
-        self._draw_frame_and_present()
+        self._on_animation_frame()
 
     def _rc_present_bitmap(self, **kwargs):
         data = kwargs.get("data")

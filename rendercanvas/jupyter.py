@@ -37,11 +37,11 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
         self._final_canvas_init()
 
     def get_frame(self):
-        # The _draw_frame_and_present() does the drawing and then calls
+        # The _on_animation_frame() does the drawing and then calls
         # present_context.present(), which calls our present() method.
         # The result is either a numpy array or None, and this matches
         # with what this method is expected to return.
-        self._draw_frame_and_present()
+        self._on_animation_frame()
         return self._last_image
 
     # %% Methods to implement RenderCanvas
@@ -61,7 +61,7 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
             }
         }
 
-    def _rc_request_draw(self):
+    def _rc_request_animation_frame(self):
         self._draw_request_time = time.perf_counter()
         RemoteFrameBuffer.request_draw(self)
 

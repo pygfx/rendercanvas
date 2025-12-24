@@ -267,7 +267,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
     def on_paint(self, event):
         dc = wx.PaintDC(self)  # needed for wx
         if not self._draw_lock:
-            self._draw_frame_and_present()
+            self._on_animation_frame()
         del dc
         event.Skip()
 
@@ -325,7 +325,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
             methods["bitmap"] = {"formats": ["rgba-u8"]}
         return methods
 
-    def _rc_request_draw(self):
+    def _rc_request_animation_frame(self):
         if self._draw_lock:
             return
         try:

@@ -283,6 +283,8 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         super().__init__(*args, **kwargs)
 
         # Determine present method
+        self._last_image = None
+        self._image_count = 0
         self._last_winid = None
         self._surface_ids = None
         if not present_method:
@@ -357,7 +359,20 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
             return super().paintEngine()
 
     def paintEvent(self, event):  # noqa: N802 - this is a Qt method
-        self._draw_frame_and_present()
+        self._on_animation_frame()
+        if self._last_image is not None:
+            image = self._last_image
+
+            # Prep drawImage rects
+            rect1 = QtCore.QRect(0, 0, image.width(), image.height())
+            rect2 = self.rect()
+
+            # Paint the image. Nearest neighbor interpolation, like the other backends.
+            painter = QtGui.QPainter(self)
+            painter.setRenderHints(painter.RenderHint.Antialiasing, False)
+            painter.setRenderHints(painter.RenderHint.SmoothPixmapTransform, False)
+            painter.drawImage(rect2, image, rect1)
+            painter.end()
 
     def update(self):
         # Bypass Qt's mechanics and request a draw so that the scheduling mechanics work as intended.
@@ -395,7 +410,7 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
             methods["bitmap"] = {"formats": list(BITMAP_FORMAT_MAP.keys())}
         return methods
 
-    def _rc_request_draw(self):
+    def _rc_request_animation_frame(self):
         # Ask Qt to do a paint event
         QtWidgets.QWidget.update(self)
 
@@ -444,18 +459,8 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         # Wrap the data in a QImage (no copy)
         qtformat = BITMAP_FORMAT_MAP[format]
         bytes_per_line = data.strides[0]
-        image = QtGui.QImage(data, width, height, bytes_per_line, qtformat)
-
-        # Prep drawImage rects
-        rect1 = QtCore.QRect(0, 0, width, height)
-        rect2 = self.rect()
-
-        # Paint the image. Nearest neighbor interpolation, like the other backends.
-        painter = QtGui.QPainter(self)
-        painter.setRenderHints(painter.RenderHint.Antialiasing, False)
-        painter.setRenderHints(painter.RenderHint.SmoothPixmapTransform, False)
-        painter.drawImage(rect2, image, rect1)
-        painter.end()
+        self._last_image = QtGui.QImage(data, width, height, bytes_per_line, qtformat)
+        self._image_count += 1
 
     def _rc_set_logical_size(self, width, height):
         width, height = int(width), int(height)
