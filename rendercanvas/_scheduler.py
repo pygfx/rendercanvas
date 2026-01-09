@@ -166,28 +166,31 @@ class Scheduler:
             if do_draw:
                 # We do a draw and wait for the full draw to complete, including
                 # the presentation (i.e. the 'consumption' of the frame), using
-                # an event. This async-wait does not do much for the 'screen'
-                # present method, but for bitmap presenting is makes a huge
-                # difference, because the CPU can do other things while the GPU
-                # is downloading the frame. Benchmarks with the simple cube
-                # example indicate that its over twice as fast as sync-waiting.
+                # an async-event. This async-wait does not do much for the
+                # 'screen' present method, but for bitmap presenting is makes a
+                # huge difference, because the CPU can do other things while the
+                # GPU is downloading the frame. Benchmarks with the simple cube
+                # example indicate that its about twice as fast as sync-waiting.
                 #
                 # We could play with the positioning of where we wait for the
                 # event. E.g. we could draw the current frame and *then* wait
                 # for the previous frame to be presented, before initiating the
-                # presentation of the current frame. Perhaps counterintuitively,
-                # for the cube example on my M1, this is *not* faster! A benefit
-                # of waiting for the presentation to be fully done before even
-                # processing the events for the next frame, is that the frame is
-                # as fresh as it can be, which means that for cases where the
-                # FPS is low because of a slow remote connection, the latency is
-                # minimized. There is a chance though, that for cases where
-                # drawing is relatively slow, allowing the draw earlier can
-                # improve the FPS somewhat. Interestingly, you only want this if
-                # the FPS is already not low, to avoid latency, but then the FPS
-                # is maybe already high enough ...
+                # presentation of the current frame. However, this does *not*
+                # seem to be faster! Tested on MacOS M1 and Windows with NVidia
+                # on the cube example.
+                #
+                # A benefit of waiting for the presentation to be fully done
+                # before even processing the events for the next frame, is that
+                # the frame is as fresh as it can be, which means that for cases
+                # where the FPS is low because of a slow remote connection, the
+                # latency is minimized.
+                #
+                # It is possible that for cases where drawing is relatively
+                # slow, allowing the draw earlier can improve the FPS somewhat.
+                # Interestingly, you only want this for relatively high FPS to
+                # avoid latency. But then the FPS is likely already high enough,
+                # so why bother.
 
-                # TODO: also try on other hardware whether this is fastest
                 self._ready_for_present = Event()
                 canvas._initiate_draw()
                 canvas._initiate_present()  # todo: this was split in two to allow waiting in between. Do we want to keep that option, or simplify the code?
