@@ -147,10 +147,7 @@ class BaseRenderCanvas:
         try:
             super().__init__(*args, **kwargs)
         except TypeError as err:
-            if (
-                sys.version_info >= (3, 11)
-                and "takes exactly one argument" in str(err)
-            ):
+            if sys.version_info >= (3, 11) and "takes exactly one argument" in str(err):
                 msg = "Instantiating a RenderCanvas with invalid "
                 if args and kwargs:
                     msg += f"args {args} and kwargs {kwargs}"
