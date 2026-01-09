@@ -126,7 +126,7 @@ class WgpuContext(BaseContext):
     def _get_current_texture(self):
         raise NotImplementedError()
 
-    def _rc_present(self, callback) -> None:
+    def _rc_present(self) -> None:
         """Hook for the canvas to present the rendered result.
 
         Present what has been drawn to the current texture, by compositing it to the
@@ -144,7 +144,7 @@ class WgpuContextToScreen(WgpuContext):
 
     present_methods = ["screen"]
 
-    draw_must_be_in_native_animation_frame = True
+    draw_must_be_in_animation_frame = True
 
     def __init__(self, present_info: dict):
         super().__init__(present_info)
@@ -202,6 +202,7 @@ class WgpuContextToBitmap(WgpuContext):
         # GPU more, because it would be busy mapping multiple buffers at the
         # same time. Let's leave the ring-mechanism in-place for now, so we can
         # experiment with it.
+        # TODO: refactor to just one downloader, making the code a bit simpler
         self._downloaders = [None]  # Put as many None's as you want buffers
 
     def _get_capabilities(self):
@@ -506,10 +507,10 @@ class ImageDownloader:
         # data.shape = -1
         # data = memoryview(data)
 
+        # TODO: can we pass the mapped data downstream without copying it, i.e. before unmapping the buffer? Saves another copy.
+
         # Since we use read_mapped(copy=False), we must unmap it *after* we've copied the data.
         self._buffer.unmap()
-
-        # Derive struct dtype from wgpu texture format
 
         # Represent as memory object to avoid numpy dependency
         # Equivalent: np.frombuffer(data, np.uint8).reshape(plain_shape)

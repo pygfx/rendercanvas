@@ -284,7 +284,6 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
 
         # Determine present method
         self._last_image = None
-        self._image_count = 0
         self._last_winid = None
         self._surface_ids = None
         if not present_method:
@@ -361,7 +360,7 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
     def paintEvent(self, event):  # noqa: N802 - this is a Qt method
         self._on_animation_frame()
         if self._last_image is not None:
-            image = self._last_image
+            image = self._last_image[0]
 
             # Prep drawImage rects
             rect1 = QtCore.QRect(0, 0, image.width(), image.height())
@@ -456,11 +455,13 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
 
         width, height = data.shape[1], data.shape[0]  # width, height
 
-        # Wrap the data in a QImage (no copy)
+        # Wrap the data in a QImage (no copy, so we need to keep a ref to data)
         qtformat = BITMAP_FORMAT_MAP[format]
         bytes_per_line = data.strides[0]
-        self._last_image = QtGui.QImage(data, width, height, bytes_per_line, qtformat)
-        self._image_count += 1
+        self._last_image = (
+            QtGui.QImage(data, width, height, bytes_per_line, qtformat),
+            data,
+        )
 
     def _rc_set_logical_size(self, width, height):
         width, height = int(width), int(height)

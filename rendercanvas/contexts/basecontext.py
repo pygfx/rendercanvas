@@ -13,10 +13,10 @@ class BaseContext:
     # Applies to WgpuContextToScreen, i.e. rendering to a Qt widget or a
     # browser's <canvas>. The main reason is the context.get_current_texture()
     # call that's done during the draw, which these systems need to align with
-    # the native drawing cycle. If this is False, the present step can be
-    # separated from the draw, which is important for e.g. the
-    # WgpuContextToBitmap because then it can async-download the bitmap.
-    draw_must_be_in_native_animation_frame = (
+    # the native drawing cycle. If this is False, the draw step can be separated
+    # from the present, which is important for the WgpuContextToBitmap to
+    # async-download the bitmap.
+    draw_must_be_in_animation_frame = (
         False  # TODO: actually this is just present_method == 'screen'!
     )
 
