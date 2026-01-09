@@ -357,7 +357,7 @@ class BaseRenderCanvas:
         if self._size_info["changed"]:
             self._size_info["changed"] = False
             # Keep context up-to-date
-            if self._canvas_context is not None:
+            if self._canvas_context is not None and all(i>=0 for i in self._size_info["physical_size"]):
                 self._canvas_context._rc_set_size_dict(self._size_info)
             # Keep event listeners up-to-date
             lsize = self._size_info["logical_size"]
