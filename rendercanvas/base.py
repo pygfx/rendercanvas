@@ -142,9 +142,10 @@ class BaseRenderCanvas:
         **kwargs,
     ):
         # Initialize superclass. Note that super() can be e.g. a QWidget, RemoteFrameBuffer, or object.
-        super_init = super().__init__
+        # When object and erroring, we *must* have an invalid argument. Detect that case
+        # so we can raise a more meaningful error message.
         try:
-            super_init(*args, **kwargs)
+            super().__init__(*args, **kwargs)
         except TypeError as err:
             if (
                 sys.version_info >= (3, 11)
