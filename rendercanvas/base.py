@@ -142,7 +142,25 @@ class BaseRenderCanvas:
         **kwargs,
     ):
         # Initialize superclass. Note that super() can be e.g. a QWidget, RemoteFrameBuffer, or object.
-        super().__init__(*args, **kwargs)
+        super_init = super().__init__
+        try:
+            super_init(*args, **kwargs)
+        except TypeError as err:
+            if (
+                sys.version_info >= (3, 11)
+                and "takes exactly one argument" in str(err)
+            ):
+                msg = "Instantiating a RenderCanvas with invalid "
+                if args and kwargs:
+                    msg += f"args {args} and kwargs {kwargs}"
+                elif args:
+                    msg += f"args {args}"
+                elif kwargs:
+                    msg += f"kwargs {kwargs}"
+                else:
+                    msg += "input."
+                err.add_note(msg)
+            raise
 
         # If this is a wrapper, no need to initialize furher
         if isinstance(self, WrapperRenderCanvas):
