@@ -168,7 +168,6 @@ class BaseRenderCanvas:
         # Events and scheduler
         self._events = EventEmitter()
         self.__scheduler = None
-        self.__last_present_result = None
         if self._rc_canvas_group is None:
             pass  # No scheduling, not even grouping
         elif self._rc_canvas_group.get_loop() is None:
@@ -474,8 +473,12 @@ class BaseRenderCanvas:
         """
         if self.__is_drawing:
             raise RuntimeError("Cannot force a draw while drawing.")
-        self._rc_force_draw()
-        # TODO: can I keep this?
+        if self._canvas_context.draw_must_be_in_animation_frame:
+            self._rc_force_draw()
+        else:
+            self._draw()
+            self._present(force_sync=True)
+            self._rc_force_draw()  # May or may not work
 
     def _initiate_draw(self):
         """Initiate drawing the next frame. Called from the scheduler.
@@ -491,7 +494,7 @@ class BaseRenderCanvas:
         The bitmap path:
 
             _initiate_draw()       ->  _draw()
-            _initiate_present()    ->  _present()  ->  _rc_request_animation_frame()  ->  ... ->  _on_animation_frame()  -> _finish_present()
+            _initiate_present()    ->  _present()  ->  ...  ->   finish_present()  ->  _rc_request_animation_frame()
         """
 
         if self._canvas_context is None:
@@ -525,6 +528,11 @@ class BaseRenderCanvas:
         Errors are logged to the "rendercanvas" logger.
         """
 
+        if (
+            not self._canvas_context.draw_must_be_in_animation_frame
+        ):  # TODO: mmm maybe also with BitmapContextToScreen?
+            return
+
         # Re-entrant drawing is problematic. Let's actively prevent it.
         if self.__is_drawing:
             return
@@ -532,13 +540,9 @@ class BaseRenderCanvas:
 
         try:
             if self._canvas_context:  # todo: and else?
-                if self._canvas_context.draw_must_be_in_animation_frame:
-                    # todo: can/should we detect whether a draw was already done, so we also draw if somehow this is called without draw being called first?
-                    self._draw()
-                    self._present()
-                    self._finish_present()
-                else:
-                    self._finish_present()
+                # todo: can/should we detect whether a draw was already done, so we also draw if somehow this is called without draw being called first?
+                self._draw()
+                self._present()
         finally:
             self.__is_drawing = False
 
@@ -566,11 +570,8 @@ class BaseRenderCanvas:
         with log_exception("Draw error"):
             self._draw_frame()
 
-    def _present(self):
-        """Present the frame. Can be direct or async.
-
-        Need a call to _finish_present to finalize the presentation.
-        """
+    def _present(self, *, force_sync=False):
+        """Present the frame. Can be direct or async."""
 
         # Start the presentation process.
         context = self._canvas_context
@@ -578,31 +579,20 @@ class BaseRenderCanvas:
             with log_exception("Present init error"):
                 # Note: we use canvas._canvas_context, so that if the draw_frame is a stub we also dont trigger creating a context.
                 # Note: if vsync is used, this call may wait a little (happens down at the level of the driver or OS)
-                result = context._rc_present()
+                result = context._rc_present(force_sync=force_sync)
 
                 if result["method"] == "async":
-
-                    def finish(result):
-                        self.__last_present_result = result
-                        self._rc_request_animation_frame()  # eventually calls _finish_present()
-
-                    awaitable = result["awaitable"]
-                    awaitable.then(finish)
+                    result["awaitable"].then(self._finish_present)
                 else:
-                    self.__last_present_result = result
-                    # todo: can we do some check so we know that _finish_present() is called?
+                    self._finish_present(result)
+
                 # result = context._rc_present(callback)
                 # if context.draw_must_be_in_animation_frame:
                 #     assert result is not None
                 #     finalize_present(result)
 
-    def _finish_present(self):
+    def _finish_present(self, result):
         """Wrap up the presentation process."""
-
-        result = self.__last_present_result
-        if result is None:
-            return
-        self.__last_present_result = None
 
         # Callback for the context to finalize the presentation.
         # This either gets called from _rc_present, either directly, or via a promise.then()

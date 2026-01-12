@@ -373,10 +373,10 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
             painter.drawImage(rect2, image, rect1)
             painter.end()
 
-    def update(self):
-        # Bypass Qt's mechanics and request a draw so that the scheduling mechanics work as intended.
-        # Eventually this will call _request_draw().
-        self.request_draw()
+    # def update(self):
+    #     # Bypass Qt's mechanics and request a draw so that the scheduling mechanics work as intended.
+    #     # Eventually this will call _request_draw().
+    #     self.request_draw()
 
     # %% Methods to implement RenderCanvas
 
@@ -420,7 +420,7 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
 
     def _rc_force_draw(self):
         # Call the paintEvent right now.
-        # This works on all platforms I tested, except on MacOS when drawing with the 'image' method.
+        # This works on all platforms I tested, except on MacOS when drawing with the 'bitmap' method.
         # Not sure why this is. It be made to work by calling processEvents() but that has all sorts
         # of nasty side-effects (e.g. the scheduler timer keeps ticking, invoking other draws, etc.).
         self.repaint()
@@ -462,6 +462,7 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
             QtGui.QImage(data, width, height, bytes_per_line, qtformat),
             data,
         )
+        self.update()  # schedule a repaint, so the QImage is rendered
 
     def _rc_set_logical_size(self, width, height):
         width, height = int(width), int(height)

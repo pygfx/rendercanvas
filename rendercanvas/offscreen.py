@@ -65,7 +65,8 @@ class OffscreenRenderCanvas(BaseRenderCanvas):
         pass
 
     def _rc_force_draw(self):
-        self._on_animation_frame()
+        pass
+        # self._on_animation_frame()
 
     def _rc_present_bitmap(self, *, data, format, **kwargs):
         self._last_image = data
@@ -119,7 +120,7 @@ class OffscreenRenderCanvas(BaseRenderCanvas):
         This object can be converted to a numpy array (without copying data)
         using ``np.asarray(arr)``.
         """
-        self._on_animation_frame()
+        self.force_draw()
         return self._last_image
 
 

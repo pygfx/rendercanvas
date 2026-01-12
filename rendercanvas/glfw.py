@@ -214,6 +214,7 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         self._is_minimized = False
         self._is_in_poll_events = False
         self._cursor_object = None
+        self._animation_frame_requested = False
 
         # Register callbacks. We may get notified too often, but that's
         # ok, they'll result in a single draw.
@@ -321,13 +322,18 @@ class GlfwRenderCanvas(BaseRenderCanvas):
     def _rc_get_present_methods(self):
         return get_glfw_present_methods(self._window)
 
+    def _do_animation_frame(self):
+        self._animation_frame_requested = False
+        self._on_animation_frame()
+
     def _rc_request_animation_frame(self):
-        if not self._is_minimized:
+        if not self._animation_frame_requested and not self._is_minimized:
+            self._animation_frame_requested = True
             loop = self._rc_canvas_group.get_loop()
-            loop.call_soon(self._on_animation_frame)
+            loop.call_soon(self._do_animation_frame)
 
     def _rc_force_draw(self):
-        self._on_animation_frame()
+        self._do_animation_frame()
 
     def _rc_present_bitmap(self, **kwargs):
         raise NotImplementedError()
@@ -402,7 +408,7 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         # updated in the draw callback are alive).
         if self._is_in_poll_events and not self._is_minimized:
             # todo: need also force draw?
-            self._on_animation_frame()
+            self._do_animation_frame()
 
     def _on_mouse_button(self, window, but, action, mods):
         # Map button being changed, which we use to update self._pointer_buttons.
