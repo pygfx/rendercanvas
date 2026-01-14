@@ -49,17 +49,19 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
     def _rc_gui_poll(self):
         pass
 
-    def _rc_get_present_methods(self):
-        # We stick to the two common formats, because these can be easily converted to png
-        # We assyme that srgb is used for  perceptive color mapping. This is the
+    def _rc_get_present_info(self, present_methods):
+        # We stick to the a format, because these can be easily converted to png.
+        # We assume that srgb is used for  perceptive color mapping. This is the
         # common colorspace for e.g. png and jpg images. Most tools (browsers
         # included) will blit the png to screen as-is, and a screen wants colors
         # in srgb.
-        return {
-            "bitmap": {
+        if "bitmap" in present_methods:
+            return {
+                "method": "bitmap",
                 "formats": ["rgba-u8"],
             }
-        }
+        else:
+            return None  # raises error
 
     def _rc_request_draw(self):
         self._draw_request_time = time.perf_counter()

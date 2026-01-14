@@ -427,18 +427,22 @@ class PyodideRenderCanvas(BaseRenderCanvas):
     def _rc_gui_poll(self):
         pass  # Nothing to be done; the JS loop is always running (and Pyodide wraps that in a global asyncio loop)
 
-    def _rc_get_present_methods(self):
-        return {
-            # Generic presentation
-            "bitmap": {
-                "formats": ["rgba-u8"],
-            },
+    def _rc_get_present_info(self, present_methods):
+        if "screen" in present_methods:
             # wgpu-specific presentation. The wgpu.backends.pyodide.GPUCanvasContext must be able to consume this.
-            "screen": {
+            return {
+                "method": "screen",
                 "platform": "browser",
                 "window": self._canvas_element,  # Just provide the canvas object
-            },
-        }
+            }
+        elif "bitmap" in present_methods:
+            # Generic presentation
+            return {
+                "method": "bitmap",
+                "formats": ["rgba-u8"],
+            }
+        else:
+            return None  # raises error
 
     def _rc_request_draw(self):
         window.requestAnimationFrame(

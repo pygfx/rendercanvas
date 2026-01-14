@@ -78,11 +78,10 @@ class MyOffscreenCanvas(rendercanvas.BaseRenderCanvas):
         self.frame_count = 0
         self._size_info.set_physical_size(100, 100, 1)
 
-    def _rc_get_present_methods(self):
+    def _rc_get_present_info(self, present_methods):
         return {
-            "bitmap": {
-                "formats": ["rgba-u8"],
-            }
+            "method": "bitmap",
+            "formats": ["rgba-u8"],
         }
 
     def _rc_present_bitmap(self, *, data, format, **kwargs):

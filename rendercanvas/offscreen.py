@@ -52,12 +52,14 @@ class OffscreenRenderCanvas(BaseRenderCanvas):
     def _rc_gui_poll(self):
         pass
 
-    def _rc_get_present_methods(self):
-        return {
-            "bitmap": {
+    def _rc_get_present_info(self, present_methods):
+        if "bitmap" in present_methods:
+            return {
+                "method": "bitmap",
                 "formats": self._present_formats,
             }
-        }
+        else:
+            return None  # raises error
 
     def _rc_request_draw(self):
         # Ok, cool, the scheduler want a draw. But we only draw when the user

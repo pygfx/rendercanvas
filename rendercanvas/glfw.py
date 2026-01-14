@@ -119,38 +119,38 @@ CURSOR_MAP = {
 }
 
 
-def get_glfw_present_methods(window):
+def get_glfw_present_info(window):
     if sys.platform.startswith("win"):
         return {
-            "screen": {
-                "platform": "windows",
-                "window": int(glfw.get_win32_window(window)),
-            }
+            "method": "screen",
+            "platform": "windows",
+            "window": int(glfw.get_win32_window(window)),
         }
+
     elif sys.platform.startswith("darwin"):
         return {
-            "screen": {
-                "platform": "cocoa",
-                "window": int(glfw.get_cocoa_window(window)),
-            }
+            "method": "screen",
+            "platform": "cocoa",
+            "window": int(glfw.get_cocoa_window(window)),
         }
+
     elif sys.platform.startswith("linux"):
         if api_is_wayland:
             return {
-                "screen": {
-                    "platform": "wayland",
-                    "window": int(glfw.get_wayland_window(window)),
-                    "display": int(glfw.get_wayland_display()),
-                }
+                "method": "screen",
+                "platform": "wayland",
+                "window": int(glfw.get_wayland_window(window)),
+                "display": int(glfw.get_wayland_display()),
             }
+
         else:
             return {
-                "screen": {
-                    "platform": "x11",
-                    "window": int(glfw.get_x11_window(window)),
-                    "display": int(glfw.get_x11_display()),
-                }
+                "method": "screen",
+                "platform": "x11",
+                "window": int(glfw.get_x11_window(window)),
+                "display": int(glfw.get_x11_display()),
             }
+
     else:
         raise RuntimeError(f"Cannot get GLFW surface info on {sys.platform}.")
 
@@ -192,14 +192,9 @@ class GlfwRenderCanvas(BaseRenderCanvas):
 
     _rc_canvas_group = GlfwCanvasGroup(loop)
 
-    def __init__(self, *args, present_method=None, **kwargs):
+    def __init__(self, *args, **kwargs):
         enable_glfw()
         super().__init__(*args, **kwargs)
-
-        if present_method == "bitmap":
-            logger.warning(
-                "Ignoring present_method 'bitmap'; glfw can only render to screen"
-            )
 
         # Set window hints
         glfw.window_hint(glfw.CLIENT_API, glfw.NO_API)
@@ -318,8 +313,11 @@ class GlfwRenderCanvas(BaseRenderCanvas):
             self._is_in_poll_events = False
         self._maybe_close()
 
-    def _rc_get_present_methods(self):
-        return get_glfw_present_methods(self._window)
+    def _rc_get_present_info(self, present_methods):
+        if "screen" in present_methods:
+            return get_glfw_present_info(self._window)
+        else:
+            return None  # raises error
 
     def _rc_request_draw(self):
         if not self._is_minimized:
