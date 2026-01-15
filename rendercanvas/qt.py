@@ -186,10 +186,6 @@ def enable_hidpi():
 # needed, so not our responsibility (some users may NOT want it set).
 enable_hidpi()
 
-_show_image_method_warning = (
-    "Qt falling back to offscreen rendering, which is less performant."
-)
-
 
 class CallerHelper(QtCore.QObject):
     """Little helper for _rc_call_soon_threadsafe"""
@@ -279,32 +275,13 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
 
     _rc_canvas_group = QtCanvasGroup(loop)
 
-    def __init__(self, *args, present_method=None, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         # Determine present method
         self._last_image = None
         self._last_winid = None
-        self._surface_ids = None
-        if not present_method:
-            self._present_to_screen = True
-            if SYSTEM_IS_WAYLAND:
-                # Trying to render to screen on Wayland segfaults. This might be because
-                # the "display" is not the real display id. We can tell Qt to use
-                # XWayland, so we can use the X11 path. This worked at some point,
-                # but later this resulted in a Rust panic. So, until this is sorted
-                # out, we fall back to rendering via an image.
-                self._present_to_screen = False
-        elif present_method == "screen":
-            self._present_to_screen = True
-        elif present_method == "bitmap":
-            global _show_image_method_warning
-
-            _show_image_method_warning = None
-            self._present_to_screen = False
-        else:
-            raise ValueError(f"Invalid present_method {present_method}")
-
+        self._present_to_screen = None
         self._is_closed = False
 
         self.setAutoFillBackground(False)
@@ -389,25 +366,48 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
             loop._app.sendPostedEvents()
             loop._app.processEvents()
 
-    def _rc_get_present_methods(self):
-        global _show_image_method_warning
+    def _rc_get_present_info(self, present_methods):
+        # Select what method the canvas prefers
+        preferred_method = "screen"
+        if SYSTEM_IS_WAYLAND:
+            # Trying to render to screen on Wayland segfaults. This might be because
+            # the "display" is not the real display id. We can tell Qt to use
+            # XWayland, so we can use the X11 path. This worked at some point,
+            # but later this resulted in a Rust panic. So, until this is sorted
+            # out, we fall back to rendering via an image.
+            preferred_method = "bitmap"
 
-        if self._present_to_screen and self._surface_ids is None:
-            self._surface_ids = self._get_surface_ids()
-            if self._surface_ids is None:
+        # Select method
+        the_method = None
+        if preferred_method in present_methods:
+            the_method = preferred_method
+        elif "screen" in present_methods:
+            the_method = "screen"
+        elif "bitmap" in present_methods:
+            the_method = "bitmap"
+
+        # Apply
+        if the_method == "screen":
+            surface_ids = self._get_surface_ids()
+            if surface_ids:
+                self._present_to_screen = True
+                return {"method": "screen", **surface_ids}
+            elif "bitmap" in present_methods:
                 self._present_to_screen = False
-
-        methods = {}
-        if self._present_to_screen:
-            methods["screen"] = self._surface_ids
-            # Now is a good time to set WA_PaintOnScreen. Note that it implies WA_NativeWindow.
-            self.setAttribute(WA_PaintOnScreen, self._present_to_screen)
+                return {
+                    "method": "bitmap",
+                    "formats": list(BITMAP_FORMAT_MAP.keys()),
+                }
+            else:
+                return None
+        elif the_method == "bitmap":
+            self._present_to_screen = False
+            return {
+                "method": "bitmap",
+                "formats": list(BITMAP_FORMAT_MAP.keys()),
+            }
         else:
-            if _show_image_method_warning:
-                logger.warning(_show_image_method_warning)
-                _show_image_method_warning = None
-            methods["bitmap"] = {"formats": list(BITMAP_FORMAT_MAP.keys())}
-        return methods
+            return None  # raises error
 
     def _rc_request_animation_frame(self):
         # Ask Qt to do a paint event

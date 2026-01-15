@@ -109,7 +109,7 @@ class BaseRenderCanvas:
             against screen tearing, but limits the fps. Default True.
         present_method (str | None): Override the method to present the rendered result.
             Can be set to 'screen' or 'bitmap'. Default None, which means that the method is selected
-            based on what the canvas supports and what the context prefers.
+            based on what the canvas and context support and prefer.
 
     """
 
@@ -151,6 +151,13 @@ class BaseRenderCanvas:
 
         # The vsync is not-so-elegantly strored on the canvas, and picked up by wgou's canvas contex.
         self._vsync = bool(vsync)
+
+        # Handle custom present method
+        if not (present_method is None or isinstance(present_method, str)):
+            raise TypeError(
+                f"The canvas present_method should be None or str, not {present_method!r}."
+            )
+        self._present_method = present_method
 
         # Variables and flags used internally
         self.__is_drawing = False
@@ -295,36 +302,34 @@ class BaseRenderCanvas:
                     f"Cannot get context for '{context_name}': a context of type '{ref_context_name}' is already set."
                 )
 
-        # Get available present methods.
+        # Get available present methods that the canvas can chose from.
+        present_methods = list(context_class.present_methods)
+        assert all(m in ("bitmap", "screen") for m in present_methods)  # sanity check
+        if self._present_method is not None:
+            if self._present_method not in present_methods:
+                raise RuntimeError(
+                    f"Explicitly requested present_method {self._present_method!r} is not available for {context_name}."
+                )
+            present_methods = [self._present_method]
+
+        # Let the canvas select the method and provide the corresponding info object.
         # Take care not to hold onto this dict, it may contain objects that we don't want to unnecessarily reference.
-        present_methods = self._rc_get_present_methods()
-        invalid_methods = set(present_methods.keys()) - {"screen", "bitmap"}
-        if invalid_methods:
-            logger.warning(
-                f"{self.__class__.__name__} reports unknown present methods {invalid_methods!r}"
-            )
-
-        # Select present_method
-        for present_method in context_class.present_methods:
-            assert present_method in ("bitmap", "screen")
-            if present_method in present_methods:
-                break
-        else:
+        info = self._rc_get_present_info(present_methods)
+        if info is None:
+            method_message = f"Methods {set(present_methods)!r} are not supported."
+            if len(present_methods) == 1:
+                method_message = f"Method {present_methods[0]!r} is not supported."
             raise TypeError(
-                f"Could not select present_method for context {context_name!r}: The methods {tuple(context_class.present_methods)!r} are not supported by the canvas backend {tuple(present_methods.keys())!r}."
+                f"Could not create {context_name!r} for {self.__class__.__name__!r}: {method_message}"
             )
+        if info.get("method") not in present_methods:
+            raise RuntimeError(
+                f"Present info method field ({info.get('method')!r}) is not part of the available methods {set(present_methods)}."
+            )
+        self._present_method = info["method"]
 
-        # Select present_info, and shape it into what the contexts need.
-        present_info = present_methods[present_method]
-        assert "method" not in present_info, (
-            "the field 'method' is reserved in present_methods dicts"
-        )
-        present_info = {
-            "method": present_method,
-            "source": self.__class__.__name__,
-            **present_info,
-            "vsync": self._vsync,
-        }
+        # Add some info
+        present_info = {**info, "source": self.__class__.__name__, "vsync": self._vsync}
 
         # Create the context
         self._canvas_context = context_class(present_info)
@@ -720,32 +725,38 @@ class BaseRenderCanvas:
         """Process native events."""
         pass
 
-    def _rc_get_present_methods(self):
-        """Get info on the present methods supported by this canvas.
+    def _rc_get_present_info(self, present_methods: list[str]) -> dict | None:
+        """Select a present method and return corresponding info dict.
 
-        Must return a small dict, used by the canvas-context to determine
-        how the rendered result will be presented to the canvas.
-        This method is only called once, when the context is created.
+        This method is only called once, when the context is created. The
+        subclass can use this moment to setup the internal state for the
+        selected presentation method.
 
-        Each supported method is represented by a field in the dict. The value
-        is another dict with information specific to that present method.
-        A canvas backend must implement at least either "screen" or "bitmap".
+        The ``present_methods`` represents the supported methods of the
+        canvas-context, possibly filtered by a user-specified method. A canvas
+        backend must implement at least the "screen" or "bitmap" method.
 
-        With method "screen", the context will render directly to a surface
-        representing the region on the screen. The sub-dict should have a ``window``
-        field containing the window id. On Linux there should also be ``platform``
-        field to distinguish between "wayland" and "x11", and a ``display`` field
-        for the display id. This information is used by wgpu to obtain the required
-        surface id. For Pyodide the required info is different.
+        The returned dict must contain at least the key 'method', which must
+        match one of the ``present_methods``. The remaining values represent
+        information required by the canvas-context to perform the presentation,
+        and optionally some (debug) meta data. The backend may optionally return
+        None to indicate that none of the ``present_methods`` is supported.
+
+        With method "screen", the context will render directly to a (virtual)
+        surface. The dict should have a ``window`` field containing the window
+        id. On Linux there should also be ``platform`` field to distinguish
+        between "wayland" and "x11", and a ``display`` field for the display id.
+        This information is used by wgpu to obtain the required surface id. For
+        Pyodide the 'window' field should be the ``<canvas>`` object.
 
         With method "bitmap", the context will present the result as an image
-        bitmap. For the `WgpuContext`, the result will first be rendered to texture,
-        and then downloaded to RAM. The sub-dict must have a
-        field 'formats': a list of supported image formats. Examples are "rgba-u8"
-        and "i-u8". A canvas must support at least "rgba-u8". Note that srgb mapping
+        bitmap. For the ``WgpuContext``, the result will first be rendered to a
+        texture, and then downloaded to RAM. The dict must have a field
+        'formats': a list of supported image formats. Examples are "rgba-u8" and
+        "i-u8". A canvas must support at least "rgba-u8". Note that srgb mapping
         is assumed to be handled by the canvas.
         """
-        raise NotImplementedError()
+        return None
 
     def _rc_request_animation_frame(self):
         """Request the GUI layer to perform a draw.

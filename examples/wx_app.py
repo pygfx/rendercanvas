@@ -18,7 +18,7 @@ class Example(wx.Frame):
         super().__init__(None, title="wgpu triangle embedded in a wx app")
         self.SetSize(640, 480)
 
-        # Using present_method 'image' because it reports "The surface texture is suboptimal"
+        # Using present_method 'bitmap' because it reports "The surface texture is suboptimal"
         self.canvas = RenderWidget(
             self, update_mode="continuous", present_method="bitmap"
         )

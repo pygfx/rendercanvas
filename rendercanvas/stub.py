@@ -88,8 +88,8 @@ class StubRenderCanvas(BaseRenderCanvas):
     def _rc_gui_poll(self):
         raise NotImplementedError()
 
-    def _rc_get_present_methods(self):
-        raise NotImplementedError()
+    def _rc_get_present_info(self, present_methods):
+        return None
 
     def _rc_request_animation_frame(self):
         pass

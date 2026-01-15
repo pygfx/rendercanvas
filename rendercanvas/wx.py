@@ -135,11 +135,6 @@ def enable_hidpi():
 enable_hidpi()
 
 
-_show_image_method_warning = (
-    "wx falling back to offscreen rendering, which is less performant."
-)
-
-
 class TimerWithCallback(wx.Timer):
     def __init__(self, callback):
         super().__init__()
@@ -213,26 +208,10 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
 
     _rc_canvas_group = WxCanvasGroup(loop)
 
-    def __init__(self, *args, present_method=None, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # Determine present method
-        self._surface_ids = None
-        if not present_method:
-            self._present_to_screen = True
-            if SYSTEM_IS_WAYLAND:
-                # See comments in same place in qt.py
-                self._present_to_screen = False
-        elif present_method == "screen":
-            self._present_to_screen = True
-        elif present_method == "bitmap":
-            global _show_image_method_warning
-
-            _show_image_method_warning = None
-            self._present_to_screen = False
-        else:
-            raise ValueError(f"Invalid present_method {present_method}")
-
+        self._present_to_screen = None
         self._is_closed = False
         self._pointer_inside = None
         self._is_pointer_inside_according_to_wx = False
@@ -302,28 +281,48 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         else:
             loop.process_wx_events()
 
-    def _rc_get_present_methods(self):
-        global _show_image_method_warning
+    def _rc_get_present_info(self, present_methods):
+        # Select what method the canvas prefers
+        preferred_method = "screen"
+        if SYSTEM_IS_WAYLAND:
+            preferred_method = "bitmap"  # also see qt.py
 
-        if self._present_to_screen and self._surface_ids is None:
+        # Select method
+        the_method = None
+        if preferred_method in present_methods:
+            the_method = preferred_method
+        elif "screen" in present_methods:
+            the_method = "screen"
+        elif "bitmap" in present_methods:
+            the_method = "bitmap"
+
+        # Apply
+        if the_method == "screen":
             # On wx it can take a little while for the handle to be available,
             # causing GetHandle() to be initially 0, so getting a surface will fail.
             etime = time.perf_counter() + 1
             while self.GetHandle() == 0 and time.perf_counter() < etime:
                 loop.process_wx_events()
-            self._surface_ids = self._get_surface_ids()
-            if self._surface_ids is None:
+            surface_ids = self._get_surface_ids()
+            if surface_ids:
+                self._present_to_screen = True
+                return {"method": "screen", **surface_ids}
+            elif "bitmap" in present_methods:
                 self._present_to_screen = False
-
-        methods = {}
-        if self._present_to_screen:
-            methods["screen"] = self._surface_ids
+                return {
+                    "method": "bitmap",
+                    "formats": ["rgba-u8"],
+                }
+            else:
+                return None
+        elif the_method == "bitmap":
+            self._present_to_screen = False
+            return {
+                "method": "bitmap",
+                "formats": ["rgba-u8"],
+            }
         else:
-            if _show_image_method_warning:
-                logger.warning(_show_image_method_warning)
-                _show_image_method_warning = None
-            methods["bitmap"] = {"formats": ["rgba-u8"]}
-        return methods
+            return None  # raises error
 
     def _rc_request_animation_frame(self):
         if self._draw_lock:
