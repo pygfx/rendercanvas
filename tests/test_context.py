@@ -30,6 +30,15 @@ def get_test_bitmap(width, height):
     return bitmap
 
 
+class CanvasWithExplicitPresentInfo(ManualOffscreenRenderCanvas):
+    def __init__(self, present_info):
+        super().__init__()
+        self._present_info = present_info
+
+    def _rc_get_present_info(self, present_methods):
+        return self._present_info
+
+
 class WgpuContextToBitmapLookLikeWgpuPy(WgpuContextToBitmap):
     """A WgpuContextToBitmap with an API like (the new) wgpu.GPUCanvasContext.
 
@@ -159,7 +168,7 @@ def test_context_selection_by_custom_class():
 
     with pytest.raises(TypeError) as err:
         canvas.get_context(MyContext2)
-    assert "not supported by the canvas backend" in str(err)
+    assert "is not supported" in str(err)
 
 
 def test_context_selection_fails():
@@ -179,6 +188,31 @@ def test_context_selection_fails():
     with pytest.raises(TypeError) as err:
         canvas.get_context("notacontexttype")
     assert "context type is invalid" in str(err)
+
+
+def test_context_canvas_decides():
+    # Method bitmap
+    canvas = CanvasWithExplicitPresentInfo({"method": "bitmap"})
+    c = canvas.get_context("bitmap")
+    assert c.__class__.__name__.endswith("Bitmap")
+
+    # Method screen (cannot do with this canvas)
+    # canvas = CanvasWithExplicitPresentInfo({"method": "screen"})
+    # c = canvas.get_context("bitmap")
+    # assert c.__class__.__name__.endswith("Screen")
+
+    # Nonexisting method
+    canvas = CanvasWithExplicitPresentInfo({"method": "foobar"})
+    with pytest.raises(RuntimeError) as err:
+        c = canvas.get_context("bitmap")
+    assert "is not part of the available methods" in str(err)
+
+    # No method
+    canvas = CanvasWithExplicitPresentInfo({})
+    with pytest.raises(RuntimeError) as err:
+        c = canvas.get_context("bitmap")
+    assert "is not part of the available methods" in str(err)
+    assert "None" in str(err)
 
 
 def test_bitmap_context():
