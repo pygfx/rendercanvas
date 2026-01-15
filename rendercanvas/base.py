@@ -21,6 +21,7 @@ from ._loop import BaseLoop
 from ._scheduler import Scheduler
 from ._coreutils import logger, log_exception
 
+
 if TYPE_CHECKING:
     from typing import Callable, Literal, Optional
 
@@ -477,73 +478,151 @@ class BaseRenderCanvas:
         """
         if self.__is_drawing:
             raise RuntimeError("Cannot force a draw while drawing.")
-        self._rc_force_draw()
+        if self._canvas_context.draw_must_be_in_animation_frame:
+            self._rc_force_draw()
+        else:
+            self._draw()
+            self._present(force_sync=True)
+            self._rc_force_draw()  # May or may not work
 
-    def _draw_frame_and_present(self):
-        """Draw the frame and present the result.
+    def _initiate_draw(self):
+        """Initiate drawing the next frame. Called from the scheduler.
 
-        Errors are logged to the "rendercanvas" logger. Should be called by the
-        subclass at its draw event.
+        This may draw right now, or schedule the drawing, depending on the context's requirements.
+        Together with `_initiate_present` the methods `_draw`, `_present` and `_finish_present` should all be called.
+
+        The screen path:
+
+            _initiate_draw()       ->  _rc_request_animation_frame()  ->  ...  ->  _on_animation_frame()  -> _draw()  _present()  _finish_present()
+            _initiate_present()    ->  noop
+
+        The bitmap path:
+
+            _initiate_draw()       ->  _draw()
+            _initiate_present()    ->  _present()  ->  ...  ->   finish_present()  ->  _rc_request_animation_frame()
         """
 
-        # Re-entrent drawing is problematic. Let's actively prevent it.
+        if self._canvas_context is None:
+            pass
+        elif self._canvas_context.draw_must_be_in_animation_frame:
+            self._rc_request_animation_frame()
+        else:
+            self._draw()
+
+    def _initiate_present(self):
+        """Initiate presenting the most recent drawn frame. Called from the scheduler.
+
+        See `_initiate_draw` for details.
+        """
+        if self._canvas_context is None:
+            pass
+        elif self._canvas_context.draw_must_be_in_animation_frame:
+            pass  # done from _on_animation_frame
+        else:
+            self._present()
+
+    def _draw_frame_and_present(self):
+        # Deprecated
+        raise RuntimeError("_draw_frame_and_present is renamed to _on_animation_frame")
+
+    def _on_animation_frame(self):
+        """Called by the backend in an animation frame.
+
+        From a scheduling perspective, when this is called, a frame is 'consumed' by the backend.
+
+        Errors are logged to the "rendercanvas" logger.
+        """
+
+        if (
+            not self._canvas_context.draw_must_be_in_animation_frame
+        ):  # TODO: mmm maybe also with BitmapContextToScreen?
+            return
+
+        # Re-entrant drawing is problematic. Let's actively prevent it.
         if self.__is_drawing:
             return
         self.__is_drawing = True
 
         try:
-            # This method is called from the GUI layer. It can be called from a
-            # "draw event" that we requested, or as part of a forced draw.
-
-            # Cannot draw to a closed canvas.
-            if self._rc_get_closed() or self._draw_frame is None:
-                return
-
-            # Note: could check whether the known physical size is > 0.
-            # But we also consider it the responsiblity of the backend to not
-            # draw if the size is zero. GUI toolkits like Qt do this correctly.
-            # I might get back on this once we also draw outside of the draw-event ...
-
-            # Make sure that the user-code is up-to-date with the current size before it draws.
-            self.__maybe_emit_resize_event()
-
-            # Emit before-draw
-            self._events.emit({"event_type": "before_draw"})
-
-            # Notify the scheduler
-            if self.__scheduler is not None:
-                frame_time = self.__scheduler.on_draw()
-
-                # Maybe update title
-                if frame_time is not None:
-                    self.__title_info["fps"] = f"{min(9999, 1 / frame_time):0.1f}"
-                    self.__title_info["ms"] = f"{min(9999, 1000 * frame_time):0.1f}"
-                    raw_title = self.__title_info["raw"]
-                    if "$fps" in raw_title or "$ms" in raw_title:
-                        self.set_title(self.__title_info["raw"])
-
-            # Perform the user-defined drawing code. When this errors,
-            # we should report the error and then continue, otherwise we crash.
-            with log_exception("Draw error"):
-                self._draw_frame()
-            with log_exception("Present error"):
-                # Note: we use canvas._canvas_context, so that if the draw_frame is a stub we also dont trigger creating a context.
-                # Note: if vsync is used, this call may wait a little (happens down at the level of the driver or OS)
-                context = self._canvas_context
-                if context:
-                    result = context._rc_present()
-                    method = result.pop("method")
-                    if method in ("skip", "screen"):
-                        pass  # nothing we need to do
-                    elif method == "fail":
-                        raise RuntimeError(result.get("message", "") or "present error")
-                    else:
-                        # Pass the result to the literal present method
-                        func = getattr(self, f"_rc_present_{method}")
-                        func(**result)
-
+            if self._canvas_context:  # todo: and else?
+                # todo: can/should we detect whether a draw was already done, so we also draw if somehow this is called without draw being called first?
+                self._draw()
+                self._present()
         finally:
             self.__is_drawing = False
+
+    def _draw(self):
+        """Draw the frame."""
+
+        # Cannot draw to a closed canvas.
+        # todo: these checks ... need also in present-xxx I suppose?
+        if self._rc_get_closed() or self._draw_frame is None:
+            return
+
+        # Note: could check whether the known physical size is > 0.
+        # But we also consider it the responsibility of the backend to not
+        # draw if the size is zero. GUI toolkits like Qt do this correctly.
+        # I might get back on this once we also draw outside of the draw-event ...
+
+        # Make sure that the user-code is up-to-date with the current size before it draws.
+        self.__maybe_emit_resize_event()
+
+        # Emit before-draw
+        self._events.emit({"event_type": "before_draw"})
+
+        # Perform the user-defined drawing code. When this errors,
+        # we should report the error and then continue, otherwise we crash.
+        with log_exception("Draw error"):
+            self._draw_frame()
+
+    def _present(self, *, force_sync=False):
+        """Present the frame. Can be direct or async."""
+
+        # Start the presentation process.
+        context = self._canvas_context
+        if context:
+            with log_exception("Present init error"):
+                # Note: we use canvas._canvas_context, so that if the draw_frame is a stub we also dont trigger creating a context.
+                # Note: if vsync is used, this call may wait a little (happens down at the level of the driver or OS)
+                result = context._rc_present(force_sync=force_sync)
+
+                if result["method"] == "async":
+                    result["awaitable"].then(self._finish_present)
+                else:
+                    self._finish_present(result)
+
+                # result = context._rc_present(callback)
+                # if context.draw_must_be_in_animation_frame:
+                #     assert result is not None
+                #     finalize_present(result)
+
+    def _finish_present(self, result):
+        """Wrap up the presentation process."""
+
+        # Callback for the context to finalize the presentation.
+        # This either gets called from _rc_present, either directly, or via a promise.then()
+        method = result.pop("method", "unknown")
+        with log_exception("Present finish error"):
+            if method in ("skip", "screen"):
+                pass  # nothing we need to do
+            elif method == "fail":
+                raise RuntimeError(result.get("message", "") or "present error")
+            else:
+                # Pass the result to the literal present method
+                func = getattr(self, f"_rc_present_{method}")
+                func(**result)
+
+        # Notify the scheduler
+        if self.__scheduler is not None:
+            frame_time = self.__scheduler.on_draw()
+
+            # Maybe update title
+            if frame_time is not None:
+                self.__title_info["fps"] = f"{min(9999, 1 / frame_time):0.1f}"
+                self.__title_info["ms"] = f"{min(9999, 1000 * frame_time):0.1f}"
+                raw_title = self.__title_info["raw"]
+                if "$fps" in raw_title or "$ms" in raw_title:
+                    self.set_title(self.__title_info["raw"])
 
     # %% Primary canvas management methods
 
@@ -679,11 +758,11 @@ class BaseRenderCanvas:
         """
         return None
 
-    def _rc_request_draw(self):
+    def _rc_request_animation_frame(self):
         """Request the GUI layer to perform a draw.
 
         Like requestAnimationFrame in JS. The draw must be performed
-        by calling ``_draw_frame_and_present()``. It's the responsibility
+        by calling ``_on_animation_frame()``. It's the responsibility
         for the canvas subclass to make sure that a draw is made as
         soon as possible.
 
@@ -696,9 +775,9 @@ class BaseRenderCanvas:
         """Perform a synchronous draw.
 
         When it returns, the draw must have been done.
-        The default implementation just calls ``_draw_frame_and_present()``.
+        The default implementation just calls ``_on_animation_frame()``.
         """
-        self._draw_frame_and_present()
+        self._on_animation_frame()
 
     def _rc_present_bitmap(self, *, data, format, **kwargs):
         """Present the given image bitmap. Only used with present_method 'bitmap'.

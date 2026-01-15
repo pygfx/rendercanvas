@@ -61,13 +61,14 @@ class OffscreenRenderCanvas(BaseRenderCanvas):
         else:
             return None  # raises error
 
-    def _rc_request_draw(self):
+    def _rc_request_animation_frame(self):
         # Ok, cool, the scheduler want a draw. But we only draw when the user
         # calls draw(), so that's how this canvas ticks.
         pass
 
     def _rc_force_draw(self):
-        self._draw_frame_and_present()
+        pass
+        # self._on_animation_frame()
 
     def _rc_present_bitmap(self, *, data, format, **kwargs):
         self._last_image = data
@@ -121,7 +122,7 @@ class OffscreenRenderCanvas(BaseRenderCanvas):
         This object can be converted to a numpy array (without copying data)
         using ``np.asarray(arr)``.
         """
-        self._draw_frame_and_present()
+        self.force_draw()
         return self._last_image
 
 

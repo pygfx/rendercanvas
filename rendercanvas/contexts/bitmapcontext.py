@@ -36,7 +36,7 @@ class BitmapContext(BaseContext):
         """Set the rendered bitmap image.
 
         Call this in the draw event. The bitmap must be an object that can be
-        conveted to a memoryview, like a numpy array. It must represent a 2D
+        converted to a memoryview, like a numpy array. It must represent a 2D
         image in either grayscale or rgba format, with uint8 values
         """
 
@@ -81,7 +81,7 @@ class BitmapContextToBitmap(BitmapContext):
         assert self._present_info["method"] == "bitmap"
         self._bitmap_and_format = None
 
-    def _rc_present(self):
+    def _rc_present(self, *, force_sync: bool = False):
         if self._bitmap_and_format is None:
             return {"method": "skip"}
 
@@ -130,7 +130,7 @@ class BitmapContextToScreen(BitmapContext):
         self._create_wgpu_py_context()  # sets self._wgpu_context
         self._wgpu_context_is_configured = False
 
-    def _rc_present(self):
+    def _rc_present(self, *, force_sync: bool = False):
         if self._bitmap_and_format is None:
             return {"method": "skip"}
 

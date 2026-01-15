@@ -9,6 +9,17 @@ class BaseContext:
     # Subclasses must define their present-methods that they support, in oder of preference
     present_methods = []
 
+    # Whether drawing must occur in the backend's native animation frame.
+    # Applies to WgpuContextToScreen, i.e. rendering to a Qt widget or a
+    # browser's <canvas>. The main reason is the context.get_current_texture()
+    # call that's done during the draw, which these systems need to align with
+    # the native drawing cycle. If this is False, the draw step can be separated
+    # from the present, which is important for the WgpuContextToBitmap to
+    # async-download the bitmap.
+    draw_must_be_in_animation_frame = (
+        False  # TODO: actually this is just present_method == 'screen'!
+    )
+
     def __init__(self, present_info: dict):
         self._present_info = present_info
         assert present_info["method"] in ("bitmap", "screen")  # internal sanity check
@@ -88,7 +99,7 @@ class BaseContext:
         """
         return self._size_info["native_pixel_ratio"] >= 2.0
 
-    def _rc_present(self):
+    def _rc_present(self, *, force_sync: bool = False):
         """Called by BaseRenderCanvas to collect the result. Subclasses must implement this.
 
         The implementation should always return a present-result dict, which
@@ -98,6 +109,11 @@ class BaseContext:
             * return ``{"method": "skip"}`` (special case).
         * If presentation could not be done for some reason:
             * return ``{"method": "fail", "message": "xx"}`` (special case).
+        * If the presenting is asynchronous:
+            * Return ``{"method": "async", "awaitable": xx}``
+            * The 'awaitable' has a ``then(callback)`` method.
+            * The callback will be called with the actual result dictionary.
+            * If ``force_sync`` is True, this is not allowed.
         * If ``present_method`` is "screen":
             * Render to screen using the present info.
             * Return ``{"method", "screen"}`` as confirmation.

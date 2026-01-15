@@ -42,17 +42,17 @@ class MyCanvas(BaseRenderCanvas):
         self.events_count += 1
         return super()._process_events()
 
-    def _draw_frame_and_present(self):
-        super()._draw_frame_and_present()
+    def _on_animation_frame(self):
+        super()._on_animation_frame()
         self.draw_count += 1
 
-    def _rc_request_draw(self):
+    def _rc_request_animation_frame(self):
         self._gui_draw_requested = True
 
     def draw_if_necessary(self):
         if self._gui_draw_requested:
             self._gui_draw_requested = False
-            self._draw_frame_and_present()
+            self._on_animation_frame()
 
     def active_sleep(self, delay):
         loop = self._rc_canvas_group.get_loop()  # <----
