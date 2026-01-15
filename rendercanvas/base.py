@@ -323,7 +323,7 @@ class BaseRenderCanvas:
             )
         if info.get("method") not in present_methods:
             raise RuntimeError(
-                f"Present info dict field 'method' must be present in available present_methods {set(present_methods)}."
+                f"Present info method field ({info.get('method')!r}) is not part of the available methods {set(present_methods)}."
             )
         self._present_method = info["method"]
 
