@@ -307,7 +307,7 @@ class BaseRenderCanvas:
         if self._present_method is not None:
             if self._present_method not in present_methods:
                 raise RuntimeError(
-                    f"Explicitly requested present_method {present_method!r} is not available for {context_name}."
+                    f"Explicitly requested present_method {self._present_method!r} is not available for {context_name}."
                 )
             present_methods = [self._present_method]
 
