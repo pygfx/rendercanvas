@@ -30,7 +30,7 @@ import rendercanvas.stub  # noqa: E402 - we use the stub backend to generate doc
 # -- Project information -----------------------------------------------------
 
 project = "rendercanvas"
-copyright = "2020-2025, Almar Klein, Korijn van Golen"
+copyright = "2020-2026, rendercanvas developers"
 author = "Almar Klein, Korijn van Golen"
 release = rendercanvas.__version__
 
