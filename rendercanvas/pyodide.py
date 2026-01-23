@@ -428,14 +428,18 @@ class PyodideRenderCanvas(BaseRenderCanvas):
         pass  # Nothing to be done; the JS loop is always running (and Pyodide wraps that in a global asyncio loop)
 
     def _rc_get_present_info(self, present_methods):
-        if "screen" in present_methods:
+        # Select method
+        the_method = present_methods[0]
+
+        # Apply
+        if the_method == "screen":
             # wgpu-specific presentation. The wgpu.backends.pyodide.GPUCanvasContext must be able to consume this.
             return {
                 "method": "screen",
                 "platform": "browser",
                 "window": self._canvas_element,  # Just provide the canvas object
             }
-        elif "bitmap" in present_methods:
+        elif the_method == "bitmap":
             # Generic presentation
             return {
                 "method": "bitmap",

@@ -670,8 +670,9 @@ class BaseRenderCanvas:
         selected presentation method.
 
         The ``present_methods`` represents the supported methods of the
-        canvas-context, possibly filtered by a user-specified method. A canvas
-        backend must implement at least the "screen" or "bitmap" method.
+        canvas-context, in order of context-preference, possibly filtered by a
+        user-specified method. A canvas backend must implement at least the
+        "screen" or "bitmap" method.
 
         The returned dict must contain at least the key 'method', which must
         match one of the ``present_methods``. The remaining values represent

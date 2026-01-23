@@ -352,23 +352,14 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
             loop._app.processEvents()
 
     def _rc_get_present_info(self, present_methods):
-        # Select what method the canvas prefers
-        preferred_method = "screen"
-        if SYSTEM_IS_WAYLAND:
+        # Select the method
+        the_method = present_methods[0]
+        if SYSTEM_IS_WAYLAND and "bitmap" in present_methods:
             # Trying to render to screen on Wayland segfaults. This might be because
             # the "display" is not the real display id. We can tell Qt to use
             # XWayland, so we can use the X11 path. This worked at some point,
             # but later this resulted in a Rust panic. So, until this is sorted
             # out, we fall back to rendering via an image.
-            preferred_method = "bitmap"
-
-        # Select method
-        the_method = None
-        if preferred_method in present_methods:
-            the_method = preferred_method
-        elif "screen" in present_methods:
-            the_method = "screen"
-        elif "bitmap" in present_methods:
             the_method = "bitmap"
 
         # Apply
