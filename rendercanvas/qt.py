@@ -411,11 +411,14 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
             loop.call_soon(self._rc_gui_poll)
 
     def _rc_force_paint(self):
-        # Call the paintEvent right now.
-        # This works on all platforms I tested, except on MacOS when drawing with the 'bitmap' method.
-        # Not sure why this is. It be made to work by calling processEvents() but that has all sorts
-        # of nasty side-effects (e.g. the scheduler timer keeps ticking, invoking other draws, etc.).
+        # Call the paintEvent right now. This works on all platforms I tested,
+        # except on MacOS when drawing with the 'bitmap' method. Not sure why
+        # this is. It can be made to work by calling processEvents(), although
+        # that can have side-effects (e.g. the scheduler timer keeps ticking,
+        # invoking other draws, etc.).
         self.repaint()
+        if sys.platform == "darwin" and not self._present_to_screen:
+            loop._app.processEvents()
 
     def _rc_present_bitmap(self, *, data, format, **kwargs):
         # Notes on performance:

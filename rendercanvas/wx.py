@@ -329,6 +329,8 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
     def _rc_force_paint(self):
         self.Refresh()
         self.Update()
+        if sys.platform == "darwin":
+            wx.Yield()
 
     def _rc_present_bitmap(self, *, data, format, **kwargs):
         # todo: we can easily support more formats here
