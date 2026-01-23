@@ -412,8 +412,6 @@ class ImageDownloader:
         self._awaitable.sync_wait()
         result = action.resolve()
 
-        if result is None:
-            breakpoint()
         assert result is not None
 
         if "data" in result:
