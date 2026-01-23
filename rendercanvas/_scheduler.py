@@ -51,6 +51,7 @@ class Scheduler:
         # ... = canvas.get_context() -> No, context creation should be lazy!
 
         # Scheduling variables
+        self.set_enabled(True)
         self.set_update_mode(update_mode, min_fps=min_fps, max_fps=max_fps)
         self._draw_requested = True  # Start with a draw in ondemand mode
         self._ready_for_present = None
@@ -92,6 +93,11 @@ class Scheduler:
                 )
             self._max_fps = max(1, float(max_fps))
 
+    def set_enabled(self, enabled: bool):
+        self._enabled = bool(enabled)
+        if self._enabled:
+            self._draw_requested = True
+
     def request_draw(self):
         """Request a new draw to be done. Only affects the 'ondemand' mode."""
         # Just set the flag
@@ -108,7 +114,9 @@ class Scheduler:
 
         while True:
             # Determine delay
-            if self._mode == "fastest" or self._max_fps <= 0:
+            if not self._enabled:
+                delay = 0.1
+            elif self._mode == "fastest" or self._max_fps <= 0:
                 delay = 0
             else:
                 delay = 1 / self._max_fps
@@ -129,7 +137,9 @@ class Scheduler:
 
             do_draw = False
 
-            if self._mode == "fastest":
+            if not self._enabled:
+                pass
+            elif self._mode == "fastest":
                 # fastest: draw continuously as fast as possible, ignoring fps settings.
                 do_draw = True
             elif self._mode == "continuous":
@@ -192,21 +202,27 @@ class Scheduler:
                 # so why bother.
 
                 self._ready_for_present = Event()
-                canvas._initiate_draw()
-                canvas._initiate_present()  # todo: this was split in two to allow waiting in between. Do we want to keep that option, or simplify the code?
-                await self._ready_for_present.wait()
-
-            del canvas
+                canvas._rc_request_draw()
+                del canvas
+                if self._ready_for_present:
+                    await self._ready_for_present.wait()
+            else:
+                del canvas
 
         # Note that when the canvas is closed, we may detect it here and break from the loop.
         # But the task may also be waiting for a draw to happen, or something else. In that case
         # this task will be cancelled when the loop ends. In any case, this is why this is not
         # a good place to detect the canvas getting closed, the loop does this.
 
-    def on_draw(self):
-        # Bookkeeping
+    def on_cancel_draw(self):
+        if self._ready_for_present is not None:
+            self._ready_for_present.set()
+            self._ready_for_present = None
+
+    def on_about_to_draw(self):
         self._draw_requested = False
 
+    def on_draw_done(self):
         # Keep ticking
         if self._ready_for_present is not None:
             self._ready_for_present.set()

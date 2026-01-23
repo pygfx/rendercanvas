@@ -31,6 +31,7 @@ class MyCanvas(BaseRenderCanvas):
         self.draw_count = 0
         self.events_count = 0
         self._gui_draw_requested = False
+        self._present_to_screen = True  # makes this test easier
 
     def _rc_close(self):
         self._closed = True
@@ -42,17 +43,17 @@ class MyCanvas(BaseRenderCanvas):
         self.events_count += 1
         return super()._process_events()
 
-    def _on_animation_frame(self):
-        super()._on_animation_frame()
+    def _time_to_paint(self):
+        super()._time_to_paint()
         self.draw_count += 1
 
-    def _rc_request_animation_frame(self):
+    def _rc_request_paint(self):
         self._gui_draw_requested = True
 
     def draw_if_necessary(self):
         if self._gui_draw_requested:
             self._gui_draw_requested = False
-            self._on_animation_frame()
+            self._time_to_paint()
 
     def active_sleep(self, delay):
         loop = self._rc_canvas_group.get_loop()  # <----

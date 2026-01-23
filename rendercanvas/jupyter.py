@@ -37,11 +37,11 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
         self._final_canvas_init()
 
     def get_frame(self):
-        # The _on_animation_frame() does the drawing and then calls
+        # The _time_to_draw() does the drawing and then calls
         # present_context.present(), which calls our present() method.
         # The result is either a numpy array or None, and this matches
         # with what this method is expected to return.
-        self._on_animation_frame()
+        self._time_to_draw()
         return self._last_image
 
     # %% Methods to implement RenderCanvas
@@ -63,17 +63,23 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
         else:
             return None  # raises error
 
-    def _rc_request_animation_frame(self):
+    def _rc_request_draw(self):
         self._draw_request_time = time.perf_counter()
-        RemoteFrameBuffer.request_draw(self)
+        RemoteFrameBuffer.request_draw(self)  # -> get_frame() -> _time_to_draw()
 
-    def _rc_force_draw(self):
+    def _rc_request_paint(self):
+        # We technically don't need to call _time_to_paint, because this backend only does bitmap mode.
+        # But in case the base backend will do something in _time_to_paint later, we behave nice.
+        loop = self._rc_canvas_group.get_loop()
+        loop.call_soon(self._time_to_paint)
+
+    def _rc_force_paint(self):
         # A bit hacky to use the internals of jupyter_rfb this way.
         # This pushes frames to the browser as long as the websocket
         # buffer permits it. It works!
         # But a better way would be `await canvas.wait_draw()`.
         # Todo: would also be nice if jupyter_rfb had a public api for this.
-        array = self.get_frame()
+        array = self._last_image
         if array is not None:
             self._rfb_send_frame(array)
 

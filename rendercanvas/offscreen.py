@@ -61,14 +61,17 @@ class OffscreenRenderCanvas(BaseRenderCanvas):
         else:
             return None  # raises error
 
-    def _rc_request_animation_frame(self):
+    def _rc_request_draw(self):
+        # No need to wait
+        self._time_to_draw()
+
+    def _rc_request_paint(self):
         # Ok, cool, the scheduler want a draw. But we only draw when the user
         # calls draw(), so that's how this canvas ticks.
         pass
 
-    def _rc_force_draw(self):
-        pass
-        # self._on_animation_frame()
+    def _rc_force_paint(self):
+        self._time_to_paint()
 
     def _rc_present_bitmap(self, *, data, format, **kwargs):
         self._last_image = data

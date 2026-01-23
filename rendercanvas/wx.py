@@ -211,7 +211,6 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self._present_to_screen = None
         self._is_closed = False
         self._pointer_inside = None
         self._is_pointer_inside_according_to_wx = False
@@ -246,7 +245,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
     def on_paint(self, event):
         dc = wx.PaintDC(self)  # needed for wx
         if not self._draw_lock:
-            self._on_animation_frame()
+            self._time_to_paint()
         del dc
         event.Skip()
 
@@ -305,10 +304,8 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
                 loop.process_wx_events()
             surface_ids = self._get_surface_ids()
             if surface_ids:
-                self._present_to_screen = True
                 return {"method": "screen", **surface_ids}
             elif "bitmap" in present_methods:
-                self._present_to_screen = False
                 return {
                     "method": "bitmap",
                     "formats": ["rgba-u8"],
@@ -316,7 +313,6 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
             else:
                 return None
         elif the_method == "bitmap":
-            self._present_to_screen = False
             return {
                 "method": "bitmap",
                 "formats": ["rgba-u8"],
@@ -324,7 +320,10 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         else:
             return None  # raises error
 
-    def _rc_request_animation_frame(self):
+    def _rc_request_draw(self):
+        self._time_to_draw()
+
+    def _rc_request_paint(self):
         if self._draw_lock:
             return
         try:
@@ -332,7 +331,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         except Exception:
             pass  # avoid errors when window no longer lives
 
-    def _rc_force_draw(self):
+    def _rc_force_paint(self):
         self.Refresh()
         self.Update()
 

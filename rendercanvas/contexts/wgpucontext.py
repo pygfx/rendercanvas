@@ -145,8 +145,6 @@ class WgpuContextToScreen(WgpuContext):
 
     present_methods = ["screen"]
 
-    draw_must_be_in_animation_frame = True
-
     def __init__(self, present_info: dict):
         super().__init__(present_info)
         assert self._present_info["method"] == "screen"
@@ -300,16 +298,16 @@ class WgpuContextToBitmap(WgpuContext):
         # * raise an error
         # Right now we return the existing texture, so user can retrieve it in different render passes that write to the same frame.
 
-        if self._texture is None:
-            width, height = self.physical_size
-            width, height = max(width, 1), max(height, 1)
+        width, height = self.physical_size
+        need_texture_size = max(width, 1), max(height, 1), 1
 
+        if self._texture is None or self._texture.size != need_texture_size:
             # Note that the label 'present' is used by read_texture() to determine
             # that it can use a shared copy buffer.
             device = self._config["device"]
             self._texture = device.create_texture(
                 label="present",
-                size=(width, height, 1),
+                size=need_texture_size,
                 format=self._config["format"],
                 usage=self._config["usage"] | self._context_texture_usage,
             )
@@ -358,7 +356,7 @@ class ImageDownloader:
         self._action = None
         self._time_since_size_ok = 0
 
-    def initiate_download(self, texture):
+    def _get_awaitable_for_download(self, texture):
         # Check state
         if self._action is not None and self._action.is_pending():
             map_state = "none"
@@ -381,12 +379,16 @@ class ImageDownloader:
         # That bug does not affect this use-case, so we use a special (undocumented :/) map-mode to prevent wgpu-py from doing its sync thing.
         awaitable = self._buffer.map_async("READ_NOSYNC", 0, nbytes)
 
-        # When the buffer maps, we continue the download/present action
-        awaitable.then(action.resolve)
-
         self._action = action
         self._awaitable = awaitable
-        return action
+
+    def initiate_download(self, texture):
+        self._get_awaitable_for_download(texture)
+
+        # When the buffer maps, we continue the download/present action
+        self._awaitable.then(self._action.resolve)
+
+        return self._action
 
     def do_sync_download(self, texture):
         # First clear any pending downloads
@@ -399,7 +401,7 @@ class ImageDownloader:
                 self._buffer.unmap()
 
         # Start a fresh download
-        self.initiate_download(texture)
+        self._get_awaitable_for_download(texture)
 
         # With a fresh action
         self._action.cancel()
@@ -410,6 +412,8 @@ class ImageDownloader:
         self._awaitable.sync_wait()
         result = action.resolve()
 
+        if result is None:
+            breakpoint()
         assert result is not None
 
         if "data" in result:
@@ -558,7 +562,6 @@ class AsyncImageDownloadAction:
         plain_stride = self._plain_stride
         padded_stride = self._padded_stride
         size = self._texture_size
-        nbytes = self.nbytes
         plain_shape = (size[1], size[0], nchannels)
 
         # Download from mappable buffer
@@ -573,7 +576,8 @@ class AsyncImageDownloadAction:
         # Copy the data
         if padded_stride > plain_stride:
             # Copy per row
-            data = memoryview(bytearray(nbytes)).cast(mapped_data.format)
+            nbytes_clean = plain_shape[0] * plain_shape[1] * plain_shape[2]
+            data = memoryview(bytearray(nbytes_clean)).cast(mapped_data.format)
             i_start = 0
             for i in range(size[1]):
                 row = mapped_data[i * padded_stride : i * padded_stride + plain_stride]

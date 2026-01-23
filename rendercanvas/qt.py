@@ -36,6 +36,7 @@ if libname:
         WA_PaintOnScreen = QtCore.Qt.WidgetAttribute.WA_PaintOnScreen
         WA_DeleteOnClose = QtCore.Qt.WidgetAttribute.WA_DeleteOnClose
         PreciseTimer = QtCore.Qt.TimerType.PreciseTimer
+        WindowState = QtCore.Qt.WindowState
         FocusPolicy = QtCore.Qt.FocusPolicy
         CursorShape = QtCore.Qt.CursorShape
         WinIdChange = QtCore.QEvent.Type.WinIdChange
@@ -50,6 +51,7 @@ if libname:
         WA_PaintOnScreen = QtCore.Qt.WA_PaintOnScreen
         WA_DeleteOnClose = QtCore.Qt.WA_DeleteOnClose
         PreciseTimer = QtCore.Qt.PreciseTimer
+        WindowState = QtCore.Qt
         FocusPolicy = QtCore.Qt
         CursorShape = QtCore.Qt
         WinIdChange = QtCore.QEvent.WinIdChange
@@ -281,7 +283,6 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         # Determine present method
         self._last_image = None
         self._last_winid = None
-        self._present_to_screen = None
         self._is_closed = False
 
         self.setAutoFillBackground(False)
@@ -335,7 +336,7 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
             return super().paintEngine()
 
     def paintEvent(self, event):  # noqa: N802 - this is a Qt method
-        self._on_animation_frame()
+        self._time_to_paint()
         if self._last_image is not None:
             image = self._last_image[0]
 
@@ -390,10 +391,8 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         if the_method == "screen":
             surface_ids = self._get_surface_ids()
             if surface_ids:
-                self._present_to_screen = True
                 return {"method": "screen", **surface_ids}
             elif "bitmap" in present_methods:
-                self._present_to_screen = False
                 return {
                     "method": "bitmap",
                     "formats": list(BITMAP_FORMAT_MAP.keys()),
@@ -401,7 +400,6 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
             else:
                 return None
         elif the_method == "bitmap":
-            self._present_to_screen = False
             return {
                 "method": "bitmap",
                 "formats": list(BITMAP_FORMAT_MAP.keys()),
@@ -409,7 +407,10 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         else:
             return None  # raises error
 
-    def _rc_request_animation_frame(self):
+    def _rc_request_draw(self):
+        self._time_to_draw()
+
+    def _rc_request_paint(self):
         # Ask Qt to do a paint event
         QtWidgets.QWidget.update(self)
 
@@ -418,7 +419,7 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         if not isinstance(loop, QtLoop):
             loop.call_soon(self._rc_gui_poll)
 
-    def _rc_force_draw(self):
+    def _rc_force_paint(self):
         # Call the paintEvent right now.
         # This works on all platforms I tested, except on MacOS when drawing with the 'bitmap' method.
         # Not sure why this is. It be made to work by calling processEvents() but that has all sorts
@@ -680,6 +681,19 @@ class QRenderCanvas(WrapperRenderCanvas, QtWidgets.QWidget):
 
     def closeEvent(self, event):  # noqa: N802
         self._subwidget.closeEvent(event)
+
+    def changeEvent(self, event):  # noqa: N802
+        # Pause rendering when minimized. Note that it is about impossible to
+        # detect this from the widget itself, let alone other ways in which the
+        # widget becomes invisible, such as in a non-active tab, behind the
+        # window of another application, etc.
+        # So we keep this implementation minimal, and leave it to the end-user if more sophisticated methods are needed.
+        # Note that for present-method 'screen', this is not really needed, because Qt does not paint (i.e. animation frame)
+        # when hidden. So this is mainly for when 'bitmap' mode is used.
+        if event.type().name == "WindowStateChange":
+            minimized = self.windowState() & WindowState.WindowMinimized
+            self._subwidget._set_visible(not minimized)
+        return super().changeEvent(event)
 
 
 # Make available under a name that is the same for all gui backends

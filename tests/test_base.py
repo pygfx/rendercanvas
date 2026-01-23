@@ -43,10 +43,10 @@ def test_canvas_logging(caplog):
 
     canvas = CanvasThatRaisesErrorsDuringDrawing()
 
-    canvas._on_animation_frame()  # prints traceback
-    canvas._on_animation_frame()  # prints short logs ...
-    canvas._on_animation_frame()
-    canvas._on_animation_frame()
+    canvas.force_draw()  # prints traceback
+    canvas.force_draw()  # prints short logs ...
+    canvas.force_draw()
+    canvas.force_draw()
 
     text = caplog.text
     assert text.count("bar_method") == 2  # one traceback => 2 mentions
@@ -58,10 +58,10 @@ def test_canvas_logging(caplog):
     assert text.count("spam_method") == 0
     assert text.count("intended-fail") == 0
 
-    canvas._on_animation_frame()  # prints traceback
-    canvas._on_animation_frame()  # prints short logs ...
-    canvas._on_animation_frame()
-    canvas._on_animation_frame()
+    canvas.force_draw()  # prints traceback
+    canvas.force_draw()  # prints short logs ...
+    canvas.force_draw()
+    canvas.force_draw()
 
     text = caplog.text
     assert text.count("bar_method") == 2  # one traceback => 2 mentions
@@ -99,10 +99,10 @@ def test_run_bare_canvas():
     #     canvas = RenderCanvas()
     #     loop.run()
     #
-    # Note: loop.run() calls _on_animation_frame() in event loop.
+    # Note: loop.run() calls _time_to_draw() in event loop.
 
     canvas = MyOffscreenCanvas()
-    canvas._on_animation_frame()
+    canvas.force_draw()
 
 
 @mark.skipif(not can_use_wgpu_lib, reason="Needs wgpu lib")

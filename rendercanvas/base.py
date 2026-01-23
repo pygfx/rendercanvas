@@ -161,11 +161,11 @@ class BaseRenderCanvas:
                 err.add_note(msg)
             raise
 
-        # If this is a wrapper, no need to initialize furher
+        # If this is a wrapper, no need to initialize further
         if isinstance(self, WrapperRenderCanvas):
             return
 
-        # The vsync is not-so-elegantly strored on the canvas, and picked up by wgou's canvas contex.
+        # The vsync is not-so-elegantly stored on the canvas, and picked up by wgou's canvas contex.
         self._vsync = bool(vsync)
 
         # Handle custom present method
@@ -174,6 +174,7 @@ class BaseRenderCanvas:
                 f"The canvas present_method should be None or str, not {present_method!r}."
             )
         self._present_method = present_method
+        self._present_to_screen: bool | None = None  # set in .get_context()
 
         # Variables and flags used internally
         self.__is_drawing = False
@@ -342,7 +343,7 @@ class BaseRenderCanvas:
             raise RuntimeError(
                 f"Present info method field ({info.get('method')!r}) is not part of the available methods {set(present_methods)}."
             )
-        self._present_method = info["method"]
+        self._present_to_screen = info["method"] == "screen"
 
         # Add some info
         present_info = {**info, "source": self.__class__.__name__, "vsync": self._vsync}
@@ -494,64 +495,62 @@ class BaseRenderCanvas:
         """
         if self.__is_drawing:
             raise RuntimeError("Cannot force a draw while drawing.")
-        if self._canvas_context.draw_must_be_in_animation_frame:
-            self._rc_force_draw()
+        if self._present_to_screen:
+            self._rc_force_paint()
         else:
             self._draw()
             self._present(force_sync=True)
-            self._rc_force_draw()  # May or may not work
+            self._rc_force_paint()  # May or may not work
 
-    def _initiate_draw(self):
-        """Initiate drawing the next frame. Called from the scheduler.
+    def _time_to_draw(self):
+        """It's time to draw!
 
-        This may draw right now, or schedule the drawing, depending on the context's requirements.
-        Together with `_initiate_present` the methods `_draw`, `_present` and `_finish_present` should all be called.
+        To get here, ``_rc_request_draw()``  was probably called first:
 
-        The screen path:
+            _rc_request_draw()  ->  ...  ->  _time_to_draw()
 
-            _initiate_draw()       ->  _rc_request_animation_frame()  ->  ...  ->  _on_animation_frame()  -> _draw()  _present()  _finish_present()
-            _initiate_present()    ->  noop
+        The drawing happens asynchronously, and follows a different path for the different present methods.
 
-        The bitmap path:
+        For the 'screen' method:
 
-            _initiate_draw()       ->  _draw()
-            _initiate_present()    ->  _present()  ->  ...  ->   finish_present()  ->  _rc_request_animation_frame()
+            _rc_request_paint()  ->  ...  ->  _time_to_paint()  ->  _draw()  _present()  _finish_present()
+
+        For the 'bitmap' method:
+
+            _draw()  _present()  ->  ...  ->   finish_present()  ->  _rc_request_paint()
         """
 
-        if self._canvas_context is None:
-            pass
-        elif self._canvas_context.draw_must_be_in_animation_frame:
-            self._rc_request_animation_frame()
+        # If we get here, this was most likely because the scheduler called _rc_request_draw().
+        # The responsibility is to follow one of the paths above, and make sure that we call the scheduler's on_cancel_draw(), or on_about_to_draw() and on_draw_done().
+
+        # TODO: process events here!
+
+        if self._present_to_screen is None:
+            if self.__scheduler is not None:
+                self.__scheduler.on_cancel_draw()
+        elif self._present_to_screen:
+            self._rc_request_paint()
         else:
             self._draw()
-
-    def _initiate_present(self):
-        """Initiate presenting the most recent drawn frame. Called from the scheduler.
-
-        See `_initiate_draw` for details.
-        """
-        if self._canvas_context is None:
-            pass
-        elif self._canvas_context.draw_must_be_in_animation_frame:
-            pass  # done from _on_animation_frame
-        else:
             self._present()
 
     def _draw_frame_and_present(self):
         # Deprecated
-        raise RuntimeError("_draw_frame_and_present is renamed to _on_animation_frame")
+        raise RuntimeError(
+            "_draw_frame_and_present is removed in favor of _time_to_draw and _time_to_paint"
+        )
 
-    def _on_animation_frame(self):
-        """Called by the backend in an animation frame.
+    def _time_to_paint(self):
+        """Callback for _rc_request_paint.
 
+        This should be called inside the backend's native 'paint event' a.k.a. 'animation frame'.
         From a scheduling perspective, when this is called, a frame is 'consumed' by the backend.
 
         Errors are logged to the "rendercanvas" logger.
         """
 
-        if (
-            not self._canvas_context.draw_must_be_in_animation_frame
-        ):  # TODO: mmm maybe also with BitmapContextToScreen?
+        # For bitmap present, this is a no-op
+        if not self._present_to_screen:
             return
 
         # Re-entrant drawing is problematic. Let's actively prevent it.
@@ -560,19 +559,23 @@ class BaseRenderCanvas:
         self.__is_drawing = True
 
         try:
-            if self._canvas_context:  # todo: and else?
-                # todo: can/should we detect whether a draw was already done, so we also draw if somehow this is called without draw being called first?
-                self._draw()
-                self._present()
+            # todo: can/should we detect whether a draw was already done, so we also draw if somehow this is called without draw being called first?
+            self._draw()
+            self._present()
         finally:
             self.__is_drawing = False
 
     def _draw(self):
         """Draw the frame."""
 
+        if self.__scheduler is not None:
+            self.__scheduler.on_about_to_draw()
+
         # Cannot draw to a closed canvas.
         # todo: these checks ... need also in present-xxx I suppose?
         if self._rc_get_closed() or self._draw_frame is None:
+            if self.__scheduler is not None:
+                self.__scheduler.on_cancel_draw()
             return
 
         # Note: could check whether the known physical size is > 0.
@@ -596,19 +599,25 @@ class BaseRenderCanvas:
 
         # Start the presentation process.
         context = self._canvas_context
-        if context:
+        if context is None:
+            if self.__scheduler is not None:
+                self.__scheduler.on_cancel_draw()
+        else:
             with log_exception("Present init error"):
                 # Note: we use canvas._canvas_context, so that if the draw_frame is a stub we also dont trigger creating a context.
                 # Note: if vsync is used, this call may wait a little (happens down at the level of the driver or OS)
                 result = context._rc_present(force_sync=force_sync)
 
                 if result["method"] == "async":
+                    if force_sync:
+                        breakpoint()
+                    assert not force_sync
                     result["awaitable"].then(self._finish_present)
                 else:
                     self._finish_present(result)
 
                 # result = context._rc_present(callback)
-                # if context.draw_must_be_in_animation_frame:
+                # if self._present_to_screen:
                 #     assert result is not None
                 #     finalize_present(result)
 
@@ -630,7 +639,7 @@ class BaseRenderCanvas:
 
         # Notify the scheduler
         if self.__scheduler is not None:
-            frame_time = self.__scheduler.on_draw()
+            frame_time = self.__scheduler.on_draw_done()
 
             # Maybe update title
             if frame_time is not None:
@@ -639,6 +648,16 @@ class BaseRenderCanvas:
                 raw_title = self.__title_info["raw"]
                 if "$fps" in raw_title or "$ms" in raw_title:
                     self.set_title(self.__title_info["raw"])
+
+    def _set_visible(self, visible: bool):
+        """Set whether the canvas is visible or not.
+
+        This is meant for the backend to automatically enable/disable
+        the rendering when the canvas is e.g. minimized or otherwise invisible.
+        If not visible, frames are not rendered, but events are still processed.
+        """
+        if self.__scheduler is not None:
+            self.__scheduler.set_enabled(visible)
 
     # %% Primary canvas management methods
 
@@ -774,26 +793,47 @@ class BaseRenderCanvas:
         """
         return None
 
-    def _rc_request_animation_frame(self):
-        """Request the GUI layer to perform a draw.
+    def _rc_request_draw(self):
+        """Request the backend to call ``_time_to_draw()``.
 
-        Like requestAnimationFrame in JS. The draw must be performed
-        by calling ``_on_animation_frame()``. It's the responsibility
-        for the canvas subclass to make sure that a draw is made as
-        soon as possible.
+        The backend must call ``_time_to_draw`` as soon as it's ready for the
+        next frame. It is allowed to call it directly (rather than scheduling
+        it). It can also be called later, but it must be called eventually,
+        otherwise it will halt the rendering.
 
-        The default implementation does nothing, which is equivalent to waiting
-        for a forced draw or a draw invoked by the GUI system.
+        This functionality allows the backend to throttle the frame rate. For
+        instance, backends that implement 'remote' rendering can allow new
+        frames based on the number of in-flight frames and downstream
+        throughput.
+        """
+        self._time_to_draw()  # Simple default
+
+    def _rc_request_paint(self):
+        """Request the backend to do a paint, and call ``_time_to_paint()``.
+
+        The backend must schedule ``_time_to_paint`` to be called as soon as
+        possible, but (if applicable) it must be in the native animation frame,
+        a.k.a. draw event. This function is analog to ``requestAnimationFrame``
+        in JavaScript. In any case, inside ``_time_to_paint()`` a call like
+        ``context.get_current_texture()`` should be allowed.
+
+        When the present-method is 'screen', this method is called to initiate a
+        draw. When the present-method is 'bitmap', it is called when the draw
+        (and present) is completed, so the native system can repaint with the
+        latest rendered frame.
+
+        If the implementation of this method does nothing, it is equivalent to
+        waiting for a forced draw or a draw invoked by the GUI system.
         """
         pass
 
-    def _rc_force_draw(self):
-        """Perform a synchronous draw.
+    def _rc_force_paint(self):
+        """Perform a synchronous paint.
 
-        When it returns, the draw must have been done.
-        The default implementation just calls ``_on_animation_frame()``.
+        The backend should, if possible, invoke its native paint event right now (synchronously).
+        The default implementation just calls ``_time_to_paint()``.
         """
-        self._on_animation_frame()
+        self._time_to_paint()
 
     def _rc_present_bitmap(self, *, data, format, **kwargs):
         """Present the given image bitmap. Only used with present_method 'bitmap'.
