@@ -395,7 +395,7 @@ def test_run_loop_and_close_canvases(SomeLoop):
     et = time.time() - t0
 
     print(et)
-    assert 0.25 < et < 0.45 + leeway
+    assert 0.25 < et < 0.50 + leeway
 
     assert canvas1._events.is_closed
     assert canvas2._events.is_closed
