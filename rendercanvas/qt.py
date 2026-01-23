@@ -29,6 +29,7 @@ if libname:
     QtWidgets = importlib.import_module(".QtWidgets", libname)
     # Uncomment the line below to try QtOpenGLWidgets.QOpenGLWidget instead of QWidget
     # QtOpenGLWidgets = importlib.import_module(".QtOpenGLWidgets", libname)
+    WindowStateChange = QtCore.QEvent.Type.WindowStateChange
     if libname.startswith("PyQt"):
         # PyQt5 or PyQt6
         WA_InputMethodEnabled = QtCore.Qt.WidgetAttribute.WA_InputMethodEnabled
@@ -683,7 +684,7 @@ class QRenderCanvas(WrapperRenderCanvas, QtWidgets.QWidget):
         # So we keep this implementation minimal, and leave it to the end-user if more sophisticated methods are needed.
         # Note that for present-method 'screen', this is not really needed, because Qt does not paint (i.e. animation frame)
         # when hidden. So this is mainly for when 'bitmap' mode is used.
-        if event.type() == QtCore.QEvent.WindowStateChange:
+        if event.type() == WindowStateChange:
             minimized = self.windowState() & WindowState.WindowMinimized
             self._subwidget._set_visible(not minimized)
         return super().changeEvent(event)
