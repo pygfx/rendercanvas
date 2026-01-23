@@ -18,7 +18,7 @@ class WgpuContext(BaseContext):
 
     # Note:  instantiating this class creates an instance of a sub-class, dedicated to the present method of the canvas.
 
-    present_methods = ["screen", "bitmap"]
+    present_methods = ["screen", "bitmap"]  # in order of preference
 
     def __new__(cls, present_info: dict):
         # Instantiating this class actually produces a subclass
