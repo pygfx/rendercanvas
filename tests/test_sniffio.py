@@ -24,9 +24,20 @@ class CanvasGroup(BaseCanvasGroup):
     pass
 
 
+class StubContext:
+    def _rc_present(self, *, force_sync=False):
+        return {"method": "skip"}
+
+
 class RealRenderCanvas(BaseRenderCanvas):
     _rc_canvas_group = CanvasGroup(asyncio_loop)
     _is_closed = False
+
+    def __init__(self):
+        super().__init__()
+        self._count = 0
+        self._present_to_screen = False
+        self._canvas_context = StubContext()
 
     def _rc_close(self):
         self._is_closed = True
@@ -34,10 +45,6 @@ class RealRenderCanvas(BaseRenderCanvas):
 
     def _rc_get_closed(self):
         return self._is_closed
-
-    def _rc_request_paint(self):
-        loop = self._rc_canvas_group.get_loop()
-        loop.call_soon(self._time_to_paint)
 
 
 def get_sniffio_name():

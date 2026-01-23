@@ -496,10 +496,9 @@ class BaseRenderCanvas:
         if self.__is_drawing:
             raise RuntimeError("Cannot force a draw while drawing.")
         if self._present_to_screen:
-            self._rc_force_paint()
+            self._rc_force_paint()  # -> _time_to_paint() -> _draw_and_present()
         else:
-            self._draw()
-            self._present(force_sync=True)
+            self._draw_and_present(force_sync=True)
             self._rc_force_paint()  # May or may not work
 
     def _time_to_draw(self):
@@ -513,32 +512,19 @@ class BaseRenderCanvas:
 
         For the 'screen' method:
 
-            _rc_request_paint()  ->  ...  ->  _time_to_paint()  ->  _draw()  _present()  _finish_present()
+            _rc_request_paint()  ->  ...  ->  _time_to_paint()  ->  _draw_and_present()  ->  _finish_present()
 
         For the 'bitmap' method:
 
-            _draw()  _present()  ->  ...  ->   finish_present()  ->  _rc_request_paint()
+            _draw_and_present() ->  ...  ->   finish_present()  ->  _rc_request_paint()
         """
-
-        # If we get here, this was most likely because the scheduler called _rc_request_draw().
-        # The responsibility is to follow one of the paths above, and make sure that we call the scheduler's on_cancel_draw(), or on_about_to_draw() and on_draw_done().
 
         # TODO: process events here!
 
-        if self._present_to_screen is None:
-            if self.__scheduler is not None:
-                self.__scheduler.on_cancel_draw()
-        elif self._present_to_screen:
-            self._rc_request_paint()
+        if self._present_to_screen:
+            self._rc_request_paint()  # -> _time_to_paint() -> _draw_and_present()
         else:
-            self._draw()
-            self._present()
-
-    def _draw_frame_and_present(self):
-        # Deprecated
-        raise RuntimeError(
-            "_draw_frame_and_present is removed in favor of _time_to_draw and _time_to_paint"
-        )
+            self._draw_and_present()
 
     def _time_to_paint(self):
         """Callback for _rc_request_paint.
@@ -548,86 +534,74 @@ class BaseRenderCanvas:
 
         Errors are logged to the "rendercanvas" logger.
         """
+        if self._present_to_screen:
+            self._draw_and_present()
 
-        # For bitmap present, this is a no-op
-        if not self._present_to_screen:
-            return
+    def _draw_and_present(self, *, force_sync=False):
+        """Draw the frame and init the presentation."""
 
         # Re-entrant drawing is problematic. Let's actively prevent it.
         if self.__is_drawing:
             return
         self.__is_drawing = True
 
+        # Note that this method is responsible for notifying the scheduler for the draw getting canceled or done.
+        # In other words, an early return should always be proceeded with a call to scheduler.on_cancel_draw(),
+        # otherwise the drawing gets stuck. (The re-entrant logic is the one exception.)
+
         try:
-            # todo: can/should we detect whether a draw was already done, so we also draw if somehow this is called without draw being called first?
-            self._draw()
-            self._present()
-        finally:
-            self.__is_drawing = False
+            scheduler = self.__scheduler  # May be None
+            context = self._canvas_context  # May be None
 
-    def _draw(self):
-        """Draw the frame."""
+            # Let scheduler know that the draw is about to take place, resets the draw_requested flag.
+            if scheduler is not None:
+                scheduler.on_about_to_draw()
 
-        if self.__scheduler is not None:
-            self.__scheduler.on_about_to_draw()
+            # Check size
+            w, h = self.get_physical_size()
+            size_is_nill = not (w > 0 and h > 0)
 
-        # Cannot draw to a closed canvas.
-        # todo: these checks ... need also in present-xxx I suppose?
-        if self._rc_get_closed() or self._draw_frame is None:
-            if self.__scheduler is not None:
-                self.__scheduler.on_cancel_draw()
-            return
+            # Cancel the draw if the conditions aren't right
+            if (
+                size_is_nill
+                or context is None
+                or self._draw_frame is None
+                or self._rc_get_closed()
+            ):
+                if scheduler is not None:
+                    scheduler.on_cancel_draw()
+                return
 
-        # Note: could check whether the known physical size is > 0.
-        # But we also consider it the responsibility of the backend to not
-        # draw if the size is zero. GUI toolkits like Qt do this correctly.
-        # I might get back on this once we also draw outside of the draw-event ...
+            # Make sure that the user-code is up-to-date with the current size before it draws.
+            self.__maybe_emit_resize_event()
 
-        # Make sure that the user-code is up-to-date with the current size before it draws.
-        self.__maybe_emit_resize_event()
+            # Emit before-draw
+            self._events.emit({"event_type": "before_draw"})
 
-        # Emit before-draw
-        self._events.emit({"event_type": "before_draw"})
+            # Perform the user-defined drawing code. When this errors,
+            # we should report the error and then continue, otherwise we crash.
+            with log_exception("Draw error"):
+                self._draw_frame()
 
-        # Perform the user-defined drawing code. When this errors,
-        # we should report the error and then continue, otherwise we crash.
-        with log_exception("Draw error"):
-            self._draw_frame()
-
-    def _present(self, *, force_sync=False):
-        """Present the frame. Can be direct or async."""
-
-        # Start the presentation process.
-        context = self._canvas_context
-        if context is None:
-            if self.__scheduler is not None:
-                self.__scheduler.on_cancel_draw()
-        else:
+            # Perform the presentation process. Might be async
             with log_exception("Present init error"):
-                # Note: we use canvas._canvas_context, so that if the draw_frame is a stub we also dont trigger creating a context.
                 # Note: if vsync is used, this call may wait a little (happens down at the level of the driver or OS)
                 result = context._rc_present(force_sync=force_sync)
 
                 if result["method"] == "async":
-                    if force_sync:
-                        breakpoint()
-                    assert not force_sync
+                    assert not force_sync, "forced sync but got async present-result"
                     result["awaitable"].then(self._finish_present)
                 else:
                     self._finish_present(result)
 
-                # result = context._rc_present(callback)
-                # if self._present_to_screen:
-                #     assert result is not None
-                #     finalize_present(result)
+        finally:
+            self.__is_drawing = False
 
     def _finish_present(self, result):
         """Wrap up the presentation process."""
 
-        # Callback for the context to finalize the presentation.
-        # This either gets called from _rc_present, either directly, or via a promise.then()
-        method = result.pop("method", "unknown")
         with log_exception("Present finish error"):
+            method = result.pop("method", "unknown")
             if method in ("skip", "screen"):
                 pass  # nothing we need to do
             elif method == "fail":

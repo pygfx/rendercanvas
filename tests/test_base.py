@@ -12,10 +12,17 @@ def test_base_canvas_context():
     assert hasattr(rendercanvas.BaseRenderCanvas, "get_context")
 
 
+class StubContext:
+    def _rc_present(self, *, force_sync=False):
+        return {"method": "skip"}
+
+
 class CanvasThatRaisesErrorsDuringDrawing(rendercanvas.BaseRenderCanvas):
     def __init__(self):
         super().__init__()
         self._count = 0
+        self._present_to_screen = False
+        self._canvas_context = StubContext()
 
     def _draw_frame(self):
         self._count += 1
