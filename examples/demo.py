@@ -14,7 +14,7 @@ A nice demo, and very convenient to test the different backends.
 
 import time
 
-from rendercanvas.pyside6 import RenderCanvas, loop
+from rendercanvas.auto import RenderCanvas, loop
 from rendercanvas.utils.cube import setup_drawing_sync
 import rendercanvas
 
@@ -24,7 +24,7 @@ canvas = RenderCanvas(
     title="Canvas events with $backend on $loop - $fps fps",
     max_fps=10,
     update_mode="continuous",
-    present_method="bitmap",
+    present_method="",
 )
 
 

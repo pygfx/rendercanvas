@@ -322,7 +322,7 @@ class BaseRenderCanvas:
         # Get available present methods that the canvas can chose from.
         present_methods = list(context_class.present_methods)
         assert all(m in ("bitmap", "screen") for m in present_methods)  # sanity check
-        if self._present_method is not None:
+        if self._present_method:
             if self._present_method not in present_methods:
                 raise RuntimeError(
                     f"Explicitly requested present_method {self._present_method!r} is not available for {context_name}."
