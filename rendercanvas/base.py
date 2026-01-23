@@ -610,6 +610,8 @@ class BaseRenderCanvas:
                 # Pass the result to the literal present method
                 func = getattr(self, f"_rc_present_{method}")
                 func(**result)
+                # Now the backend must repaint to show the new image
+                self._rc_request_paint()
 
         # Notify the scheduler
         if self.__scheduler is not None:

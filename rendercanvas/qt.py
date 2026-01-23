@@ -463,7 +463,6 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
             QtGui.QImage(data, width, height, bytes_per_line, qtformat),
             data,
         )
-        self.update()  # schedule a repaint, so the QImage is rendered
 
     def _rc_set_logical_size(self, width, height):
         width, height = int(width), int(height)

@@ -211,6 +211,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        self._last_image = None
         self._is_closed = False
         self._pointer_inside = None
         self._is_pointer_inside_according_to_wx = False
@@ -243,11 +244,14 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         self.Refresh()
 
     def on_paint(self, event):
-        dc = wx.PaintDC(self)  # needed for wx
+        dc = wx.PaintDC(self)
         if not self._draw_lock:
             self._time_to_paint()
+        if self._last_image is not None:
+            dc.DrawBitmap(self._last_image, 0, 0, False)
+        else:
+            event.Skip()
         del dc
-        event.Skip()
 
     def _get_surface_ids(self):
         if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
@@ -339,10 +343,8 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         # todo: we can easily support more formats here
         assert format == "rgba-u8"
         width, height = data.shape[1], data.shape[0]
-
-        dc = wx.PaintDC(self)
-        bitmap = wx.Bitmap.FromBufferRGBA(width, height, data)
-        dc.DrawBitmap(bitmap, 0, 0, False)
+        self._last_image = wx.Bitmap.FromBufferRGBA(width, height, data)
+        self._last_image.SetScaleFactor(self.get_pixel_ratio())
 
     def _rc_set_logical_size(self, width, height):
         width, height = int(width), int(height)
