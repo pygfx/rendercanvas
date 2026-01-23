@@ -282,19 +282,10 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
             loop.process_wx_events()
 
     def _rc_get_present_info(self, present_methods):
-        # Select what method the canvas prefers
-        preferred_method = "screen"
-        if SYSTEM_IS_WAYLAND:
-            preferred_method = "bitmap"  # also see qt.py
-
         # Select method
-        the_method = None
-        if preferred_method in present_methods:
-            the_method = preferred_method
-        elif "screen" in present_methods:
-            the_method = "screen"
-        elif "bitmap" in present_methods:
-            the_method = "bitmap"
+        the_method = present_methods[0]
+        if SYSTEM_IS_WAYLAND and "bitmap" in present_methods:
+            the_method = "bitmap"  # also see qt.py
 
         # Apply
         if the_method == "screen":

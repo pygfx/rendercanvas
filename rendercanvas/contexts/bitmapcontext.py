@@ -14,7 +14,7 @@ class BitmapContext(BaseContext):
 
     # Note:  instantiating this class creates an instance of a sub-class, dedicated to the present method of the canvas.
 
-    present_methods = ["bitmap", "screen"]
+    present_methods = ["bitmap", "screen"]  # in order of preference
 
     def __new__(cls, present_info: dict):
         # Instantiating this class actually produces a subclass
