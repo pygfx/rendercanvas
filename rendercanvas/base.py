@@ -519,7 +519,12 @@ class BaseRenderCanvas:
             _draw_and_present() ->  ...  ->   finish_present()  ->  _rc_request_paint()
         """
 
-        # TODO: process events here!
+        # This is an good time to process events, it's the moment that's closest to the actual draw
+        # as possible, but it's not in the native's paint-event (which is a bad moment to process events).
+        # Doing it now - as opposed to right before _rc_request_draw() - ensures that the rendered frame
+        # is up-to-date, which makes a huge difference for the perceived delay (e.g. for mouse movement)
+        # when the FPS is low on remote backends.
+        self._process_events()
 
         if self._present_to_screen:
             self._rc_request_paint()  # -> _time_to_paint() -> _draw_and_present()

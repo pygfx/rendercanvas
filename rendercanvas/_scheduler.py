@@ -160,18 +160,9 @@ class Scheduler:
             else:
                 raise RuntimeError(f"Unexpected scheduling mode: '{self._mode}'")
 
-            # Get canvas object or stop the loop
+            # Get canvas object or stop the loop. Make sure to delete this reference asap
             if (canvas := self.get_canvas()) is None:
                 break
-
-            # Process events now.
-            # Note that we don't want to emit events *during* the draw, because event
-            # callbacks do stuff, and that stuff may include changing the canvas size,
-            # or affect layout in a UI application, all which are not recommended during
-            # the main draw-event (a.k.a. animation frame), and may even lead to errors.
-            # The one exception is resize events, which we do emit during a draw, if the
-            # size has changed since the last time that events were processed.
-            canvas._process_events()
 
             if do_draw:
                 # We do a draw and wait for the full draw to complete, including
@@ -189,17 +180,12 @@ class Scheduler:
                 # seem to be faster! Tested on MacOS M1 and Windows with NVidia
                 # on the cube example.
                 #
-                # A benefit of waiting for the presentation to be fully done
-                # before even processing the events for the next frame, is that
-                # the frame is as fresh as it can be, which means that for cases
-                # where the FPS is low because of a slow remote connection, the
-                # latency is minimized.
-                #
-                # It is possible that for cases where drawing is relatively
-                # slow, allowing the draw earlier can improve the FPS somewhat.
-                # Interestingly, you only want this for relatively high FPS to
-                # avoid latency. But then the FPS is likely already high enough,
-                # so why bother.
+                # Moreover, even if this 'interleaving' of drawing and
+                # presentation can improve the FPS in some cases, it would be at
+                # the cost of the delay between processing of user-events and
+                # the presentation of the corresponding frame to the user. In
+                # terms of user-experience, the cost of this delay is probably
+                # larger than the benefit of the potential fps increase.
 
                 self._ready_for_present = Event()
                 canvas._rc_request_draw()
@@ -207,6 +193,8 @@ class Scheduler:
                 if self._ready_for_present:
                     await self._ready_for_present.wait()
             else:
+                # If we have a non-drawing tick, at least process events.
+                canvas._process_events()
                 del canvas
 
         # Note that when the canvas is closed, we may detect it here and break from the loop.
