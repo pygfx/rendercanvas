@@ -1,7 +1,7 @@
 import time
 from typing import Sequence
 
-from .basecontext import BaseContext
+from .basecontext import BaseContext, PseudoAwaitable
 from .._coreutils import log_exception
 
 
@@ -127,13 +127,16 @@ class WgpuContext(BaseContext):
     def _get_current_texture(self):
         raise NotImplementedError()
 
-    def _rc_present(self, *, force_sync: bool = False) -> None:
+    def _rc_present(self) -> dict:
         """Hook for the canvas to present the rendered result.
 
         Present what has been drawn to the current texture, by compositing it to the
         canvas.This is called automatically by the canvas.
         """
         raise NotImplementedError()
+
+    def _rc_present_async(self):
+        return super()._rc_present_async()
 
 
 class WgpuContextToScreen(WgpuContext):
@@ -162,7 +165,7 @@ class WgpuContextToScreen(WgpuContext):
     def _get_current_texture(self) -> object:
         return self._wgpu_context.get_current_texture()
 
-    def _rc_present(self, *, force_sync: bool = False) -> None:
+    def _rc_present(self) -> dict:
         self._wgpu_context.present()
         return {"method": "screen"}
 
@@ -314,20 +317,24 @@ class WgpuContextToBitmap(WgpuContext):
 
         return self._texture
 
-    def _rc_present(self, *, force_sync: bool = False) -> None:
+    def _rc_present(self) -> dict:
         if not self._texture:
             return {"method": "skip"}
 
         # Select new downloader
         downloader = self._downloaders[-1]
 
-        if force_sync:
-            return downloader.do_sync_download(self._texture)
-        else:
-            awaitable = downloader.initiate_download(self._texture)
-            return {"method": "async", "awaitable": awaitable}
+        return downloader.do_sync_download(self._texture)
 
-        # downloader._awaitable
+    def _rc_present_async(self):
+        if not self._texture:
+            return PseudoAwaitable({"method": "skip"})
+
+        # Select new downloader
+        downloader = self._downloaders[-1]
+
+        awaitable = downloader.initiate_download(self._texture)
+        return awaitable
 
     def _rc_close(self):
         self._drop_texture()
@@ -356,15 +363,19 @@ class ImageDownloader:
         self._action = None
         self._time_since_size_ok = 0
 
+    def _clear_pending_download(self):
+        if self._action is not None:
+            self._action.cancel()
+        if self._awaitable is not None:
+            if self._buffer.map_state == "pending":
+                self._awaitable.sync_wait()
+            if self._buffer.map_state == "mapped":
+                self._buffer.unmap()
+
     def _get_awaitable_for_download(self, texture):
-        # Check state
-        if self._action is not None and self._action.is_pending():
-            map_state = "none"
-            if self._buffer is not None:
-                map_state = self._buffer.map_state
-            raise RuntimeError(
-                f"Attempt to initiate texture download when previous frame is not yet consumed (buffer map_state {map_state!r})."
-            )
+        # First clear any pending downloads.
+        # This covers cases when switching between ``force_draw()`` normal rendering.
+        self._clear_pending_download()
 
         # Create new action object and make sure that the buffer is the correct size
         action = AsyncImageDownloadAction(texture)
@@ -384,22 +395,10 @@ class ImageDownloader:
 
     def initiate_download(self, texture):
         self._get_awaitable_for_download(texture)
-
-        # When the buffer maps, we continue the download/present action
         self._awaitable.then(self._action.resolve)
-
         return self._action
 
     def do_sync_download(self, texture):
-        # First clear any pending downloads
-        if self._action is not None:
-            self._action.cancel()
-        if self._awaitable is not None:
-            if self._buffer.map_state == "pending":
-                self._awaitable.sync_wait()
-            if self._buffer.map_state == "mapped":
-                self._buffer.unmap()
-
         # Start a fresh download
         self._get_awaitable_for_download(texture)
 
@@ -416,6 +415,7 @@ class ImageDownloader:
 
         if "data" in result:
             data = result["data"]
+            # We must make a copy of the data, because it may belong to a mapped buffer
             result["data"] = memoryview(bytearray(data)).cast(data.format, data.shape)
 
         return result

@@ -56,7 +56,7 @@ class WgpuContextToBitmapLookLikeWgpuPy(WgpuContextToBitmap):
         self._rc_set_size_dict(size_info)
 
     def present(self):
-        return self._rc_present(force_sync=True)
+        return self._rc_present()
 
     def close(self):
         self._rc_close()

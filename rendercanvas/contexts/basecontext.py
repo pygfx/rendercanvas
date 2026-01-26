@@ -88,7 +88,7 @@ class BaseContext:
         """
         return self._size_info["native_pixel_ratio"] >= 2.0
 
-    def _rc_present(self, *, force_sync: bool = False):
+    def _rc_present(self) -> dict:
         """Called by BaseRenderCanvas to collect the result. Subclasses must implement this.
 
         The implementation should always return a present-result dict, which
@@ -98,11 +98,6 @@ class BaseContext:
             * return ``{"method": "skip"}`` (special case).
         * If presentation could not be done for some reason:
             * return ``{"method": "fail", "message": "xx"}`` (special case).
-        * If the presenting is asynchronous:
-            * Return ``{"method": "async", "awaitable": xx}``
-            * The 'awaitable' has a ``then(callback)`` method.
-            * The callback will be called with the actual result dictionary.
-            * If ``force_sync`` is True, this is not allowed.
         * If ``present_method`` is "screen":
             * Render to screen using the present info.
             * Return ``{"method", "screen"}`` as confirmation.
@@ -115,9 +110,34 @@ class BaseContext:
         # This is a stub
         return {"method": "skip"}
 
+    def _rc_present_async(self) -> object:
+        """An async version of ``_rc_present()``.
+
+        Must return an object that has a ``.then()`` method.
+        The default implementation simply calls ``_rc_present()`` and wraps the result in an awaitable-like object.
+        """
+        result = self._rc_present()
+        return PseudoAwaitable(result)
+
     def _rc_close(self):
         """Close context and release resources. Called by the canvas when it's closed."""
         pass
+
+
+class PseudoAwaitable:
+    __slots__ = ["_result"]
+
+    def __init__(self, result):
+        self._result = result
+
+    def then(self, callable):
+        callable(self._result)
+
+    def __await__(self):
+        async def coro():
+            return self._result
+
+        return coro().__await__()
 
 
 class PseudoCanvasForWgpuPy:

@@ -529,7 +529,7 @@ class BaseRenderCanvas:
         if self._present_to_screen:
             self._rc_request_paint()  # -> _time_to_paint() -> _draw_and_present()
         else:
-            self._draw_and_present()
+            self._draw_and_present(force_sync=False)
 
     def _time_to_paint(self):
         """Callback for _rc_request_paint.
@@ -540,9 +540,9 @@ class BaseRenderCanvas:
         Errors are logged to the "rendercanvas" logger.
         """
         if self._present_to_screen:
-            self._draw_and_present()
+            self._draw_and_present(force_sync=True)
 
-    def _draw_and_present(self, *, force_sync=False):
+    def _draw_and_present(self, *, force_sync: bool):
         """Draw the frame and init the presentation."""
 
         # Re-entrant drawing is problematic. Let's actively prevent it.
@@ -591,13 +591,13 @@ class BaseRenderCanvas:
             # Perform the presentation process. Might be async
             with log_exception("Present init error"):
                 # Note: if vsync is used, this call may wait a little (happens down at the level of the driver or OS)
-                result = context._rc_present(force_sync=force_sync)
 
-                if result["method"] == "async":
-                    assert not force_sync, "forced sync but got async present-result"
-                    result["awaitable"].then(self._finish_present)
-                else:
+                if force_sync:
+                    result = context._rc_present()
                     self._finish_present(result)
+                else:
+                    awaitable = context._rc_present_async()
+                    awaitable.then(self._finish_present)
 
         finally:
             self.__is_drawing = False

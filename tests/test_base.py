@@ -4,6 +4,7 @@ Test the base canvas class.
 
 import numpy as np
 import rendercanvas
+from rendercanvas.contexts.basecontext import PseudoAwaitable
 from testutils import run_tests, can_use_wgpu_lib
 from pytest import mark
 
@@ -13,8 +14,11 @@ def test_base_canvas_context():
 
 
 class StubContext:
-    def _rc_present(self, *, force_sync=False):
+    def _rc_present(self):
         return {"method": "skip"}
+
+    def _rc_present_async(self):
+        return PseudoAwaitable(self._rc_present())
 
 
 class CanvasThatRaisesErrorsDuringDrawing(rendercanvas.BaseRenderCanvas):

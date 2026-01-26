@@ -11,6 +11,7 @@ from testutils import run_tests
 import rendercanvas
 from rendercanvas.base import BaseCanvasGroup, BaseRenderCanvas
 from rendercanvas.asyncio import loop as asyncio_loop
+from rendercanvas.contexts.basecontext import PseudoAwaitable
 
 from rendercanvas.asyncio import AsyncioLoop
 from rendercanvas.trio import TrioLoop
@@ -25,8 +26,11 @@ class CanvasGroup(BaseCanvasGroup):
 
 
 class StubContext:
-    def _rc_present(self, *, force_sync=False):
+    def _rc_present(self):
         return {"method": "skip"}
+
+    def _rc_present_async(self):
+        return PseudoAwaitable(self._rc_present())
 
 
 class RealRenderCanvas(BaseRenderCanvas):
