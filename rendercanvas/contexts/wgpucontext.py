@@ -191,21 +191,18 @@ class WgpuContextToBitmap(WgpuContext):
         self._capabilities = self._get_capabilities()
 
         # The current texture to render to. Is replaced when the canvas resizes.
+        # We have a single texture (not a ring of textures), because copying the
+        # contents to a download-buffer is near-instant.
         self._texture = None
 
-        # A ring-buffer to download the rendered images to the CPU/RAM. The
-        # image is first copied from the texture to an available copy-buffer.
-        # This is very fast (which is why we don't have a ring of textures).
-        # Mapping the buffers to RAM takes time, and we want to wait for this
-        # asynchronously.
-        #
-        # It looks like a single buffer is sufficient. Adding more costs memory,
-        # and does not necessarily improve the FPS. It can actually strain the
-        # GPU more, because it would be busy mapping multiple buffers at the
-        # same time. Let's leave the ring-mechanism in-place for now, so we can
-        # experiment with it.
-        # TODO: refactor to just one downloader, making the code a bit simpler
-        self._downloaders = [None]  # Put as many None's as you want buffers
+        # Object to download the rendered images to the CPU/RAM. Mapping the
+        # buffers to RAM takes time, and we want to wait for this
+        # asynchronously. We could have a ring of buffers to allow multiple
+        # concurrent downloads (start downloading the next frame before the
+        # previous is done downloading), but from what we've observed, this does
+        # not improve the FPS. It does costs memory though, and can actually
+        # strain the GPU more.
+        self._downloader = None
 
     def _get_capabilities(self):
         """Get dict of capabilities and cache the result."""
@@ -284,15 +281,12 @@ class WgpuContextToBitmap(WgpuContext):
                 f"Configure: unsupported alpha-mode: {alpha_mode} not in {cap_alpha_modes}"
             )
 
-        # (re)create downloaders
-        self._downloaders[:] = [
-            ImageDownloader(config["device"], self._context_buffer_usage)
-            for _ in self._downloaders
-        ]
+        # (re)create downloader
+        self._downloader = ImageDownloader(config["device"], self._context_buffer_usage)
 
     def _unconfigure(self) -> None:
         self._drop_texture()
-        self._downloaders[:] = [None for _ in self._downloaders]
+        self._downloader = None
 
     def _get_current_texture(self):
         # When the texture is active right now, we could either:
@@ -320,20 +314,12 @@ class WgpuContextToBitmap(WgpuContext):
     def _rc_present(self) -> dict:
         if not self._texture:
             return {"method": "skip"}
-
-        # Select new downloader
-        downloader = self._downloaders[-1]
-
-        return downloader.do_sync_download(self._texture)
+        return self._downloader.do_sync_download(self._texture)
 
     def _rc_present_async(self):
         if not self._texture:
             return PseudoAwaitable({"method": "skip"})
-
-        # Select new downloader
-        downloader = self._downloaders[-1]
-
-        awaitable = downloader.initiate_download(self._texture)
+        awaitable = self._downloader.initiate_download(self._texture)
         return awaitable
 
     def _rc_close(self):
