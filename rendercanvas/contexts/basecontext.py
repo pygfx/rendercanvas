@@ -110,8 +110,9 @@ class BaseContext:
             * Return ``{"method", "screen"}`` as confirmation.
         * If ``present_method`` is "bitmap":
             * Return ``{"method": "bitmap", "data": data, "format": format}``.
-            * 'data' is a memoryview, or something that can be converted to a memoryview, like a numpy array.
+            * 'data' is a numpy array.
             * 'format' is the format of the bitmap, must be in ``present_info['formats']`` ("rgba-u8" is always supported).
+            * In the future more variations on the "bitmap" present method will be made possible.
         """
 
         # This is a stub

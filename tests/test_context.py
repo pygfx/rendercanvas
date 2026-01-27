@@ -228,8 +228,7 @@ def test_bitmap_context():
     # Draw! This is not *that* interesting, it just passes the bitmap around
     result = canvas.draw()
 
-    assert isinstance(result, memoryview)
-    result = np.asarray(result)
+    assert isinstance(result, np.ndarray)
     assert np.all(result == bitmap)
 
     # pssst ... it's actually the same data!
