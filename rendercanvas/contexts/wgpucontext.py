@@ -3,7 +3,7 @@ from typing import Sequence
 
 import numpy as np
 
-from .basecontext import BaseContext, PseudoAwaitable
+from .basecontext import BaseContext
 from .._coreutils import log_exception
 
 
@@ -129,16 +129,13 @@ class WgpuContext(BaseContext):
     def _get_current_texture(self):
         raise NotImplementedError()
 
-    def _rc_present(self) -> dict:
+    def _rc_present(self, *, force_sync: bool = False) -> dict:
         """Hook for the canvas to present the rendered result.
 
         Present what has been drawn to the current texture, by compositing it to the
         canvas.This is called automatically by the canvas.
         """
         raise NotImplementedError()
-
-    def _rc_present_async(self):
-        return super()._rc_present_async()
 
 
 class WgpuContextToScreen(WgpuContext):
@@ -167,7 +164,7 @@ class WgpuContextToScreen(WgpuContext):
     def _get_current_texture(self) -> object:
         return self._wgpu_context.get_current_texture()
 
-    def _rc_present(self) -> dict:
+    def _rc_present(self, *, force_sync: bool = False) -> dict:
         self._wgpu_context.present()
         return {"method": "screen"}
 
@@ -313,18 +310,18 @@ class WgpuContextToBitmap(WgpuContext):
 
         return self._texture
 
-    def _rc_present(self) -> dict:
+    def _rc_present(self, *, force_sync: bool = False) -> dict:
         if not self._texture:
             return {"method": "skip"}
-        return self._downloader.do_sync_download(self._texture, self._present_params)
-
-    def _rc_present_async(self):
-        if not self._texture:
-            return PseudoAwaitable({"method": "skip"})
-        awaitable = self._downloader.initiate_download(
-            self._texture, self._present_params
-        )
-        return awaitable
+        if force_sync:
+            return self._downloader.do_sync_download(
+                self._texture, self._present_params
+            )
+        else:
+            awaitable = self._downloader.initiate_download(
+                self._texture, self._present_params
+            )
+            return {"method": "async", "awaitable": awaitable}
 
     def _rc_close(self):
         self._drop_texture()

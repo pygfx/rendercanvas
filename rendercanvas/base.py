@@ -593,11 +593,15 @@ class BaseRenderCanvas:
                 # Note: if vsync is used, this call may wait a little (happens down at the level of the driver or OS)
 
                 if force_sync:
-                    result = context._rc_present()
+                    result = context._rc_present(force_sync=True)
+                    assert result["method"] != "async"
                     self._finish_present(result)
                 else:
-                    awaitable = context._rc_present_async()
-                    awaitable.then(self._finish_present)
+                    result = context._rc_present()
+                    if result["method"] == "async":
+                        result["awaitable"].then(self._finish_present)
+                    else:
+                        self._finish_present(result)
 
         finally:
             self.__is_drawing = False

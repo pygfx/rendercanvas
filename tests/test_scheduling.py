@@ -10,7 +10,6 @@ import time
 from testutils import run_tests
 from rendercanvas.base import BaseCanvasGroup, BaseRenderCanvas
 from rendercanvas.offscreen import StubLoop
-from rendercanvas.contexts.basecontext import PseudoAwaitable
 
 
 class MyCanvasGroup(BaseCanvasGroup):
@@ -24,11 +23,8 @@ class MyLoop(StubLoop):
 
 
 class StubContext:
-    def _rc_present(self):
+    def _rc_present(self, force_sync=False):
         return {"method": "skip"}
-
-    def _rc_present_async(self):
-        return PseudoAwaitable(self._rc_present())
 
 
 class MyCanvas(BaseRenderCanvas):
