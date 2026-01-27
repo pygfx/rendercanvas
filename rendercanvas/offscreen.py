@@ -121,9 +121,7 @@ class OffscreenRenderCanvas(BaseRenderCanvas):
     def draw(self):
         """Perform a draw and get the resulting image.
 
-        The image array is returned as an NxMx4 memoryview object.
-        This object can be converted to a numpy array (without copying data)
-        using ``np.asarray(arr)``.
+        The image is returned as a contiguous NxMx4 numpy array.
         """
         self.force_draw()
         return self._last_image

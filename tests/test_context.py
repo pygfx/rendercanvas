@@ -266,8 +266,7 @@ def test_wgpu_context():
     # is in the sRGB colorspace.
     result = canvas.draw()
 
-    assert isinstance(result, memoryview)
-    result = np.asarray(result)
+    assert isinstance(result, np.ndarray)
     assert np.all(result == bitmap)
 
     # Now we change the size

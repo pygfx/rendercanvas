@@ -400,14 +400,7 @@ class ImageDownloader:
         # Async-wait, then resolve
         self._awaitable.sync_wait()
         result = action.resolve()
-
         assert result is not None
-
-        if "data" in result:
-            data = result["data"]
-            # We must make a copy of the data, because it may belong to a mapped buffer
-            result["data"] = memoryview(bytearray(data)).cast(data.format, data.shape)
-
         return result
 
     def _ensure_buffer_size(self, required_size):
