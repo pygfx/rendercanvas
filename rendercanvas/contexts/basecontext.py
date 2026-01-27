@@ -21,6 +21,8 @@ class BaseContext:
         }
         self._object_with_physical_size = None  # to support old wgpu-py api
         self._wgpu_context = None
+        # Configuration dict for the backend to influence the present process (only for bitmap present)
+        self._present_params = {}
 
     def __repr__(self):
         return f"<rendercanvas.contexts.{self.__class__.__name__} object at {hex(id(self))}>"
@@ -118,6 +120,9 @@ class BaseContext:
         """
         result = self._rc_present()
         return PseudoAwaitable(result)
+
+    def _rc_set_present_params(self, **present_params):
+        self._present_params = present_params
 
     def _rc_close(self):
         """Close context and release resources. Called by the canvas when it's closed."""

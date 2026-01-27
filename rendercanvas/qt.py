@@ -285,6 +285,7 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         self._last_image = None
         self._last_winid = None
         self._is_closed = False
+        self._pending_present_params = None
 
         self.setAutoFillBackground(False)
         self.setAttribute(WA_DeleteOnClose, True)
@@ -392,6 +393,7 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
             else:
                 return None
         elif the_method == "bitmap":
+            self._pending_present_params = {"submethod": "contiguous-array"}
             return {
                 "method": "bitmap",
                 "formats": list(BITMAP_FORMAT_MAP.keys()),
@@ -400,6 +402,9 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
             return None  # raises error
 
     def _rc_request_draw(self):
+        if self._pending_present_params:
+            self._canvas_context._rc_set_present_params(**self._pending_present_params)
+            self._pending_present_params = None
         self._time_to_draw()
 
     def _rc_request_paint(self):
@@ -451,11 +456,15 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
 
         width, height = data.shape[1], data.shape[0]  # width, height
 
+        # Use the given array, or its base, if this is a strided view
+        # so that we can also work with submethod 'strided-array'.
+        thedata = data if data.base is None else data.base
+
         # Wrap the data in a QImage (no copy, so we need to keep a ref to data)
         qtformat = BITMAP_FORMAT_MAP[format]
         bytes_per_line = data.strides[0]
         self._last_image = (
-            QtGui.QImage(data, width, height, bytes_per_line, qtformat),
+            QtGui.QImage(thedata, width, height, bytes_per_line, qtformat),
             data,
         )
 

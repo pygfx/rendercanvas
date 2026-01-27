@@ -1,6 +1,8 @@
 import time
 from typing import Sequence
 
+import numpy as np
+
 from .basecontext import BaseContext, PseudoAwaitable
 from .._coreutils import log_exception
 
@@ -314,12 +316,14 @@ class WgpuContextToBitmap(WgpuContext):
     def _rc_present(self) -> dict:
         if not self._texture:
             return {"method": "skip"}
-        return self._downloader.do_sync_download(self._texture)
+        return self._downloader.do_sync_download(self._texture, self._present_params)
 
     def _rc_present_async(self):
         if not self._texture:
             return PseudoAwaitable({"method": "skip"})
-        awaitable = self._downloader.initiate_download(self._texture)
+        awaitable = self._downloader.initiate_download(
+            self._texture, self._present_params
+        )
         return awaitable
 
     def _rc_close(self):
@@ -358,13 +362,13 @@ class ImageDownloader:
             if self._buffer.map_state == "mapped":
                 self._buffer.unmap()
 
-    def _get_awaitable_for_download(self, texture):
+    def _get_awaitable_for_download(self, texture, present_params=None):
         # First clear any pending downloads.
         # This covers cases when switching between ``force_draw()`` normal rendering.
         self._clear_pending_download()
 
         # Create new action object and make sure that the buffer is the correct size
-        action = AsyncImageDownloadAction(texture)
+        action = AsyncImageDownloadAction(texture, present_params)
         stride, nbytes = action.stride, action.nbytes
         self._ensure_buffer_size(nbytes)
         action.set_buffer(self._buffer)
@@ -379,18 +383,18 @@ class ImageDownloader:
         self._action = action
         self._awaitable = awaitable
 
-    def initiate_download(self, texture):
-        self._get_awaitable_for_download(texture)
+    def initiate_download(self, texture, present_params):
+        self._get_awaitable_for_download(texture, present_params)
         self._awaitable.then(self._action.resolve)
         return self._action
 
-    def do_sync_download(self, texture):
+    def do_sync_download(self, texture, present_params):
         # Start a fresh download
         self._get_awaitable_for_download(texture)
 
         # With a fresh action
         self._action.cancel()
-        action = AsyncImageDownloadAction(texture)
+        action = AsyncImageDownloadAction(texture, present_params)
         action.set_buffer(self._buffer)
 
         # Async-wait, then resolve
@@ -452,8 +456,9 @@ class ImageDownloader:
 class AsyncImageDownloadAction:
     """Single-use image download helper object that has a 'then' method (i.e. follows the awaitable pattern a bit)."""
 
-    def __init__(self, texture):
+    def __init__(self, texture, present_params):
         self._callbacks = []
+        self._present_params = present_params
         # The image is stored in wgpu buffer, which needs to get mapped before we can read the bitmap
         self._buffer = None
         # We examine the texture to understand what the bitmap will look like
@@ -480,20 +485,18 @@ class AsyncImageDownloadAction:
             self._buffer = None
 
             try:
-                # Note: The bitmap array is only valid within this try-context;
-                # once the buffer unmaps, the underlying memory is freed, attempting to access it can result in a segfault.
-                mapped_bitmap = self._get_bitmap(buffer)
-                result = {
-                    "method": "bitmap",
-                    "format": "rgba-u8",
-                    "data": mapped_bitmap,
-                }
-                for callback in self._callbacks:
-                    callback(result)
-                self._callbacks = []
-                return result
+                data = self._get_bitmap(buffer)
             finally:
                 buffer.unmap()
+            result = {
+                "method": "bitmap",
+                "format": "rgba-u8",
+                "data": data,
+            }
+            for callback in self._callbacks:
+                callback(result)
+            self._callbacks = []
+            return result
 
     def _parse_texture_metadata(self, texture):
         size = texture.size
@@ -513,26 +516,24 @@ class AsyncImageDownloadAction:
                 f"Image present unsupported texture format bitdepth {format}."
             )
 
-        memoryview_type = "B"
+        dtype = "uint8"
         if "float" in format:
-            memoryview_type = "e" if "16" in format else "f"
+            dtype = "float16" if "16" in format else "float32"
         else:
+            dtype = "int" if "sint" in format else "uint"
             if "32" in format:
-                memoryview_type = "I"
+                dtype += "32"
             elif "16" in format:
-                memoryview_type = "H"
+                dtype += "16"
             else:
-                memoryview_type = "B"
-            if "sint" in format:
-                memoryview_type = memoryview_type.lower()
+                dtype += "8"
 
         plain_stride = bytes_per_pixel * size[0]
         extra_stride = (256 - plain_stride % 256) % 256
         padded_stride = plain_stride + extra_stride
 
-        self._memoryview_type = memoryview_type
+        self._dtype = dtype
         self._nchannels = nchannels
-        self._plain_stride = plain_stride
         self._padded_stride = padded_stride
         self._texture_size = size
 
@@ -541,52 +542,88 @@ class AsyncImageDownloadAction:
         self.nbytes = padded_stride * size[1]
 
     def _get_bitmap(self, buffer):
-        memoryview_type = self._memoryview_type
+        dtype = self._dtype
         nchannels = self._nchannels
-        plain_stride = self._plain_stride
         padded_stride = self._padded_stride
         size = self._texture_size
         plain_shape = (size[1], size[0], nchannels)
+        present_params = self._present_params or {}
 
-        # Download from mappable buffer
-        # Because we use `copy=False``, we *must* copy the data.
+        # Read bitmap from mapped buffer. Note that the data is mapped, so we
+        # *must* copy the data before unmapping the buffer. By applying any
+        # processing *here* while the buffer is mapped, we can avoid one
+        # data-copy. E.g. we can create a numpy view on the data and then copy
+        # *that*, rather than copying the raw data and then making another copy
+        # to make it contiguous.
+
+        # Note that this code here is the main reason for having numpy as a
+        # dependency: with just memoryview (no numpy), we cannot create a
+        # strided array, and we cannot copy strided data without iterating over
+        # all rows.
+
+        # Get array
         if buffer.map_state == "pending":
             raise RuntimeError("Buffer state is 'pending' in get_bitmap()")
         mapped_data = buffer.read_mapped(copy=False)
 
-        # TODO: return mapped data
-        # TODO: can we pass the mapped data downstream without copying it, i.e. before unmapping the buffer? Saves another copy.
+        # Determine how to process it.
+        submethod = present_params.get("submethod", "contiguous-array")
 
-        # Copy the data
-        if padded_stride > plain_stride:
-            # Copy per row
-            nbytes_clean = plain_shape[0] * plain_shape[1] * plain_shape[2]
-            data = memoryview(bytearray(nbytes_clean)).cast(mapped_data.format)
-            i_start = 0
-            for i in range(size[1]):
-                row = mapped_data[i * padded_stride : i * padded_stride + plain_stride]
-                data[i_start : i_start + plain_stride] = row
-                i_start += plain_stride
+        # Triage. AK: I implemented some stubs, primarily as an indication of
+        # how I see this scaling out to more sophisticated methods. Here we can
+        # add diff images, gpu-based pseudo-jpeg, etc.
+
+        if submethod == "contiguous-array":
+            # This is the default.
+
+            # Wrap the data in a (possible strided) numpy array
+            data = np.asarray(mapped_data, dtype=dtype).reshape(
+                plain_shape[0], padded_stride // nchannels, nchannels
+            )
+            # Make a copy, making it contiguous.
+            data = data[:, : plain_shape[1], :].copy()
+
+        elif submethod == "strided-array":
+            # In some cases it could be beneficial to use the data that has 256-byte aligned rows,
+            # e.g. when the data must be uploaded to a GPU again.
+
+            # Wrap the data in a (possible strided) numpy array
+            data = np.asarray(mapped_data, dtype=dtype).reshape(
+                plain_shape[0], padded_stride // nchannels, nchannels
+            )
+            # Make a copy of the strided data, and create a view on that.
+            data = data.copy()[:, : plain_shape[1], :]
+
+        elif submethod == "jpeg":
+            # For now just a stub, activate in the upcoming Anywidget backend
+
+            import simplejpeg
+
+            # Get strided array view
+            data = np.asarray(mapped_data, dtype=dtype).reshape(
+                plain_shape[0], padded_stride // nchannels, nchannels
+            )
+            data = data[:, : plain_shape[1], :]
+
+            # Encode jpeg on the mapped data
+            data = simplejpeg.encode_jpeg(
+                data,
+                present_params.get("quality", 85),
+                "rgba",
+                present_params.get("subsampling", "420"),
+                fastdct=True,
+            )
+
+        elif submethod == "png":
+            # For cases where lossless compression is needed. We can easily do this in pure Python, I have code for that somewhere.
+            raise NotImplementedError("present submethod 'png'")
+
+        elif submethod == "gpu-jpeg":
+            # jpeg encoding on the GPU, produces pseudo-jpeg that needs to be decoded with a special shader at the receiving end.
+            # This implementation is more work, because we need to setup a GPU pipeline with multiple compute shaders.
+            raise NotImplementedError("present submethod 'gpu-jpeg'")
+
         else:
-            # Copy as a whole
-            data = memoryview(bytearray(mapped_data)).cast(mapped_data.format)
-
-        # Alternative copy solution using Numpy.
-        # I expected this to be faster, but does not really seem to be. Seems not worth it
-        # since we technically don't depend on Numpy. Leaving here for reference.
-        # import numpy as np
-        # mapped_data = np.asarray(mapped_data)[:data_length]
-        # data = np.empty(nbytes, dtype=mapped_data.dtype)
-        # mapped_data.shape = -1, padded_stride
-        # data.shape = -1, plain_stride
-        # data[:] = mapped_data[:, :plain_stride]
-        # data.shape = -1
-        # data = memoryview(data)
-
-        # Represent as memory object to avoid numpy dependency
-        # Equivalent: np.frombuffer(data, np.uint8).reshape(plain_shape)
-        data = data.cast(memoryview_type, plain_shape)
-
-        # Note, no unmap yet!
+            raise RuntimeError(f"Unknown present submethod {submethod!r}")
 
         return data
