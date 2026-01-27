@@ -101,6 +101,7 @@ class PyodideRenderCanvas(BaseRenderCanvas):
         self._canvas_element = canvas_element
 
         # We need a buffer to store pixel data, until we figure out how we can map a Python memoryview to a JS ArrayBuffer without making a copy.
+        # TODO: if its any easier for a numpy array, we could go that route!
         self._js_array = Uint8ClampedArray.new(0)
 
         # We use an offscreen canvas when the bitmap texture does not match the physical pixels. You should see it as a GPU texture.
@@ -464,7 +465,7 @@ class PyodideRenderCanvas(BaseRenderCanvas):
     def _rc_present_bitmap(self, **kwargs):
         data = kwargs.get("data")
 
-        # Convert to memoryview. It probably already is.
+        # Convert to memoryview (from a numpy array)
         m = memoryview(data)
         h, w = m.shape[:2]
 
