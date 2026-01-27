@@ -85,7 +85,7 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
 
     def _rc_present_bitmap(self, *, data, format, **kwargs):
         assert format == "rgba-u8"
-        self._last_image = data  # already a numpy array
+        self._last_image = np.asarray(data)
 
     def _rc_set_logical_size(self, width, height):
         self.css_width = f"{width}px"
