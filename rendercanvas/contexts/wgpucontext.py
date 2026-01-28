@@ -361,7 +361,7 @@ class ImageDownloader:
 
     def _get_awaitable_for_download(self, texture, present_params=None):
         # First clear any pending downloads.
-        # This covers cases when switching between ``force_draw()`` normal rendering.
+        # This covers cases when switching between ``force_draw()`` and normal rendering.
         self._clear_pending_download()
 
         # Create new action object and make sure that the buffer is the correct size

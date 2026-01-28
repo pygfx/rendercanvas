@@ -165,7 +165,7 @@ class BaseRenderCanvas:
         if isinstance(self, WrapperRenderCanvas):
             return
 
-        # The vsync is not-so-elegantly stored on the canvas, and picked up by wgou's canvas contex.
+        # The vsync is not-so-elegantly stored on the canvas, and picked up by wgpu's canvas contex.
         self._vsync = bool(vsync)
 
         # Handle custom present method
