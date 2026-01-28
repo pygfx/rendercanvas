@@ -136,7 +136,7 @@ def test_glfw_canvas_render():
     device = wgpu.gpu.request_adapter_sync().request_device_sync()
     draw_frame1 = _get_draw_function(device, canvas)
 
-    allowed_frames = (1,)
+    allowed_frames = (1, 2)
     if os.getenv("CI"):
         allowed_frames = (1, 2, 3)
 

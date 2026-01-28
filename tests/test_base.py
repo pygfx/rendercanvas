@@ -12,10 +12,17 @@ def test_base_canvas_context():
     assert hasattr(rendercanvas.BaseRenderCanvas, "get_context")
 
 
+class StubContext:
+    def _rc_present(self, force_sync=False):
+        return {"method": "skip"}
+
+
 class CanvasThatRaisesErrorsDuringDrawing(rendercanvas.BaseRenderCanvas):
     def __init__(self):
         super().__init__()
         self._count = 0
+        self._present_to_screen = False
+        self._canvas_context = StubContext()
 
     def _draw_frame(self):
         self._count += 1
@@ -43,10 +50,10 @@ def test_canvas_logging(caplog):
 
     canvas = CanvasThatRaisesErrorsDuringDrawing()
 
-    canvas._draw_frame_and_present()  # prints traceback
-    canvas._draw_frame_and_present()  # prints short logs ...
-    canvas._draw_frame_and_present()
-    canvas._draw_frame_and_present()
+    canvas.force_draw()  # prints traceback
+    canvas.force_draw()  # prints short logs ...
+    canvas.force_draw()
+    canvas.force_draw()
 
     text = caplog.text
     assert text.count("bar_method") == 2  # one traceback => 2 mentions
@@ -58,10 +65,10 @@ def test_canvas_logging(caplog):
     assert text.count("spam_method") == 0
     assert text.count("intended-fail") == 0
 
-    canvas._draw_frame_and_present()  # prints traceback
-    canvas._draw_frame_and_present()  # prints short logs ...
-    canvas._draw_frame_and_present()
-    canvas._draw_frame_and_present()
+    canvas.force_draw()  # prints traceback
+    canvas.force_draw()  # prints short logs ...
+    canvas.force_draw()
+    canvas.force_draw()
 
     text = caplog.text
     assert text.count("bar_method") == 2  # one traceback => 2 mentions
@@ -99,10 +106,10 @@ def test_run_bare_canvas():
     #     canvas = RenderCanvas()
     #     loop.run()
     #
-    # Note: loop.run() calls _draw_frame_and_present() in event loop.
+    # Note: loop.run() calls _time_to_draw() in event loop.
 
     canvas = MyOffscreenCanvas()
-    canvas._draw_frame_and_present()
+    canvas.force_draw()
 
 
 @mark.skipif(not can_use_wgpu_lib, reason="Needs wgpu lib")

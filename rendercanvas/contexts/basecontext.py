@@ -21,6 +21,8 @@ class BaseContext:
         }
         self._object_with_physical_size = None  # to support old wgpu-py api
         self._wgpu_context = None
+        # Configuration dict for the backend to influence the present process (only for bitmap present)
+        self._present_params = {}
 
     def __repr__(self):
         return f"<rendercanvas.contexts.{self.__class__.__name__} object at {hex(id(self))}>"
@@ -88,11 +90,16 @@ class BaseContext:
         """
         return self._size_info["native_pixel_ratio"] >= 2.0
 
-    def _rc_present(self):
+    def _rc_present(self, *, force_sync: bool = False) -> dict:
         """Called by BaseRenderCanvas to collect the result. Subclasses must implement this.
 
         The implementation should always return a present-result dict, which
         should have at least a field 'method'.
+
+        For async cases, can return ``{"method": "async", "awaitable": awaitables}``,
+        where ``awaitable.then(callback)`` can be used to schedule a callback
+        being called when the present process is done. This is not allowed when
+        ``force_sync`` is set.
 
         * If there is nothing to present, e.g. because nothing was rendered yet:
             * return ``{"method": "skip"}`` (special case).
@@ -103,12 +110,16 @@ class BaseContext:
             * Return ``{"method", "screen"}`` as confirmation.
         * If ``present_method`` is "bitmap":
             * Return ``{"method": "bitmap", "data": data, "format": format}``.
-            * 'data' is a memoryview, or something that can be converted to a memoryview, like a numpy array.
+            * 'data' is a numpy array.
             * 'format' is the format of the bitmap, must be in ``present_info['formats']`` ("rgba-u8" is always supported).
+            * In the future more variations on the "bitmap" present method will be made possible.
         """
 
         # This is a stub
         return {"method": "skip"}
+
+    def _rc_set_present_params(self, **present_params):
+        self._present_params = present_params
 
     def _rc_close(self):
         """Close context and release resources. Called by the canvas when it's closed."""

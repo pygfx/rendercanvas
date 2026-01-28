@@ -51,9 +51,10 @@ class Scheduler:
         # ... = canvas.get_context() -> No, context creation should be lazy!
 
         # Scheduling variables
+        self.set_enabled(True)
         self.set_update_mode(update_mode, min_fps=min_fps, max_fps=max_fps)
         self._draw_requested = True  # Start with a draw in ondemand mode
-        self._async_draw_event = None
+        self._ready_for_present = None
 
         # Keep track of fps
         self._draw_stats = 0, time.perf_counter()
@@ -92,6 +93,11 @@ class Scheduler:
                 )
             self._max_fps = max(1, float(max_fps))
 
+    def set_enabled(self, enabled: bool):
+        self._enabled = bool(enabled)
+        if self._enabled:
+            self._draw_requested = True
+
     def request_draw(self):
         """Request a new draw to be done. Only affects the 'ondemand' mode."""
         # Just set the flag
@@ -108,7 +114,9 @@ class Scheduler:
 
         while True:
             # Determine delay
-            if self._mode == "fastest" or self._max_fps <= 0:
+            if not self._enabled:
+                delay = 0.1
+            elif self._mode == "fastest" or self._max_fps <= 0:
                 delay = 0
             else:
                 delay = 1 / self._max_fps
@@ -129,7 +137,9 @@ class Scheduler:
 
             do_draw = False
 
-            if self._mode == "fastest":
+            if not self._enabled:
+                pass
+            elif self._mode == "fastest":
                 # fastest: draw continuously as fast as possible, ignoring fps settings.
                 do_draw = True
             elif self._mode == "continuous":
@@ -150,45 +160,61 @@ class Scheduler:
             else:
                 raise RuntimeError(f"Unexpected scheduling mode: '{self._mode}'")
 
-            # Get canvas object or stop the loop
+            # Get canvas object or stop the loop. Make sure to delete this reference asap
             if (canvas := self.get_canvas()) is None:
                 break
 
-            # Process events now.
-            # Note that we don't want to emit events *during* the draw, because event
-            # callbacks do stuff, and that stuff may include changing the canvas size,
-            # or affect layout in a UI application, all which are not recommended during
-            # the main draw-event (a.k.a. animation frame), and may even lead to errors.
-            # The one exception is resize events, which we do emit during a draw, if the
-            # size has changed since the last time that events were processed.
-            canvas._process_events()
+            if do_draw:
+                # We do a draw and wait for the full draw to complete, including
+                # the presentation (i.e. the 'consumption' of the frame), using
+                # an async-event. This async-wait does not do much for the
+                # 'screen' present method, but for bitmap presenting is makes a
+                # huge difference, because the CPU can do other things while the
+                # GPU is downloading the frame. Benchmarks with the simple cube
+                # example indicate that its about twice as fast as sync-waiting.
+                #
+                # We could play with the positioning of where we wait for the
+                # event. E.g. we could draw the current frame and *then* wait
+                # for the previous frame to be presented, before initiating the
+                # presentation of the current frame. However, this does *not*
+                # seem to be faster! Tested on MacOS M1 and Windows with NVidia
+                # on the cube example.
+                #
+                # Moreover, even if this 'interleaving' of drawing and
+                # presentation can improve the FPS in some cases, it would be at
+                # the cost of the delay between processing of user-events and
+                # the presentation of the corresponding frame to the user. In
+                # terms of user-experience, the cost of this delay is probably
+                # larger than the benefit of the potential fps increase.
 
-            if not do_draw:
-                # If we don't want to draw, move to the next iter
-                del canvas
-                continue
-            else:
-                # Otherwise, request a draw ...
+                self._ready_for_present = Event()
                 canvas._rc_request_draw()
                 del canvas
-                # ... and wait for the draw to happen
-                self._async_draw_event = Event()
-                await self._async_draw_event.wait()
-                last_draw_time = time.perf_counter()
+                if self._ready_for_present:
+                    await self._ready_for_present.wait()
+            else:
+                # If we have a non-drawing tick, at least process events.
+                canvas._process_events()
+                del canvas
 
         # Note that when the canvas is closed, we may detect it here and break from the loop.
         # But the task may also be waiting for a draw to happen, or something else. In that case
         # this task will be cancelled when the loop ends. In any case, this is why this is not
         # a good place to detect the canvas getting closed, the loop does this.
 
-    def on_draw(self):
-        # Bookkeeping
+    def on_cancel_draw(self):
+        if self._ready_for_present is not None:
+            self._ready_for_present.set()
+            self._ready_for_present = None
+
+    def on_about_to_draw(self):
         self._draw_requested = False
 
+    def on_draw_done(self):
         # Keep ticking
-        if self._async_draw_event:
-            self._async_draw_event.set()
-            self._async_draw_event = None
+        if self._ready_for_present is not None:
+            self._ready_for_present.set()
+            self._ready_for_present = None
 
         # Update stats
         count, last_time = self._draw_stats

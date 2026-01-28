@@ -22,6 +22,11 @@ class MyLoop(StubLoop):
     # Note: run() is non-blocking and simply does one iteration to process pending tasks.
 
 
+class StubContext:
+    def _rc_present(self, force_sync=False):
+        return {"method": "skip"}
+
+
 class MyCanvas(BaseRenderCanvas):
     _rc_canvas_group = MyCanvasGroup(MyLoop())
 
@@ -31,6 +36,8 @@ class MyCanvas(BaseRenderCanvas):
         self.draw_count = 0
         self.events_count = 0
         self._gui_draw_requested = False
+        self._present_to_screen = False
+        self._canvas_context = StubContext()
 
     def _rc_close(self):
         self._closed = True
@@ -42,17 +49,9 @@ class MyCanvas(BaseRenderCanvas):
         self.events_count += 1
         return super()._process_events()
 
-    def _draw_frame_and_present(self):
-        super()._draw_frame_and_present()
+    def _draw_and_present(self, *, force_sync):
+        super()._draw_and_present(force_sync=force_sync)
         self.draw_count += 1
-
-    def _rc_request_draw(self):
-        self._gui_draw_requested = True
-
-    def draw_if_necessary(self):
-        if self._gui_draw_requested:
-            self._gui_draw_requested = False
-            self._draw_frame_and_present()
 
     def active_sleep(self, delay):
         loop = self._rc_canvas_group.get_loop()  # <----
@@ -60,7 +59,6 @@ class MyCanvas(BaseRenderCanvas):
         while time.perf_counter() < etime:
             time.sleep(0.001)
             loop.run()
-            self.draw_if_necessary()
 
 
 def test_scheduling_manual():

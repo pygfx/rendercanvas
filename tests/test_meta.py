@@ -77,7 +77,7 @@ def test_namespace():
 def test_deps_plain_import():
     modules = get_loaded_modules("rendercanvas", 1)
     modules.discard("sniffio")  # sniffio is imported if available
-    assert modules == {"rendercanvas"}
+    assert modules == {"rendercanvas", "numpy"}
     # Note, no wgpu
 
 

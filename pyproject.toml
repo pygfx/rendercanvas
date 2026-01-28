@@ -18,7 +18,7 @@ keywords = [
     "jupyter",
 ]
 requires-python = ">= 3.10"
-dependencies = [] # Zero hard dependencies!
+dependencies = ['numpy'] # Numpy is the only hard dependency
 [project.optional-dependencies]
 # For users
 jupyter = ["jupyter_rfb>=0.4.2"]

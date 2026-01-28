@@ -252,8 +252,7 @@ class GlfwRenderCanvas(BaseRenderCanvas):
 
     def _on_iconify(self, window, iconified):
         self._is_minimized = bool(iconified)
-        if not self._is_minimized:
-            self._rc_request_draw()
+        self._set_visible(not iconified)
 
     def _determine_size(self):
         if self._window is None:
@@ -320,12 +319,17 @@ class GlfwRenderCanvas(BaseRenderCanvas):
             return None  # raises error
 
     def _rc_request_draw(self):
-        if not self._is_minimized:
-            loop = self._rc_canvas_group.get_loop()
-            loop.call_soon(self._draw_frame_and_present)
+        self._time_to_draw()
 
-    def _rc_force_draw(self):
-        self._draw_frame_and_present()
+    def _rc_request_paint(self):
+        loop = self._rc_canvas_group.get_loop()
+        loop.call_soon(self._paint)
+
+    def _rc_force_paint(self):
+        self._paint()
+
+    def _paint(self):
+        self._time_to_paint()
 
     def _rc_present_bitmap(self, **kwargs):
         raise NotImplementedError()
@@ -399,7 +403,7 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         # that rely on the event-loop are paused (only animations
         # updated in the draw callback are alive).
         if self._is_in_poll_events and not self._is_minimized:
-            self._draw_frame_and_present()
+            self._time_to_paint()
 
     def _on_mouse_button(self, window, but, action, mods):
         # Map button being changed, which we use to update self._pointer_buttons.

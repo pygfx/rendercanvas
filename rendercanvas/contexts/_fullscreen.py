@@ -1,5 +1,7 @@
 import wgpu
 
+# Note: we can now use numpy here too, which may make things a bit easier. On the other hand, this works now.
+
 
 class FullscreenTexture:
     """An object that helps rendering a texture to the full viewport."""

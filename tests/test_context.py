@@ -56,13 +56,13 @@ class WgpuContextToBitmapLookLikeWgpuPy(WgpuContextToBitmap):
         self._rc_set_size_dict(size_info)
 
     def present(self):
-        return self._rc_present()
+        return self._rc_present(force_sync=True)
 
     def close(self):
         self._rc_close()
 
 
-class BitmapContextToWgpuAndBackToBimap(BitmapContextToScreen):
+class BitmapContextToWgpuAndBackToBitmap(BitmapContextToScreen):
     """A bitmap context that takes a detour via wgpu :)"""
 
     present_methods = ["bitmap"]
@@ -228,8 +228,7 @@ def test_bitmap_context():
     # Draw! This is not *that* interesting, it just passes the bitmap around
     result = canvas.draw()
 
-    assert isinstance(result, memoryview)
-    result = np.asarray(result)
+    assert isinstance(result, np.ndarray)
     assert np.all(result == bitmap)
 
     # pssst ... it's actually the same data!
@@ -251,8 +250,8 @@ def test_bitmap_context():
 def test_wgpu_context():
     # Create canvas and attach our special adapter canvas
     canvas = ManualOffscreenRenderCanvas()
-    context = canvas.get_context(BitmapContextToWgpuAndBackToBimap)
-    assert isinstance(context, BitmapContextToWgpuAndBackToBimap)
+    context = canvas.get_context(BitmapContextToWgpuAndBackToBitmap)
+    assert isinstance(context, BitmapContextToWgpuAndBackToBitmap)
     assert isinstance(context, BitmapContext)
 
     # Create and set bitmap
@@ -266,8 +265,7 @@ def test_wgpu_context():
     # is in the sRGB colorspace.
     result = canvas.draw()
 
-    assert isinstance(result, memoryview)
-    result = np.asarray(result)
+    assert isinstance(result, np.ndarray)
     assert np.all(result == bitmap)
 
     # Now we change the size

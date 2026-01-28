@@ -101,6 +101,7 @@ class PyodideRenderCanvas(BaseRenderCanvas):
         self._canvas_element = canvas_element
 
         # We need a buffer to store pixel data, until we figure out how we can map a Python memoryview to a JS ArrayBuffer without making a copy.
+        # TODO: if its any easier for a numpy array, we could go that route!
         self._js_array = Uint8ClampedArray.new(0)
 
         # We use an offscreen canvas when the bitmap texture does not match the physical pixels. You should see it as a GPU texture.
@@ -449,20 +450,22 @@ class PyodideRenderCanvas(BaseRenderCanvas):
             return None  # raises error
 
     def _rc_request_draw(self):
-        window.requestAnimationFrame(
-            create_proxy(lambda _: self._draw_frame_and_present())
-        )
+        # No need to wait
+        self._time_to_draw()
 
-    def _rc_force_draw(self):
+    def _rc_request_paint(self):
+        window.requestAnimationFrame(create_proxy(lambda _: self._time_to_paint()))
+
+    def _rc_force_paint(self):
         # Not very clean to do this, and not sure if it works in a browser;
         # you can draw all you want, but the browser compositer only uses the last frame, I expect.
         # But that's ok, since force-drawing is not recommended in general.
-        self._draw_frame_and_present()
+        self._time_to_paint()
 
     def _rc_present_bitmap(self, **kwargs):
         data = kwargs.get("data")
 
-        # Convert to memoryview. It probably already is.
+        # Convert to memoryview (from a numpy array)
         m = memoryview(data)
         h, w = m.shape[:2]
 
