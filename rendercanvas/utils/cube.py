@@ -14,7 +14,7 @@ import numpy as np
 
 
 def setup_drawing_sync(
-    canvas, power_preference="high-performance", limits=None, format=None
+    canvas, power_preference="low-power", limits=None, format=None
 ) -> Callable[[], None]:
     """Setup to draw a rotating cube on the given canvas.
 
