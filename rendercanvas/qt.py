@@ -327,6 +327,7 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
 
     def paintEngine(self):  # noqa: N802 - this is a Qt method
         # https://doc.qt.io/qt-5/qt.html#WidgetAttribute-enum  WA_PaintOnScreen
+        print(f"paintEngine called, _present_to_screen is {self._present_to_screen} ")
         if self._present_to_screen or self._present_to_screen is None:
             return None
         else:
@@ -364,7 +365,6 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
 
         # Apply
         if the_method == "screen":
-
             surface_ids = self._get_surface_ids()
             if surface_ids:
                 # Now is a good time to set WA_PaintOnScreen. Note that it implies WA_NativeWindow.

@@ -25,7 +25,7 @@ from rendercanvas.qt import RenderCanvas, loop
 from rendercanvas.utils.cube import setup_drawing_sync
 
 
-canvas = RenderCanvas(title=f"The wgpu cube example on {lib}", update_mode="fastest", present_method='bitmap')
+canvas = RenderCanvas(title=f"The wgpu cube example on {lib}", update_mode="fastest", present_method='screen')
 draw_frame = setup_drawing_sync(canvas)
 canvas.request_draw(draw_frame)
 
