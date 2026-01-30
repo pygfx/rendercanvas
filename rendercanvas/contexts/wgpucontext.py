@@ -4,7 +4,7 @@ from typing import Sequence
 import numpy as np
 
 from .basecontext import BaseContext
-from .._coreutils import log_exception
+from .._coreutils import logger, log_exception
 
 
 __all__ = ["WgpuContext", "WgpuContextToBitmap", "WgpuContextToScreen"]
@@ -207,6 +207,16 @@ class WgpuContextToBitmap(WgpuContext):
         """Get dict of capabilities and cache the result."""
 
         import wgpu
+
+        # Earlier versions wgpu may not be optimal, or may not even work.
+        if wgpu.version_info < (0, 27):
+            raise RuntimeError(
+                f"The version of wgpu {wgpu.__version__!r} is too old to support bitmap-present of the current version of rendercanvas. Please update wgpu-py."
+            )
+        if wgpu.version_info < (1, 29):
+            logger.warning(
+                f"The version of wgpu is {wgpu.__version__!r}, you probably want to upgrade to at least 0.29 to benefit from performance upgrades for async-bitmap-present."
+            )
 
         # Store usage flags now that we have the wgpu namespace
         self._context_texture_usage = wgpu.TextureUsage.COPY_SRC
