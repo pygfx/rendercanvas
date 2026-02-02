@@ -213,7 +213,8 @@ class WgpuContextToBitmap(WgpuContext):
             raise RuntimeError(
                 f"The version of wgpu {wgpu.__version__!r} is too old to support bitmap-present of the current version of rendercanvas. Please update wgpu-py."
             )
-        if wgpu.version_info < (1, 29):
+        if wgpu.version_info < (0, 29):
+            breakpoint()
             logger.warning(
                 f"The version of wgpu is {wgpu.__version__!r}, you probably want to upgrade to at least 0.29 to benefit from performance upgrades for async-bitmap-present."
             )
