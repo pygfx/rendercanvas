@@ -14,7 +14,6 @@ import wx
 
 from ._coreutils import (
     logger,
-    SYSTEM_IS_WAYLAND,
     get_alt_x11_display,
     get_alt_wayland_display,
 )
@@ -287,8 +286,9 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
     def _rc_get_present_info(self, present_methods):
         # Select method
         the_method = present_methods[0]
-        if SYSTEM_IS_WAYLAND and "bitmap" in present_methods:
-            the_method = "bitmap"  # also see qt.py
+        if "bitmap" in present_methods:
+            # Default to 'bitmap', also see note in qt.py
+            the_method = "bitmap"
 
         # Apply
         if the_method == "screen":
