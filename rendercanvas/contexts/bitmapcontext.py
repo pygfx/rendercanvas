@@ -1,5 +1,8 @@
 from .basecontext import BaseContext
 
+import numpy as np
+
+
 __all__ = ["BitmapContext", "BitmapContextToBitmap", "BitmapContextToScreen"]
 
 
@@ -36,39 +39,39 @@ class BitmapContext(BaseContext):
         """Set the rendered bitmap image.
 
         Call this in the draw event. The bitmap must be an object that can be
-        conveted to a memoryview, like a numpy array. It must represent a 2D
-        image in either grayscale or rgba format, with uint8 values
+        converted to a numpy array. It must represent a 2D image in either
+        grayscale or rgba format, with uint8 values
         """
 
-        m = memoryview(bitmap)
+        arr = np.asarray(bitmap)
 
         # Check dtype
-        if m.format == "B":
+        if arr.dtype == np.uint8:
             dtype = "u8"
         else:
             raise ValueError(
-                "Unsupported bitmap dtype/format '{m.format}', expecting unsigned bytes ('B')."
+                "Unsupported bitmap dtype '{arr.dtype}', expecting unsigned bytes."
             )
 
         # Get color format
         color_format = None
-        if len(m.shape) == 2:
+        if arr.ndim == 2:
             color_format = "i"
-        elif len(m.shape) == 3:
-            if m.shape[2] == 1:
+        elif arr.ndim == 3:
+            if arr.shape[2] == 1:
                 color_format = "i"
-            elif m.shape[2] == 4:
+            elif arr.shape[2] == 4:
                 color_format = "rgba"
         if not color_format:
             raise ValueError(
-                f"Unsupported bitmap shape {m.shape}, expecting a 2D grayscale or rgba image."
+                f"Unsupported bitmap shape {arr.shape}, expecting a 2D grayscale or rgba image."
             )
 
         # We should now have one of two formats
         format = f"{color_format}-{dtype}"
         assert format in ("rgba-u8", "i-u8")
 
-        self._bitmap_and_format = m, format
+        self._bitmap_and_format = arr, format
 
 
 class BitmapContextToBitmap(BitmapContext):
@@ -81,22 +84,24 @@ class BitmapContextToBitmap(BitmapContext):
         assert self._present_info["method"] == "bitmap"
         self._bitmap_and_format = None
 
-    def _rc_present(self):
+    def _rc_present(self, *, force_sync: bool = False) -> dict:
         if self._bitmap_and_format is None:
             return {"method": "skip"}
 
         bitmap, format = self._bitmap_and_format
+
         if format not in self._present_info["formats"]:
             # Convert from i-u8 -> rgba-u8. This surely hurts performance.
             assert format == "i-u8"
-            flat_bitmap = bitmap.cast("B", (bitmap.nbytes,))
-            new_bitmap = memoryview(bytearray(bitmap.nbytes * 4)).cast("B")
-            new_bitmap[::4] = flat_bitmap
-            new_bitmap[1::4] = flat_bitmap
-            new_bitmap[2::4] = flat_bitmap
-            new_bitmap[3::4] = b"\xff" * flat_bitmap.nbytes
-            bitmap = new_bitmap.cast("B", (*bitmap.shape, 4))
+            new_bitmap = np.full((*bitmap.shape[:2], 4), 255, dtype=np.uint8)
+            new_bitmap[:, :, 0] = bitmap
+            new_bitmap[:, :, 1] = bitmap
+            new_bitmap[:, :, 2] = bitmap
+            bitmap = new_bitmap
             format = "rgba-u8"
+        elif not bitmap.flags.contiguous:
+            bitmap = bitmap.copy()
+
         return {
             "method": "bitmap",
             "data": bitmap,
@@ -130,7 +135,7 @@ class BitmapContextToScreen(BitmapContext):
         self._create_wgpu_py_context()  # sets self._wgpu_context
         self._wgpu_context_is_configured = False
 
-    def _rc_present(self):
+    def _rc_present(self, *, force_sync: bool = False) -> dict:
         if self._bitmap_and_format is None:
             return {"method": "skip"}
 
@@ -138,6 +143,8 @@ class BitmapContextToScreen(BitmapContext):
         # Returns the present-result dict produced by ``GPUCanvasContext.present()``.
 
         bitmap = self._bitmap_and_format[0]
+        if not bitmap.flags.contiguous:
+            bitmap = bitmap.copy()
         self._texture_helper.set_texture_data(bitmap)
 
         if not self._wgpu_context_is_configured:

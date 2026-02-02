@@ -29,6 +29,7 @@ if libname:
     QtWidgets = importlib.import_module(".QtWidgets", libname)
     # Uncomment the line below to try QtOpenGLWidgets.QOpenGLWidget instead of QWidget
     # QtOpenGLWidgets = importlib.import_module(".QtOpenGLWidgets", libname)
+    WindowStateChange = QtCore.QEvent.Type.WindowStateChange
     if libname.startswith("PyQt"):
         # PyQt5 or PyQt6
         WA_InputMethodEnabled = QtCore.Qt.WidgetAttribute.WA_InputMethodEnabled
@@ -36,6 +37,7 @@ if libname:
         WA_PaintOnScreen = QtCore.Qt.WidgetAttribute.WA_PaintOnScreen
         WA_DeleteOnClose = QtCore.Qt.WidgetAttribute.WA_DeleteOnClose
         PreciseTimer = QtCore.Qt.TimerType.PreciseTimer
+        WindowState = QtCore.Qt.WindowState
         FocusPolicy = QtCore.Qt.FocusPolicy
         CursorShape = QtCore.Qt.CursorShape
         WinIdChange = QtCore.QEvent.Type.WinIdChange
@@ -50,6 +52,7 @@ if libname:
         WA_PaintOnScreen = QtCore.Qt.WA_PaintOnScreen
         WA_DeleteOnClose = QtCore.Qt.WA_DeleteOnClose
         PreciseTimer = QtCore.Qt.PreciseTimer
+        WindowState = QtCore.Qt
         FocusPolicy = QtCore.Qt
         CursorShape = QtCore.Qt
         WinIdChange = QtCore.QEvent.WinIdChange
@@ -278,9 +281,11 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        # Determine present method
+        self._last_image = None
         self._last_winid = None
-        self._present_to_screen = None
         self._is_closed = False
+        self._pending_present_params = None
 
         self.setAutoFillBackground(False)
         self.setAttribute(WA_DeleteOnClose, True)
@@ -327,18 +332,31 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
 
     def paintEngine(self):  # noqa: N802 - this is a Qt method
         # https://doc.qt.io/qt-5/qt.html#WidgetAttribute-enum  WA_PaintOnScreen
-        if self._present_to_screen:
+        if self._present_to_screen or self._present_to_screen is None:
             return None
         else:
             return super().paintEngine()
 
     def paintEvent(self, event):  # noqa: N802 - this is a Qt method
-        self._draw_frame_and_present()
+        self._time_to_paint()
+        if self._last_image is not None:
+            image = self._last_image[0]
 
-    def update(self):
-        # Bypass Qt's mechanics and request a draw so that the scheduling mechanics work as intended.
-        # Eventually this will call _request_draw().
-        self.request_draw()
+            # Prep drawImage rects
+            rect1 = QtCore.QRect(0, 0, image.width(), image.height())
+            rect2 = self.rect()
+
+            # Paint the image. Nearest neighbor interpolation, like the other backends.
+            painter = QtGui.QPainter(self)
+            painter.setRenderHints(painter.RenderHint.Antialiasing, False)
+            painter.setRenderHints(painter.RenderHint.SmoothPixmapTransform, False)
+            painter.drawImage(rect2, image, rect1)
+            painter.end()
+
+    # def update(self):
+    #     # Bypass Qt's mechanics and request a draw so that the scheduling mechanics work as intended.
+    #     # Eventually this will call _request_draw().
+    #     self.request_draw()
 
     # %% Methods to implement RenderCanvas
 
@@ -366,10 +384,10 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         if the_method == "screen":
             surface_ids = self._get_surface_ids()
             if surface_ids:
-                self._present_to_screen = True
+                # Now is a good time to set WA_PaintOnScreen. Note that it implies WA_NativeWindow.
+                self.setAttribute(WA_PaintOnScreen, True)
                 return {"method": "screen", **surface_ids}
             elif "bitmap" in present_methods:
-                self._present_to_screen = False
                 return {
                     "method": "bitmap",
                     "formats": list(BITMAP_FORMAT_MAP.keys()),
@@ -377,7 +395,7 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
             else:
                 return None
         elif the_method == "bitmap":
-            self._present_to_screen = False
+            self._pending_present_params = {"submethod": "contiguous-array"}
             return {
                 "method": "bitmap",
                 "formats": list(BITMAP_FORMAT_MAP.keys()),
@@ -386,6 +404,12 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
             return None  # raises error
 
     def _rc_request_draw(self):
+        if self._pending_present_params:
+            self._canvas_context._rc_set_present_params(**self._pending_present_params)
+            self._pending_present_params = None
+        self._time_to_draw()
+
+    def _rc_request_paint(self):
         # Ask Qt to do a paint event
         QtWidgets.QWidget.update(self)
 
@@ -394,12 +418,15 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         if not isinstance(loop, QtLoop):
             loop.call_soon(self._rc_gui_poll)
 
-    def _rc_force_draw(self):
-        # Call the paintEvent right now.
-        # This works on all platforms I tested, except on MacOS when drawing with the 'image' method.
-        # Not sure why this is. It be made to work by calling processEvents() but that has all sorts
-        # of nasty side-effects (e.g. the scheduler timer keeps ticking, invoking other draws, etc.).
+    def _rc_force_paint(self):
+        # Call the paintEvent right now. This works on all platforms I tested,
+        # except on MacOS when drawing with the 'bitmap' method. Not sure why
+        # this is. It can be made to work by calling processEvents(), although
+        # that can have side-effects (e.g. the scheduler timer keeps ticking,
+        # invoking other draws, etc.).
         self.repaint()
+        if sys.platform == "darwin" and not self._present_to_screen:
+            loop._app.processEvents()
 
     def _rc_present_bitmap(self, *, data, format, **kwargs):
         # Notes on performance:
@@ -431,21 +458,17 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
 
         width, height = data.shape[1], data.shape[0]  # width, height
 
-        # Wrap the data in a QImage (no copy)
+        # Use the given array, or its base, if this is a strided view
+        # so that we can also work with submethod 'strided-array'.
+        thedata = data if data.base is None else data.base
+
+        # Wrap the data in a QImage (no copy, so we need to keep a ref to data)
         qtformat = BITMAP_FORMAT_MAP[format]
         bytes_per_line = data.strides[0]
-        image = QtGui.QImage(data, width, height, bytes_per_line, qtformat)
-
-        # Prep drawImage rects
-        rect1 = QtCore.QRect(0, 0, width, height)
-        rect2 = self.rect()
-
-        # Paint the image. Nearest neighbor interpolation, like the other backends.
-        painter = QtGui.QPainter(self)
-        painter.setRenderHints(painter.RenderHint.Antialiasing, False)
-        painter.setRenderHints(painter.RenderHint.SmoothPixmapTransform, False)
-        painter.drawImage(rect2, image, rect1)
-        painter.end()
+        self._last_image = (
+            QtGui.QImage(thedata, width, height, bytes_per_line, qtformat),
+            data,
+        )
 
     def _rc_set_logical_size(self, width, height):
         width, height = int(width), int(height)
@@ -663,6 +686,19 @@ class QRenderCanvas(WrapperRenderCanvas, QtWidgets.QWidget):
 
     def closeEvent(self, event):  # noqa: N802
         self._subwidget.closeEvent(event)
+
+    def changeEvent(self, event):  # noqa: N802
+        # Pause rendering when minimized. Note that it is about impossible to
+        # detect this from the widget itself, let alone other ways in which the
+        # widget becomes invisible, such as in a non-active tab, behind the
+        # window of another application, etc.
+        # So we keep this implementation minimal, and leave it to the end-user if more sophisticated methods are needed.
+        # Note that for present-method 'screen', this is not really needed, because Qt does not paint (i.e. animation frame)
+        # when hidden. So this is mainly for when 'bitmap' mode is used.
+        if event.type() == WindowStateChange:
+            minimized = self.windowState() & WindowState.WindowMinimized
+            self._subwidget._set_visible(not minimized)
+        return super().changeEvent(event)
 
 
 # Make available under a name that is the same for all gui backends

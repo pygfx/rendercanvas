@@ -211,7 +211,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self._present_to_screen = None
+        self._last_image = None
         self._is_closed = False
         self._pointer_inside = None
         self._is_pointer_inside_according_to_wx = False
@@ -244,11 +244,14 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         self.Refresh()
 
     def on_paint(self, event):
-        dc = wx.PaintDC(self)  # needed for wx
+        dc = wx.PaintDC(self)
         if not self._draw_lock:
-            self._draw_frame_and_present()
+            self._time_to_paint()
+        if self._last_image is not None:
+            dc.DrawBitmap(self._last_image, 0, 0, False)
+        else:
+            event.Skip()
         del dc
-        event.Skip()
 
     def _get_surface_ids(self):
         if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
@@ -296,10 +299,8 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
                 loop.process_wx_events()
             surface_ids = self._get_surface_ids()
             if surface_ids:
-                self._present_to_screen = True
                 return {"method": "screen", **surface_ids}
             elif "bitmap" in present_methods:
-                self._present_to_screen = False
                 return {
                     "method": "bitmap",
                     "formats": ["rgba-u8"],
@@ -307,7 +308,6 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
             else:
                 return None
         elif the_method == "bitmap":
-            self._present_to_screen = False
             return {
                 "method": "bitmap",
                 "formats": ["rgba-u8"],
@@ -316,6 +316,9 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
             return None  # raises error
 
     def _rc_request_draw(self):
+        self._time_to_draw()
+
+    def _rc_request_paint(self):
         if self._draw_lock:
             return
         try:
@@ -323,18 +326,18 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         except Exception:
             pass  # avoid errors when window no longer lives
 
-    def _rc_force_draw(self):
+    def _rc_force_paint(self):
         self.Refresh()
         self.Update()
+        if sys.platform == "darwin":
+            wx.Yield()
 
     def _rc_present_bitmap(self, *, data, format, **kwargs):
         # todo: we can easily support more formats here
         assert format == "rgba-u8"
         width, height = data.shape[1], data.shape[0]
-
-        dc = wx.PaintDC(self)
-        bitmap = wx.Bitmap.FromBufferRGBA(width, height, data)
-        dc.DrawBitmap(bitmap, 0, 0, False)
+        self._last_image = wx.Bitmap.FromBufferRGBA(width, height, data)
+        self._last_image.SetScaleFactor(self.get_pixel_ratio())
 
     def _rc_set_logical_size(self, width, height):
         width, height = int(width), int(height)

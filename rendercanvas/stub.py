@@ -45,7 +45,7 @@ loop = StubLoop()
 
 class StubCanvasGroup(BaseCanvasGroup):
     """
-    The ``CanvasGroup`` representss a group of canvas objects from the same class, that share a loop.
+    The ``CanvasGroup`` represents a group of canvas objects from the same class, that share a loop.
 
     The initial/default loop is passed when the ``CanvasGroup`` is instantiated.
 
@@ -68,9 +68,6 @@ class StubRenderCanvas(BaseRenderCanvas):
     Backends must call ``self._final_canvas_init()`` at the end of its
     ``__init__()``. This will set the canvas' logical size and title.
 
-    Backends must call ``self._draw_frame_and_present()`` to make the actual
-    draw. This should typically be done inside the backend's native draw event.
-
     Backends must call ``self._size_info.set_physical_size(width, height, native_pixel_ratio)``,
     whenever the size or pixel ratio changes. It must be called when the actual
     viewport has changed, so typically not in ``_rc_set_logical_size()``, but
@@ -92,10 +89,13 @@ class StubRenderCanvas(BaseRenderCanvas):
         return None
 
     def _rc_request_draw(self):
+        self._time_to_draw()
+
+    def _rc_request_paint(self):
         pass
 
-    def _rc_force_draw(self):
-        self._draw_frame_and_present()
+    def _rc_force_paint(self):
+        self._time_to_paint()
 
     def _rc_present_bitmap(self, *, data, format, **kwargs):
         raise NotImplementedError()

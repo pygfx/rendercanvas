@@ -1,6 +1,10 @@
+import time
 from typing import Sequence
 
+import numpy as np
+
 from .basecontext import BaseContext
+from .._coreutils import logger, log_exception
 
 
 __all__ = ["WgpuContext", "WgpuContextToBitmap", "WgpuContextToScreen"]
@@ -99,7 +103,6 @@ class WgpuContext(BaseContext):
             # "tone_mapping": tone_mapping,
             "alpha_mode": alpha_mode,
         }
-
         # Let subclass finnish the configuration, then store the config
         self._configure(config)
         self._config = config
@@ -126,7 +129,7 @@ class WgpuContext(BaseContext):
     def _get_current_texture(self):
         raise NotImplementedError()
 
-    def _rc_present(self) -> None:
+    def _rc_present(self, *, force_sync: bool = False) -> dict:
         """Hook for the canvas to present the rendered result.
 
         Present what has been drawn to the current texture, by compositing it to the
@@ -161,7 +164,7 @@ class WgpuContextToScreen(WgpuContext):
     def _get_current_texture(self) -> object:
         return self._wgpu_context.get_current_texture()
 
-    def _rc_present(self) -> None:
+    def _rc_present(self, *, force_sync: bool = False) -> dict:
         self._wgpu_context.present()
         return {"method": "screen"}
 
@@ -186,13 +189,41 @@ class WgpuContextToBitmap(WgpuContext):
         # Canvas capabilities. Stored the first time it is obtained
         self._capabilities = self._get_capabilities()
 
-        # The last used texture
+        # The current texture to render to. Is replaced when the canvas resizes.
+        # We have a single texture (not a ring of textures), because copying the
+        # contents to a download-buffer is near-instant.
         self._texture = None
+
+        # Object to download the rendered images to the CPU/RAM. Mapping the
+        # buffers to RAM takes time, and we want to wait for this
+        # asynchronously. We could have a ring of buffers to allow multiple
+        # concurrent downloads (start downloading the next frame before the
+        # previous is done downloading), but from what we've observed, this does
+        # not improve the FPS. It does costs memory though, and can actually
+        # strain the GPU more.
+        self._downloader = None
 
     def _get_capabilities(self):
         """Get dict of capabilities and cache the result."""
 
         import wgpu
+
+        # Earlier versions wgpu may not be optimal, or may not even work.
+        if wgpu.version_info < (0, 27):
+            raise RuntimeError(
+                f"The version of wgpu {wgpu.__version__!r} is too old to support bitmap-present of the current version of rendercanvas. Please update wgpu-py."
+            )
+        if wgpu.version_info < (0, 29):
+            breakpoint()
+            logger.warning(
+                f"The version of wgpu is {wgpu.__version__!r}, you probably want to upgrade to at least 0.29 to benefit from performance upgrades for async-bitmap-present."
+            )
+
+        # Store usage flags now that we have the wgpu namespace
+        self._context_texture_usage = wgpu.TextureUsage.COPY_SRC
+        self._context_buffer_usage = (
+            wgpu.BufferUsage.COPY_DST | wgpu.BufferUsage.MAP_READ
+        )
 
         capabilities = {}
 
@@ -260,8 +291,12 @@ class WgpuContextToBitmap(WgpuContext):
                 f"Configure: unsupported alpha-mode: {alpha_mode} not in {cap_alpha_modes}"
             )
 
+        # (re)create downloader
+        self._downloader = ImageDownloader(config["device"], self._context_buffer_usage)
+
     def _unconfigure(self) -> None:
         self._drop_texture()
+        self._downloader = None
 
     def _get_current_texture(self):
         # When the texture is active right now, we could either:
@@ -270,39 +305,205 @@ class WgpuContextToBitmap(WgpuContext):
         # * raise an error
         # Right now we return the existing texture, so user can retrieve it in different render passes that write to the same frame.
 
-        if self._texture is None:
-            import wgpu
+        width, height = self.physical_size
+        need_texture_size = max(width, 1), max(height, 1), 1
 
-            width, height = self.physical_size
-            width, height = max(width, 1), max(height, 1)
-
+        if self._texture is None or self._texture.size != need_texture_size:
             # Note that the label 'present' is used by read_texture() to determine
             # that it can use a shared copy buffer.
             device = self._config["device"]
             self._texture = device.create_texture(
                 label="present",
-                size=(width, height, 1),
+                size=need_texture_size,
                 format=self._config["format"],
-                usage=self._config["usage"] | wgpu.TextureUsage.COPY_SRC,
+                usage=self._config["usage"] | self._context_texture_usage,
             )
 
         return self._texture
 
-    def _rc_present(self) -> None:
+    def _rc_present(self, *, force_sync: bool = False) -> dict:
         if not self._texture:
             return {"method": "skip"}
+        if force_sync:
+            return self._downloader.do_sync_download(
+                self._texture, self._present_params
+            )
+        else:
+            awaitable = self._downloader.initiate_download(
+                self._texture, self._present_params
+            )
+            return {"method": "async", "awaitable": awaitable}
 
-        bitmap = self._get_bitmap()
+    def _rc_close(self):
         self._drop_texture()
-        return {"method": "bitmap", "format": "rgba-u8", "data": bitmap}
 
-    def _get_bitmap(self):
-        texture = self._texture
-        device = texture._device
 
+class ImageDownloader:
+    """A helper class that wraps a copy-buffer to async-download an image from a texture."""
+
+    # Some timings, to put things into perspective:
+    #
+    #   1 ms -> 1000 fps
+    #  10 ms ->  100 fps
+    #  16 ms ->   64 fps  (windows timer precision)
+    #  33 ms ->   30 fps
+    # 100 ms ->   10 fps
+    #
+    # If we sync-wait with 10ms means the fps is (way) less than 100.
+    # If we render at 30 fps, and only present right after the next frame is drawn, we introduce a 33ms delay.
+    # That's why we want to present asynchronously, and present the result as soon as it's available.
+
+    def __init__(self, device, buffer_usage):
+        self._device = device
+        self._buffer_usage = buffer_usage
+        self._buffer = None
+        self._awaitable = None
+        self._action = None
+        self._time_since_size_ok = 0
+
+    def _clear_pending_download(self):
+        if self._action is not None:
+            self._action.cancel()
+        if self._awaitable is not None:
+            if self._buffer.map_state == "pending":
+                self._awaitable.sync_wait()
+            if self._buffer.map_state == "mapped":
+                self._buffer.unmap()
+
+    def _get_awaitable_for_download(self, texture, present_params=None):
+        # First clear any pending downloads.
+        # This covers cases when switching between ``force_draw()`` and normal rendering.
+        self._clear_pending_download()
+
+        # Create new action object and make sure that the buffer is the correct size
+        action = AsyncImageDownloadAction(texture, present_params)
+        stride, nbytes = action.stride, action.nbytes
+        self._ensure_buffer_size(nbytes)
+        action.set_buffer(self._buffer)
+
+        # Initiate copying the texture to the buffer
+        self._queue_command_to_copy_texture(texture, stride)
+
+        # Note: the buffer.map_async() method by default also does a flush, to hide a bug in wgpu-core (https://github.com/gfx-rs/wgpu/issues/5173).
+        # That bug does not affect this use-case, so we use a special (undocumented :/) map-mode to prevent wgpu-py from doing its sync thing.
+        awaitable = self._buffer.map_async("READ_NOSYNC", 0, nbytes)
+
+        self._action = action
+        self._awaitable = awaitable
+
+    def initiate_download(self, texture, present_params):
+        self._get_awaitable_for_download(texture, present_params)
+        self._awaitable.then(self._action.resolve)
+        return self._action
+
+    def do_sync_download(self, texture, present_params):
+        # Start a fresh download
+        self._get_awaitable_for_download(texture)
+
+        # With a fresh action
+        self._action.cancel()
+        action = AsyncImageDownloadAction(texture, present_params)
+        action.set_buffer(self._buffer)
+
+        # Async-wait, then resolve
+        self._awaitable.sync_wait()
+        result = action.resolve()
+        assert result is not None
+        return result
+
+    def _ensure_buffer_size(self, required_size):
+        # Get buffer and decide whether we can still use it
+        buffer = self._buffer
+        if buffer is None:
+            pass  # No buffer
+        elif required_size > buffer.size:
+            buffer = None  # Buffer too small
+        elif required_size < 0.50 * buffer.size:
+            buffer = None  # Buffer more than twice as large as needed
+        elif required_size > 0.85 * buffer.size:
+            self._time_since_size_ok = time.perf_counter()  # Size is fine
+        elif time.perf_counter() - self._time_since_size_ok > 5.0:
+            buffer = None  # Too large too long
+
+        # Create a new buffer if we need one
+        if buffer is None:
+            buffer_size = required_size
+            buffer_size += (4096 - buffer_size % 4096) % 4096
+            self._buffer = self._device.create_buffer(
+                label="copy-buffer", size=buffer_size, usage=self._buffer_usage
+            )
+
+    def _queue_command_to_copy_texture(self, texture, stride):
+        source = {
+            "texture": texture,
+            "mip_level": 0,
+            "origin": (0, 0, 0),
+        }
+
+        destination = {
+            "buffer": self._buffer,
+            "offset": 0,
+            "bytes_per_row": stride,
+            "rows_per_image": texture.size[1],
+        }
+
+        # Copy data to temp buffer
+        encoder = self._device.create_command_encoder()
+        encoder.copy_texture_to_buffer(source, destination, texture.size)
+        command_buffer = encoder.finish()
+        self._device.queue.submit([command_buffer])
+
+
+class AsyncImageDownloadAction:
+    """Single-use image download helper object that has a 'then' method (i.e. follows the awaitable pattern a bit)."""
+
+    def __init__(self, texture, present_params):
+        self._callbacks = []
+        self._present_params = present_params
+        # The image is stored in wgpu buffer, which needs to get mapped before we can read the bitmap
+        self._buffer = None
+        # We examine the texture to understand what the bitmap will look like
+        self._parse_texture_metadata(texture)
+
+    def set_buffer(self, buffer):
+        self._buffer = buffer
+
+    def is_pending(self):
+        return self._buffer is not None
+
+    def cancel(self):
+        self._buffer = None
+
+    def then(self, callback):
+        self._callbacks.append(callback)
+
+    def resolve(self, _=None):
+        # Use log_exception because this is used in a GPUPromise.then()
+        with log_exception("Error in AsyncImageDownloadAction.resolve:"):
+            buffer = self._buffer
+            if buffer is None:
+                return
+            self._buffer = None
+
+            try:
+                data = self._get_bitmap(buffer)
+            finally:
+                buffer.unmap()
+            result = {
+                "method": "bitmap",
+                "format": "rgba-u8",
+                "data": data,
+            }
+            for callback in self._callbacks:
+                callback(result)
+            self._callbacks = []
+            return result
+
+    def _parse_texture_metadata(self, texture):
         size = texture.size
         format = texture.format
         nchannels = 4  # we expect rgba or bgra
+
         if not format.startswith(("rgba", "bgra")):
             raise RuntimeError(f"Image present unsupported texture format {format}.")
         if "8" in format:
@@ -316,38 +517,114 @@ class WgpuContextToBitmap(WgpuContext):
                 f"Image present unsupported texture format bitdepth {format}."
             )
 
-        data = device.queue.read_texture(
-            {
-                "texture": texture,
-                "mip_level": 0,
-                "origin": (0, 0, 0),
-            },
-            {
-                "offset": 0,
-                "bytes_per_row": bytes_per_pixel * size[0],
-                "rows_per_image": size[1],
-            },
-            size,
-        )
-
-        # Derive struct dtype from wgpu texture format
-        memoryview_type = "B"
+        dtype = "uint8"
         if "float" in format:
-            memoryview_type = "e" if "16" in format else "f"
+            dtype = "float16" if "16" in format else "float32"
         else:
+            dtype = "int" if "sint" in format else "uint"
             if "32" in format:
-                memoryview_type = "I"
+                dtype += "32"
             elif "16" in format:
-                memoryview_type = "H"
+                dtype += "16"
             else:
-                memoryview_type = "B"
-            if "sint" in format:
-                memoryview_type = memoryview_type.lower()
+                dtype += "8"
 
-        # Represent as memory object to avoid numpy dependency
-        # Equivalent: np.frombuffer(data, np.uint8).reshape(size[1], size[0], nchannels)
+        plain_stride = bytes_per_pixel * size[0]
+        extra_stride = (256 - plain_stride % 256) % 256
+        padded_stride = plain_stride + extra_stride
 
-        return data.cast(memoryview_type, (size[1], size[0], nchannels))
+        self._dtype = dtype
+        self._nchannels = nchannels
+        self._padded_stride = padded_stride
+        self._texture_size = size
 
-    def _rc_close(self):
-        self._drop_texture()
+        # For ImageDownloader
+        self.stride = padded_stride
+        self.nbytes = padded_stride * size[1]
+
+    def _get_bitmap(self, buffer):
+        dtype = self._dtype
+        nchannels = self._nchannels
+        padded_stride = self._padded_stride
+        size = self._texture_size
+        plain_shape = (size[1], size[0], nchannels)
+        present_params = self._present_params or {}
+
+        # Read bitmap from mapped buffer. Note that the data is mapped, so we
+        # *must* copy the data before unmapping the buffer. By applying any
+        # processing *here* while the buffer is mapped, we can avoid one
+        # data-copy. E.g. we can create a numpy view on the data and then copy
+        # *that*, rather than copying the raw data and then making another copy
+        # to make it contiguous.
+
+        # Note that this code here is the main reason for having numpy as a
+        # dependency: with just memoryview (no numpy), we cannot create a
+        # strided array, and we cannot copy strided data without iterating over
+        # all rows.
+
+        # Get array
+        if buffer.map_state == "pending":
+            raise RuntimeError("Buffer state is 'pending' in get_bitmap()")
+        mapped_data = buffer.read_mapped(copy=False)
+
+        # Determine how to process it.
+        submethod = present_params.get("submethod", "contiguous-array")
+
+        # Triage. AK: I implemented some stubs, primarily as an indication of
+        # how I see this scaling out to more sophisticated methods. Here we can
+        # add diff images, gpu-based pseudo-jpeg, etc.
+
+        if submethod == "contiguous-array":
+            # This is the default.
+
+            # Wrap the data in a (possible strided) numpy array
+            data = np.asarray(mapped_data, dtype=dtype).reshape(
+                plain_shape[0], padded_stride // nchannels, nchannels
+            )
+            # Make a copy, making it contiguous.
+            data = data[:, : plain_shape[1], :].copy()
+
+        elif submethod == "strided-array":
+            # In some cases it could be beneficial to use the data that has 256-byte aligned rows,
+            # e.g. when the data must be uploaded to a GPU again.
+
+            # Wrap the data in a (possible strided) numpy array
+            data = np.asarray(mapped_data, dtype=dtype).reshape(
+                plain_shape[0], padded_stride // nchannels, nchannels
+            )
+            # Make a copy of the strided data, and create a view on that.
+            data = data.copy()[:, : plain_shape[1], :]
+
+        elif submethod == "jpeg":
+            # For now just a stub, activate in the upcoming Anywidget backend
+
+            import simplejpeg
+
+            # Get strided array view
+            data = np.asarray(mapped_data, dtype=dtype).reshape(
+                plain_shape[0], padded_stride // nchannels, nchannels
+            )
+            data = data[:, : plain_shape[1], :]
+
+            # Encode jpeg on the mapped data
+            data = simplejpeg.encode_jpeg(
+                data,
+                present_params.get("quality", 85),
+                "rgba",
+                present_params.get("subsampling", "420"),
+                fastdct=True,
+            )
+
+        elif submethod == "png":
+            # For cases where lossless compression is needed. We can easily do this in pure Python, I have code for that somewhere.
+            raise NotImplementedError("present submethod 'png'")
+
+        elif submethod == "gpu-jpeg":
+            # jpeg encoding on the GPU, produces pseudo-jpeg that needs to be decoded with a special shader at the receiving end.
+            # This implementation is more work, because we need to setup a GPU pipeline with multiple compute shaders.
+            raise NotImplementedError("present submethod 'gpu-jpeg'")
+
+        else:
+            raise RuntimeError(f"Unknown present submethod {submethod!r}")
+
+        return data
