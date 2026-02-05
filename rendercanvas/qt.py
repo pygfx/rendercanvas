@@ -14,7 +14,6 @@ import importlib
 from .base import WrapperRenderCanvas, BaseCanvasGroup, BaseRenderCanvas, BaseLoop
 from ._coreutils import (
     logger,
-    SYSTEM_IS_WAYLAND,
     get_alt_x11_display,
     get_alt_wayland_display,
     select_qt_lib,
@@ -372,12 +371,13 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
     def _rc_get_present_info(self, present_methods):
         # Select the method
         the_method = present_methods[0]
-        if SYSTEM_IS_WAYLAND and "bitmap" in present_methods:
-            # Trying to render to screen on Wayland segfaults. This might be because
-            # the "display" is not the real display id. We can tell Qt to use
-            # XWayland, so we can use the X11 path. This worked at some point,
-            # but later this resulted in a Rust panic. So, until this is sorted
-            # out, we fall back to rendering via an image.
+        if "bitmap" in present_methods:
+            # There are various known problems with rendering to screen on Qt.
+            # Some relate to getting a wgpu surface, and Qt not able to provide a display-id on Linux.
+            # Some relate to Qt simply not liking it when an application bypasses Qt's compositing.
+            # For an overview see: https://github.com/pygfx/wgpu-py/issues/688
+            # To avoid problems, and be consistent, Qt defaults to 'bitmap' present.
+            # In cases where the extra performance of 'screen' present mode matters, ppl can easily override it.
             the_method = "bitmap"
 
         # Apply

@@ -192,14 +192,14 @@ But the other way around, running a Qt canvas in e.g. the trio loop, works fine:
 
 
 There are known issue with Qt widgets that render directly to screen (i.e. widgets that obtain ``widget.winId()``),
-related to how they interact with other widgets and in docks.
-If you encounter such issues, consider using the bitmap present-method. That way, the rendering happens
-off-screen, and is than provided to Qt as an image. This is a safer approach, albeit lowers the performance (FPS)
-somewhat when the render area is large.
+related to how they interact with other widgets and in docks. Therefore, the Qt backend defaults to the 'bitmap' present method.
+If high FPS is a big deal, you can easily set the present method to 'screen'. If you do this, be aware of possible problems,
+especially in some Linux environment and when the widget is in a QDockWidget.
 
 .. code-block:: py
 
-    widget = QRenderWidget(present_method="bitmap")
+    widget = QRenderWidget(present_method="bitmap")  # safe (default)
+    widget = QRenderWidget(present_method="screen")  # probably higher fps, but can cause problems
 
 
 Support for wx
