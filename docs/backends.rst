@@ -202,6 +202,16 @@ especially in some Linux environment and when the widget is in a QDockWidget.
     widget = QRenderWidget(present_method="screen")  # probably higher fps, but can cause problems
 
 
+The Qt framework has pretty good color management. This means that on a P3
+monitor (a monitor with a wider color gamut, i.e. supporting more colors than a
+normal monitor) it will convert the sRGB colors of the canvas to the P3
+colorspace. This means that, with Qt and 'bitmap' present, on certain monitors,
+the appearance is inconsistent with the 'screen' present method, and with other
+backends. The difference is small and pretty hard to spot, but taking a
+screenshot does give different pixel values. See
+https://github.com/pygfx/rendercanvas/issues/176 for details.
+
+
 Support for wx
 --------------
 
