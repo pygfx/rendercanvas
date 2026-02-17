@@ -12,7 +12,7 @@ To give an idea how to implement a generic async sleep function:
 
 import sys
 
-from .._coreutils import IS_WIN, call_later_from_thread
+from .._coreutils import IS_WIN, IS_PYODIDE, call_later_from_thread
 
 
 USE_THREADED_TIMER = IS_WIN
@@ -24,6 +24,10 @@ USE_THREADED_TIMER = IS_WIN
 
 def detect_current_async_lib():
     """Get the lib name of the currently active async lib, or None."""
+
+    if IS_PYODIDE:
+        return "asyncio"
+
     ob = sys.get_asyncgen_hooks()[0]
     if ob is not None:
         try:
@@ -39,6 +43,10 @@ def detect_current_async_lib():
 
 def detect_current_call_soon_threadsafe():
     """Get the current applicable call_soon_threadsafe function, or None"""
+
+    # We could support Pyodide too, but this never gets called on Pyodide anyway (bc USE_THREADED_TIMER). Leaving commented for reference.
+    # if IS_PYODIDE:
+    #     return sys.modules["asyncio"].get_running_loop().call_soon_threadsafe
 
     # Get asyncgen hook func, return fast when no async loop active
     ob = sys.get_asyncgen_hooks()[0]
