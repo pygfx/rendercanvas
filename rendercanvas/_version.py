@@ -1,5 +1,5 @@
 """
-_version.py v1.4
+_version.py v1.5
 
 Simple version string management, using a hard-coded version string
 for simplicity and compatibility, while adding git info at runtime.
@@ -47,21 +47,18 @@ def get_extended_version() -> str:
     """Get an extended version string with information from git."""
     release, post, labels = get_version_info_from_git()
 
-    # Sample first 3 parts of __version__
-    base_release = ".".join(__version__.split(".")[:3])
-
     # Start version string (__version__ string is leading)
-    version = base_release
+    version = base_version
     tag_prefix = "#"
 
-    if release and release != base_release:
+    if release and release != base_version:
         # Can happen between bumping and tagging. And also when merging a
         # version bump into a working branch, because we use --first-parent.
         release2, _post, _labels = get_version_info_from_git(first_parent=False)
-        if release2 != base_release:
+        if release2 != base_version:
             warning(
                 f"{project_name} version from git ({release})"
-                f" and __version__ ({base_release}) don't match."
+                f" and __version__ ({base_version}) don't match."
             )
         version += "+from_tag_" + release.replace(".", "_")
         tag_prefix = "."
@@ -121,12 +118,14 @@ def get_version_info_from_git(*, first_parent: bool = True) -> str:
 
 
 def version_to_tuple(v: str) -> tuple:
-    v = __version__.split("+")[0]  # remove hash
-    return tuple(int(i) if i.isnumeric() else i for i in v.split("."))
-
-
-def prnt(m: str) -> None:
-    sys.stdout.write(m + "\n")
+    parts = []
+    for part in v.split("."):
+        p, _, h = part.partition("#")
+        if p:
+            parts.append(p)
+        if h:
+            parts.append("#" + h)
+    return tuple(int(i) if i.isnumeric() else i for i in parts)
 
 
 def warning(m: str) -> None:
@@ -154,6 +153,10 @@ update          - Self-update the _version.py module by downloading the
 if __name__ == "__main__":
     import sys
     import urllib.request
+
+    def prnt(m: str) -> None:
+        sys.stdout.write(m + "\n")
+        sys.stdout.flush()
 
     _, *args = sys.argv
     this_file = Path(__file__)
@@ -192,3 +195,4 @@ if __name__ == "__main__":
     else:
         prnt(f"Unknown command for _version.py: {args[0]!r}")
         prnt("Use ``python _version.py help`` to see a list of options.")
+        sys.exit(1)
