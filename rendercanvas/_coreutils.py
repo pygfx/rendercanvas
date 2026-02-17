@@ -19,6 +19,7 @@ from collections import namedtuple
 
 
 IS_WIN = sys.platform.startswith("win")  # Note that IS_WIN is false on Pyodide
+IS_PYODIDE = sys.platform == "emscripten"
 
 
 # %% Logging
