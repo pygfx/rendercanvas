@@ -5,8 +5,8 @@ The scheduler class/loop.
 import time
 import weakref
 
-from ._enums import UpdateMode
-from .utils.asyncs import precise_sleep, Event
+from .enums import UpdateMode
+from ..utils.asyncs import precise_sleep, Event
 
 
 class Scheduler:

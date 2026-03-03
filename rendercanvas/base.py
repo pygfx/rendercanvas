@@ -8,18 +8,18 @@ import sys
 import weakref
 from typing import TYPE_CHECKING
 
-from ._enums import (
+from .core.enums import (
     EventTypeEnum,
     UpdateModeEnum,
     CursorShape,
     CursorShapeEnum,
 )
 from . import contexts
-from ._size import SizeInfo
-from ._events import EventEmitter
-from ._loop import BaseLoop
-from ._scheduler import Scheduler
-from ._coreutils import logger, log_exception
+from .core.size import SizeInfo
+from .core.events import EventEmitter
+from .core.loop import BaseLoop
+from .core.scheduler import Scheduler
+from .core.coreutils import logger, log_exception
 
 
 if TYPE_CHECKING:

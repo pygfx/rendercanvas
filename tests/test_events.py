@@ -4,7 +4,7 @@ Test the EventEmitter.
 
 import time
 
-from rendercanvas._events import EventEmitter, EventType
+from rendercanvas.core.events import EventEmitter, EventType
 from testutils import run_tests
 import pytest
 

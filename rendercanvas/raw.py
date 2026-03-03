@@ -11,7 +11,7 @@ __all__ = ["RawLoop", "loop"]
 import queue
 
 from .base import BaseLoop
-from ._coreutils import logger, call_later_from_thread
+from .core.coreutils import logger, call_later_from_thread
 
 
 class RawLoop(BaseLoop):

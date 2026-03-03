@@ -8,7 +8,7 @@ __all__ = ["JupyterRenderCanvas", "RenderCanvas", "loop"]
 import time
 
 from .base import BaseCanvasGroup, BaseRenderCanvas
-from ._events import EventType
+from .core.events import EventType
 from .asyncio import loop
 
 import numpy as np
