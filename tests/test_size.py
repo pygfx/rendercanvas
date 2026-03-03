@@ -3,7 +3,7 @@ Test size mechanics.
 """
 
 from testutils import run_tests
-from rendercanvas._size import SizeInfo
+from rendercanvas.core.size import SizeInfo
 from rendercanvas.base import BaseRenderCanvas
 
 

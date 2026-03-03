@@ -7,7 +7,7 @@ from testutils import run_tests, is_pypy
 
 
 def test_weakbind():
-    weakbind = rendercanvas._coreutils.weakbind
+    weakbind = rendercanvas.core.coreutils.weakbind
 
     xx = []
 
@@ -43,7 +43,7 @@ def test_weakbind():
 def test_call_later_thread():
     leeway = 0.05 if os.getenv("CI") else 0
 
-    t = rendercanvas._coreutils.CallLaterThread()
+    t = rendercanvas.core.coreutils.CallLaterThread()
 
     results = []
 

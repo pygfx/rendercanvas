@@ -7,8 +7,8 @@ from inspect import iscoroutinefunction
 from collections import defaultdict, deque
 from typing import Callable
 
-from ._coreutils import log_exception
-from ._enums import EventType
+from .coreutils import log_exception
+from .enums import EventType
 
 
 valid_event_types = set(EventType)

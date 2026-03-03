@@ -4,7 +4,7 @@ from typing import Sequence
 import numpy as np
 
 from .basecontext import BaseContext
-from .._coreutils import logger, log_exception
+from ..core.coreutils import logger, log_exception
 
 
 __all__ = ["WgpuContext", "WgpuContextToBitmap", "WgpuContextToScreen"]

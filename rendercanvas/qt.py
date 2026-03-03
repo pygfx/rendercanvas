@@ -12,7 +12,7 @@ import importlib
 
 
 from .base import WrapperRenderCanvas, BaseCanvasGroup, BaseRenderCanvas, BaseLoop
-from ._coreutils import (
+from .core.coreutils import (
     logger,
     get_alt_x11_display,
     get_alt_wayland_display,
@@ -311,7 +311,7 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
             }
         elif sys.platform.startswith("linux"):
             if False:
-                # We fall back to XWayland, see _coreutils.py
+                # We fall back to XWayland, see coreutils.py
                 return {
                     "platform": "wayland",
                     "window": int(self.winId()),

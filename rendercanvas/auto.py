@@ -9,7 +9,12 @@ import sys
 import importlib
 from typing import cast
 
-from ._coreutils import logger, QT_MODULE_NAMES, get_imported_qt_lib, asyncio_is_running
+from .core.coreutils import (
+    logger,
+    QT_MODULE_NAMES,
+    get_imported_qt_lib,
+    asyncio_is_running,
+)
 from .base import BaseRenderCanvas, BaseLoop
 
 

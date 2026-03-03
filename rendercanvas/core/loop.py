@@ -10,10 +10,10 @@ import weakref
 from inspect import iscoroutinefunction
 from typing import TYPE_CHECKING
 
-from ._enums import LoopState
-from ._coreutils import logger, log_exception, call_later_from_thread, close_agen
-from .utils.asyncs import sleep
-from .utils import asyncadapter
+from .enums import LoopState
+from .coreutils import logger, log_exception, call_later_from_thread, close_agen
+from ..utils.asyncs import sleep
+from ..utils import asyncadapter
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Coroutine

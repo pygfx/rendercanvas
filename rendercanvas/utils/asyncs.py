@@ -12,7 +12,7 @@ To give an idea how to implement a generic async sleep function:
 
 import sys
 
-from .._coreutils import IS_WIN, IS_PYODIDE, call_later_from_thread
+from ..core.coreutils import IS_WIN, IS_PYODIDE, call_later_from_thread
 
 
 USE_THREADED_TIMER = IS_WIN

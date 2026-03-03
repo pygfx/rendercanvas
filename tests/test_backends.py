@@ -177,7 +177,7 @@ def test_base_module():
     canvas_class = m.names["BaseRenderCanvas"]
     m.check_canvas(canvas_class)
 
-    m = Module("_loop")
+    m = Module("core/loop")
 
     loop_class = m.names["BaseLoop"]
     m.check_loop(loop_class)
