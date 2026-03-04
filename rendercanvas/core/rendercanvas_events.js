@@ -1,46 +1,61 @@
-//
-// If you use this code, you want to avoid loading it in the global scope.
-// So either put it in a `<script type='module>`, or wrap it in a "(function () {\n{JS}\n})();"
+/*************************************************************************************************
+    rendercanvas_events.js
 
-console.log("loading rc_events.js");
+    This module implements the rendercanvas event spec for canvases in a
+    browser. It implements observers and event listeners and converts these into
+    rendercanvas-specific event dicts. The code is written with little
+    assumptions about the applications, so that it can be applied in different
+    backends, e.g. pyodide, anywidget, remote-browser.
+
+    Code that loads the script should avoid loading it in the global scope.
+    Either by putting it in a ``<script type='module>``, or wrapping it in a
+    ``(() => {\n{JS}\n})();``
+
+    This code adheres to common JS practices and formatting, but it probably
+    shows that rendercanvas is a Python project. For instance, the code uses
+    camelCase, but Python's underscore prefix for private-by-convention
+    attributes.
+
+ *************************************************************************************************
+
+    Old code for touches that was in jupyter_rfb for a while:
+
+    let touches = {};
+    let ntouches = 0;
+    for (let pointer_id in pointers) {
+        let pe = pointers[pointer_id]; * pointer event
+        let x = Number(pe.clientX - offset[0]);
+        let y = Number(pe.clientY - offset[1]);
+        let touch = { x: x, y: y, pressure: pe.pressure };
+        touches[pe.pointerId] = touch;
+        ntouches += 1;
+    }
 
 
-// Old code for touches that was in jupyter_rfb for a while:
-//
-// let touches = {};
-// let ntouches = 0;
-// for (let pointer_id in pointers) {
-//     let pe = pointers[pointer_id]; // pointer event
-//     let x = Number(pe.clientX - offset[0]);
-//     let y = Number(pe.clientY - offset[1]);
-//     let touch = { x: x, y: y, pressure: pe.pressure };
-//     touches[pe.pointerId] = touch;
-//     ntouches += 1;
-// }
-//
-//
-// To allow text-editing functionality *inside* a framebuffer, e.g. via imgui or something similar,
-// we need events like arrow keys, backspace, and delete, with modifiers, and with repeat.
-// I think it makes sense to send these like the code below, but this needs more thought ...
-//
-// if (event.key == "Backspace") {
-//     let char_event = {
-//         event_type: 'char',
-//         data: null,
-//         is_composing: false,
-//         input_type: "deleteBackwards",
-//         repeat: e.repeat,
-//         time_stamp: get_time_stamp(),
-//     };
-//     this.send(char_event);
-// }
+    To allow text-editing functionality *inside* a framebuffer, e.g. via imgui or something similar,
+    we need events like arrow keys, backspace, and delete, with modifiers, and with repeat.
+    I think it makes sense to send these like the code below, but this needs more thought ...
+
+    if (event.key == "Backspace") {
+        let char_event = {
+            event_type: 'char',
+            data: null,
+            is_composing: false,
+            input_type: "deleteBackwards",
+            repeat: e.repeat,
+            time_stamp: get_time_stamp(),
+        };
+        this.send(char_event);
+
+ *************************************************************************************************/
+
+console.log("loading rendercanvas_events.js");
 
 
 const LOOKS_LIKE_MOBILE =
     /mobi|android|iphone|ipad|ipod|tablet/.test(
         navigator.userAgent.toLowerCase()
     );
-
 
 const KEY_MAP = {
     'Ctrl': 'Control',
@@ -94,6 +109,7 @@ class RCModel {
     // this.on('change:cursor', function (cursor) { for (let view of this.views) { view.setCursor(cursor) } }) }, this);
 }
 
+
 class RCEventManager_or_RCView {
 
     constructor({ el, sizeCallback, eventCallback, wheelThrottle = 20, moveThrottle = 20 }) {
@@ -123,7 +139,6 @@ class RCEventManager_or_RCView {
             this._focusElement.remove();
             this._focusElement = null;
         }
-        // todo: test this
         if (this._abortController) {
             this._abortController.abort();
             this._abortController = null;
@@ -576,5 +591,5 @@ class RCEventManager_or_RCView {
 
 }
 
+// Old-school export
 window.rendercanvas_events = { RCModel, RCEventManager_or_RCView };
-// export { RCModel, RCEventManager_or_RCView};
