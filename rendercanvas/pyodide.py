@@ -131,9 +131,13 @@ class PyodideRenderCanvas(BaseRenderCanvas):
         super().__init__(*args, **kwargs)
 
         self._event_manager = window.rendercanvas_events.RCEventManager_or_RCView.new(
-            canvas_element,
-            create_proxy(self._size_info.set_physical_size),
-            create_proxy(lambda js_obj: self.submit_event(js_obj.to_py())),
+            el=canvas_element,
+            sizeCallback=create_proxy(self._size_info.set_physical_size),
+            eventCallback=create_proxy(
+                lambda js_obj: self.submit_event(js_obj.to_py())
+            ),
+            wheelThrottle=0,
+            moveThrottle=0,
         )
 
         self._final_canvas_init()

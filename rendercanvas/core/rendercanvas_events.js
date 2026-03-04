@@ -57,7 +57,7 @@ const KEY_MOD_MAP = {
 
 const MOUSE_BUTTON_MAP = {
     0: 1,  // left
-    1: 3,  //  middle/wheel
+    1: 3,  // middle/wheel
     2: 2,  // right
     3: 4,  // backwards
     4: 5,  // forwards
@@ -65,10 +65,10 @@ const MOUSE_BUTTON_MAP = {
 
 
 function getButtons(ev) {
+    // Note that ev.button has a historic awkward mapping, but ev.buttons is in the order that we want
     let button = MOUSE_BUTTON_MAP[ev.button] || 0;
     let buttons = [];
     for (let b of [0, 1, 2, 3, 4, 5]) { if ((1 << b) & ev.buttons) { buttons.push(b + 1); } }
-    // TODO: should buttons not be mapped with MOUSE_BUTTON_MAP too?
     return [button, buttons]
 }
 
@@ -86,6 +86,9 @@ function arraysEqual(a, b) {
     return a.length === b.length && a.every((val, i) => val === b[i]);
 }
 
+function noop() { }
+
+
 class RCModel {
 
     // this.on('change:cursor', function (cursor) { for (let view of this.views) { view.setCursor(cursor) } }) }, this);
@@ -93,32 +96,26 @@ class RCModel {
 
 class RCEventManager_or_RCView {
 
-    constructor(el, sizeCallback, submitEventCallback, options) {
+    constructor({ el, sizeCallback, eventCallback, wheelThrottle = 20, moveThrottle = 20 }) {
 
-        console.log(["Creating RCEventManager_or_RCView with", el]);
-
-        const noop = (() => { })
-
+        if (el === undefined || !(el instanceof Element)) { throw new Error("el must be given an an Element"); }
         this.el = el;
-        this._submitEventCallback = submitEventCallback || noop;
+
         this._sizeCallback = sizeCallback || noop;
-        this.wheelThrottleTimeout = 50;
-        this.moveThrottleTimeout = 20;
+        this._eventCallback = eventCallback || noop;
+        this.wheelThrottle = wheelThrottle || 0;
+        this.moveThrottle = moveThrottle || 0;
 
         this._focusElement = null;
         this._abortController = null;
         this._resizeObserver = null;
-
-        // Set of throttler functions to send events at a friendly pace
-        // TODO; throttle move event
 
         this._initElements();
         this._registerEvents()
     }
 
     close() {
-        const noop = (() => { })
-        this._submitEventCallback = noop;
+        this._eventCallback = noop;
         this._sizeCallback = noop;
 
         if (this._focusElement) {
@@ -186,7 +183,7 @@ class RCEventManager_or_RCView {
         // Register events
 
         const el = this.el;
-        const submitEventCallback = this._submitEventCallback;
+        const eventCallback = this._eventCallback;
         const sizeCallback = this._sizeCallback;
         this._abortController = new AbortController();
         const signal = this._abortController.signal; // to unregister/abort stuff
@@ -293,7 +290,7 @@ class RCEventManager_or_RCView {
                 "touches": {},
                 "time_stamp": getTimestamp(),
             }
-            submitEventCallback(event);
+            eventCallback(event);
         }, { signal });
 
         let pendingMoveEvent = null;
@@ -302,7 +299,7 @@ class RCEventManager_or_RCView {
             if (pendingMoveEvent !== null) {
                 let event = pendingMoveEvent;
                 pendingMoveEvent = null;
-                submitEventCallback(event);
+                eventCallback(event);
             }
         };
 
@@ -337,19 +334,18 @@ class RCEventManager_or_RCView {
                     "touches": {},
                     "time_stamp": getTimestamp(),
                 }
-                if (this.moveThrottleTimeout > 0) {
+                if (this.moveThrottle > 0) {
                     sendMoveEvent();  // Send previous (if any)
                     pendingMoveEvent = event;
-                    window.setTimeout(sendMoveEvent, this.moveThrottleTimeout);
+                    window.setTimeout(sendMoveEvent, this.moveThrottle);
                 } else {
-                    submitEventCallback(event);
+                    eventCallback(event);
                 }
             }
         }, { signal });
 
         el.addEventListener('lostpointercapture', (ev) => {
             // This happens on pointer-up or pointer-cancel. We threat them the same.
-            console.log('release')
 
             // Get info, use the button stat started the drag-action
             let modifiers = getModifiers(ev);
@@ -371,7 +367,7 @@ class RCEventManager_or_RCView {
                 "touches": {},
                 "time_stamp": getTimestamp(),
             }
-            submitEventCallback(event);
+            eventCallback(event);
         }, { signal });
 
         el.addEventListener('pointerenter', (ev) => {
@@ -396,7 +392,7 @@ class RCEventManager_or_RCView {
                 "touches": {},
                 "time_stamp": getTimestamp(),
             }
-            submitEventCallback(event);
+            eventCallback(event);
         }, { signal });
 
         el.addEventListener('pointerleave', (ev) => {
@@ -421,7 +417,7 @@ class RCEventManager_or_RCView {
                 "touches": {},
                 "time_stamp": getTimestamp(),
             }
-            submitEventCallback(event);
+            eventCallback(event);
         }, { signal });
 
 
@@ -447,7 +443,7 @@ class RCEventManager_or_RCView {
                 // no touches here
                 "time_stamp": getTimestamp(),
             }
-            submitEventCallback(event);
+            eventCallback(event);
         }, { signal });
 
 
@@ -459,7 +455,7 @@ class RCEventManager_or_RCView {
             if (pendingWheelEvent !== null) {
                 let event = pendingWheelEvent;
                 pendingWheelEvent = null;
-                submitEventCallback(event);
+                eventCallback(event);
             }
         };
 
@@ -494,12 +490,12 @@ class RCEventManager_or_RCView {
                     "modifiers": modifiers,
                     "time_stamp": getTimestamp(),
                 }
-                if (this.wheelThrottleTimeout > 0) {
+                if (this.wheelThrottle > 0) {
                     sendWheelEvent();  // Send previous (if any)
                     pendingWheelEvent = event;
-                    window.setTimeout(sendWheelEvent, this.wheelThrottleTimeout);
+                    window.setTimeout(sendWheelEvent, this.wheelThrottle);
                 } else {
-                    submitEventCallback(event);
+                    eventCallback(event);
                 }
             }
         }, { signal });
@@ -522,7 +518,7 @@ class RCEventManager_or_RCView {
                 modifiers: modifiers,
                 time_stamp: getTimestamp(),
             };
-            submitEventCallback(event);
+            eventCallback(event);
         }, { signal });
 
         this._focusElement.addEventListener('keyup', (ev) => {
@@ -536,7 +532,7 @@ class RCEventManager_or_RCView {
                 modifiers: modifiers,
                 time_stamp: getTimestamp(),
             };
-            submitEventCallback(event);
+            eventCallback(event);
         }, { signal });
 
         this._focusElement.addEventListener('input', (ev) => {
@@ -553,7 +549,7 @@ class RCEventManager_or_RCView {
                 // repeat: ev.repeat,  // n.a.
                 time_stamp: getTimestamp(),
             };
-            submitEventCallback(event);
+            eventCallback(event);
         }, { signal });
 
     }
