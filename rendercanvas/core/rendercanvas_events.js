@@ -102,7 +102,8 @@ class RCEventManager_or_RCView {
         this.el = el;
         this._submitEventCallback = submitEventCallback || noop;
         this._sizeCallback = sizeCallback || noop;
-        this.wheelThrottleTimeout = 20;
+        this.wheelThrottleTimeout = 50;
+        this.moveThrottleTimeout = 20;
 
         this._focusElement = null;
         this._abortController = null;
@@ -113,7 +114,6 @@ class RCEventManager_or_RCView {
 
         this._initElements();
         this._registerEvents()
-        window.xx = this;
     }
 
     close() {
@@ -296,6 +296,16 @@ class RCEventManager_or_RCView {
             submitEventCallback(event);
         }, { signal });
 
+        let pendingMoveEvent = null;
+
+        const sendMoveEvent = () => {
+            if (pendingMoveEvent !== null) {
+                let event = pendingMoveEvent;
+                pendingMoveEvent = null;
+                submitEventCallback(event);
+            }
+        };
+
         el.addEventListener('pointermove', (ev) => {
             // If this pointer is not down, but other pointers are, don't emit an event.
             if (pointerToButton[ev.pointerId] === undefined) {
@@ -310,18 +320,31 @@ class RCEventManager_or_RCView {
             // Manage
             lastButtons = buttons
 
-            let event = {
-                "event_type": "pointer_move",
-                "x": ev.offsetX,
-                "y": ev.offsetY,
-                "button": button,
-                "buttons": buttons,
-                "modifiers": modifiers,
-                "ntouches": 0,
-                "touches": {},
-                "time_stamp": getTimestamp(),
+            // This event is throttled. We either update the pending event or create a new one
+            if (pendingMoveEvent !== null &&
+                arraysEqual(pendingMoveEvent.buttons, buttons) && arraysEqual(pendingMoveEvent.modifiers, modifiers)
+            ) {
+                pendingMoveEvent.x = ev.offsetX;
+                pendingMoveEvent.y = ev.offsetY;
+            } else {
+                let event = {
+                    "event_type": "pointer_move",
+                    "x": ev.offsetX,
+                    "y": ev.offsetY,
+                    "buttons": buttons,
+                    "modifiers": modifiers,
+                    "ntouches": 0,
+                    "touches": {},
+                    "time_stamp": getTimestamp(),
+                }
+                if (this.moveThrottleTimeout > 0) {
+                    sendMoveEvent();  // Send previous (if any)
+                    pendingMoveEvent = event;
+                    window.setTimeout(sendMoveEvent, this.moveThrottleTimeout);
+                } else {
+                    submitEventCallback(event);
+                }
             }
-            submitEventCallback(event);
         }, { signal });
 
         el.addEventListener('lostpointercapture', (ev) => {
@@ -456,11 +479,12 @@ class RCEventManager_or_RCView {
             if (pendingWheelEvent !== null &&
                 arraysEqual(pendingWheelEvent.buttons, buttons) && arraysEqual(pendingWheelEvent.modifiers, modifiers)
             ) {
+                pendingWheelEvent.x = ev.offsetX;
+                pendingWheelEvent.y = ev.offsetY;
                 pendingWheelEvent.dx += ev.deltaX * scale;
                 pendingWheelEvent.dy += ev.deltaY * scale;
             } else {
-                sendWheelEvent();  // Send previous (if any)
-                pendingWheelEvent = {
+                let event = {
                     "event_type": "wheel",
                     "x": ev.offsetX,
                     "y": ev.offsetY,
@@ -470,7 +494,13 @@ class RCEventManager_or_RCView {
                     "modifiers": modifiers,
                     "time_stamp": getTimestamp(),
                 }
-                window.setTimeout(sendWheelEvent, this.wheelThrottleTimeout);
+                if (this.wheelThrottleTimeout > 0) {
+                    sendWheelEvent();  // Send previous (if any)
+                    pendingWheelEvent = event;
+                    window.setTimeout(sendWheelEvent, this.wheelThrottleTimeout);
+                } else {
+                    submitEventCallback(event);
+                }
             }
         }, { signal });
 
