@@ -109,6 +109,7 @@ class RCEventManager_or_RCView {
         this._focusElement = null;
         this._abortController = null;
         this._resizeObserver = null;
+        this._intersectionObserver = null;
 
         this._initElements();
         this._registerEvents()
@@ -131,9 +132,9 @@ class RCEventManager_or_RCView {
             this._resizeObserver.disconnect()
             this._resizeObserver = null;
         }
-        if (this._intersection_observer) {
-            this._intersection_observer.disconnect();
-            this._intersection_observer = null;
+        if (this._intersectionObserver) {
+            this._intersectionObserver.disconnect();
+            this._intersectionObserver = null;
         }
     }
 
@@ -175,8 +176,6 @@ class RCEventManager_or_RCView {
         // Prevent context menu on RMB. Firefox still shows it when shift is pressed. It seems
         // impossible to override this (tips welcome!), so let's make this the actual behavior.
         el.oncontextmenu = function (e) { if (!e.shiftKey) { e.preventDefault(); e.stopPropagation(); return false; } };
-
-        // TODO: IntersectionObserver?
     }
 
     _registerEvents() {
@@ -187,6 +186,19 @@ class RCEventManager_or_RCView {
         const sizeCallback = this._sizeCallback;
         this._abortController = new AbortController();
         const signal = this._abortController.signal; // to unregister/abort stuff
+
+
+        // ----- visibility ---------------
+
+        this._intersectionObserver = new IntersectionObserver((entries, observer) => {
+            // This gets called when one of the observed elements becomes visible/invisible.
+            // Note that entries only contains the *changed* elements, so we keep track ourselves.
+            for (let entry of entries) {
+                entry.target._rc_is_visible = entry.isIntersecting;
+                // TODO: actually use this, but need some multi-view logic. The observer is best combined between all views, I suppose?
+            }
+        });
+        this._intersectionObserver.observe(el);
 
 
         // ----- resize ---------------
