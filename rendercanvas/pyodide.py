@@ -12,6 +12,7 @@ import re
 import sys
 import time
 import ctypes
+from importlib.resources import files as resource_files
 
 from .base import BaseRenderCanvas, BaseCanvasGroup
 from .asyncio import loop
@@ -29,7 +30,22 @@ from js import (
     ResizeObserver,
     OffscreenCanvas,
     navigator,
+    eval as eval_js,
 )
+
+
+def _load_javascript():
+    for fname in ["rendercanvas_events.js"]:
+        js_path = resource_files("rendercanvas.core").joinpath(fname)
+        js = js_path.read_text()
+        js = "(function () {\n{JS}\n})();".replace("JS", js)  # wrap in IIFE module
+        script = document.createElement("script")
+        script.text = js
+        document.head.appendChild(script)
+
+
+_load_javascript()
+
 
 KEYMAP = {
     "Ctrl": "Control",
@@ -113,317 +129,14 @@ class PyodideRenderCanvas(BaseRenderCanvas):
 
         # Finalize init
         super().__init__(*args, **kwargs)
-        self._setup_events()
+
+        self._event_manager = window.rendercanvas_events.RCEventManager_or_RCView.new(
+            canvas_element,
+            create_proxy(self._size_info.set_physical_size),
+            create_proxy(lambda js_obj: self.submit_event(js_obj.to_py())),
+        )
+
         self._final_canvas_init()
-
-    def _setup_events(self):
-        # Idea: Implement this event logic in JavaScript, so we can re-use it across all backends that render in the browser.
-
-        el = self._canvas_element
-        el.tabIndex = -1
-
-        # Obtain container to put our hidden focus element.
-        # Putting the focus_element as a child of the canvas prevents chrome from emitting input events.
-        focus_element_container_id = "rendercanvas-focus-element-container"
-        focus_element_container = document.getElementById(focus_element_container_id)
-        if not focus_element_container:
-            focus_element_container = document.createElement("div")
-            focus_element_container.setAttribute("id", focus_element_container_id)
-            focus_element_container.style.position = "absolute"
-            focus_element_container.style.top = "0"
-            focus_element_container.style.left = "-9999px"
-            document.body.appendChild(focus_element_container)
-
-        # Create an element to which we transfer focus, so we can capture key events and prevent global shortcuts
-        self._focus_element = focus_element = document.createElement("input")
-        focus_element.type = "text"
-        focus_element.tabIndex = -1
-        focus_element.autocomplete = "off"
-        focus_element.autocorrect = "off"
-        focus_element.autocapitalize = "off"
-        focus_element.spellcheck = False
-        focus_element.style.width = "1px"
-        focus_element.style.height = "1px"
-        focus_element.style.padding = "0"
-        focus_element.style.opacity = 0
-        focus_element.style.pointerEvents = "none"
-        focus_element_container.appendChild(focus_element)
-
-        pointers = {}
-        last_buttons = ()
-
-        # Prevent context menu
-        def _on_context_menu(ev):
-            if not ev.shiftKey:
-                ev.preventDefault()
-                ev.stopPropagation()
-                return False
-
-        el.oncontextmenu = create_proxy(_on_context_menu)
-
-        def _resize_callback(entries, _=None):
-            # The physical size is easy. The logical size can be much more tricky
-            # to obtain due to all the CSS stuff. But the base class will just calculate that
-            # from the physical size and the pixel ratio.
-
-            # Select entry
-            our_entries = [entry for entry in entries if entry.target.js_id == el.js_id]
-            if not our_entries:
-                return
-            entry = entries[0]
-
-            ratio = window.devicePixelRatio
-
-            if entry.devicePixelContentBoxSize:
-                psize = (
-                    entry.devicePixelContentBoxSize[0].inlineSize,
-                    entry.devicePixelContentBoxSize[0].blockSize,
-                )
-            else:  # some browsers don't support the above
-                if entry.contentBoxSize:
-                    lsize = (
-                        entry.contentBoxSize[0].inlineSize,
-                        entry.contentBoxSize[0].blockSize,
-                    )
-                else:
-                    lsize = (entry.contentRect.width, entry.contentRect.height)
-                psize = (int(lsize[0] * ratio), int(lsize[1] * ratio))
-
-            # If the element does not set the size with its style, the canvas' width and height are used.
-            # On hidpi screens this'd cause the canvas size to quickly increase with factors of 2 :)
-            # Therefore we want to make sure that the style.width and style.height are set.
-            lsize = psize[0] / ratio, psize[1] / ratio
-            if not el.style.width:
-                el.style.width = f"{lsize[0]}px"
-            if not el.style.height:
-                el.style.height = f"{lsize[1]}px"
-
-            # Set the canvas to the match its physical size on screen
-            el.width = psize[0]
-            el.height = psize[1]
-
-            # Notify the base class, so it knows our new size
-            pwidth, pheight = psize
-            self._size_info.set_physical_size(pwidth, pheight, window.devicePixelRatio)
-
-        self._resize_callback_proxy = create_proxy(_resize_callback)
-        self._resize_observer = ResizeObserver.new(self._resize_callback_proxy)
-        self._resize_observer.observe(el)
-
-        # Note: there is no concept of an element being 'closed' in the DOM.
-
-        def _js_pointer_down(ev):
-            # When points is down, set focus to the focus-element, and capture the pointing device.
-            # Because we capture the event, there will be no other events when buttons are pressed down,
-            # although they will end up in the 'buttons'. The lost/release will only get fired when all buttons
-            # are released/lost. Which is why we look up the original button in our `pointers` list.
-            nonlocal last_buttons
-            if not looks_like_mobile:
-                focus_element.focus({"preventScroll": True, "focusVisible": False})
-            el.setPointerCapture(ev.pointerId)
-            button = MOUSE_BUTTON_MAP.get(ev.button, ev.button)
-            pointers[ev.pointerId] = (button,)
-            last_buttons = buttons = tuple(pointer[0] for pointer in pointers.values())
-            modifiers = tuple([v for k, v in KEY_MOD_MAP.items() if getattr(ev, k)])
-            event = {
-                "event_type": "pointer_down",
-                "x": ev.offsetX,
-                "y": ev.offsetY,
-                "button": button,
-                "buttons": buttons,
-                "modifiers": modifiers,
-                "ntouches": 0,  # TODO later: maybe via https://developer.mozilla.org/en-US/docs/Web/API/TouchEvent
-                "touches": {},
-                "time_stamp": time.time(),
-            }
-            if not ev.altKey:
-                ev.preventDefault()
-            self.submit_event(event)
-
-        def _js_pointer_lost(ev):
-            # This happens on pointer-up or pointer-cancel. We treat them the same.
-            # According to the spec, the .button is -1, so we retrieve the button from the stored pointer.
-            nonlocal last_buttons
-            last_buttons = ()
-            down_tuple = pointers.pop(ev.pointerId, None)
-            button = MOUSE_BUTTON_MAP.get(ev.button, ev.button)
-            if down_tuple is not None:
-                button = down_tuple[0]
-            buttons = buttons_mask_to_tuple(ev.buttons)
-            modifiers = tuple([v for k, v in KEY_MOD_MAP.items() if getattr(ev, k)])
-            event = {
-                "event_type": "pointer_up",
-                "x": ev.offsetX,
-                "y": ev.offsetY,
-                "button": button,
-                "buttons": buttons,
-                "modifiers": modifiers,
-                "ntouches": 0,
-                "touches": {},
-                "time_stamp": time.time(),
-            }
-            self.submit_event(event)
-
-        def _js_pointer_move(ev):
-            # If this pointer is not down, but other pointers are, don't emit an event.
-            nonlocal last_buttons
-            if pointers and ev.pointerId not in pointers:
-                return
-            modifiers = tuple([v for k, v in KEY_MOD_MAP.items() if getattr(ev, k)])
-            last_buttons = buttons = buttons_mask_to_tuple(ev.buttons)
-            event = {
-                "event_type": "pointer_move",
-                "x": ev.offsetX,
-                "y": ev.offsetY,
-                "button": MOUSE_BUTTON_MAP.get(ev.button, ev.button),
-                "buttons": buttons,
-                "modifiers": modifiers,
-                "ntouches": 0,
-                "touches": {},
-                "time_stamp": time.time(),
-            }
-            self.submit_event(event)
-
-        def _js_pointer_enter(ev):
-            # If this pointer is not down, but other pointers are, don't emit an event.
-            if pointers and ev.pointerId not in pointers:
-                return
-            modifiers = tuple([v for k, v in KEY_MOD_MAP.items() if getattr(ev, k)])
-            buttons = buttons_mask_to_tuple(ev.buttons)
-            event = {
-                "event_type": "pointer_enter",
-                "x": ev.offsetX,
-                "y": ev.offsetY,
-                "button": MOUSE_BUTTON_MAP.get(ev.button, ev.button),
-                "buttons": buttons,
-                "modifiers": modifiers,
-                "ntouches": 0,
-                "touches": {},
-                "time_stamp": time.time(),
-            }
-            self.submit_event(event)
-
-        def _js_pointer_leave(ev):
-            # If this pointer is not down, but other pointers are, don't emit an event.
-            if pointers and ev.pointerId not in pointers:
-                return
-            modifiers = tuple([v for k, v in KEY_MOD_MAP.items() if getattr(ev, k)])
-            buttons = buttons_mask_to_tuple(ev.buttons)
-            event = {
-                "event_type": "pointer_leave",
-                "x": ev.offsetX,
-                "y": ev.offsetY,
-                "button": MOUSE_BUTTON_MAP.get(ev.button, ev.button),
-                "buttons": buttons,
-                "modifiers": modifiers,
-                "ntouches": 0,
-                "touches": {},
-                "time_stamp": time.time(),
-            }
-            self.submit_event(event)
-
-        def _js_double_click(ev):
-            modifiers = tuple([v for k, v in KEY_MOD_MAP.items() if getattr(ev, k)])
-            buttons = buttons_mask_to_tuple(ev.buttons)
-            event = {
-                "event_type": "double_click",
-                "x": ev.offsetX,
-                "y": ev.offsetY,
-                "button": MOUSE_BUTTON_MAP.get(ev.button, ev.button),
-                "buttons": buttons,
-                "modifiers": modifiers,
-                # no touches here
-                "time_stamp": time.time(),
-            }
-            if not ev.altKey:
-                ev.preventDefault()
-            self.submit_event(event)
-
-        def _js_wheel(ev):
-            if window.document.activeElement.js_id != focus_element.js_id:
-                return
-            scales = [1 / window.devicePixelRatio, 16, 600]  # pixel, line, page
-            scale = scales[ev.deltaMode]
-            modifiers = tuple([v for k, v in KEY_MOD_MAP.items() if getattr(ev, k)])
-            event = {
-                "event_type": "wheel",
-                "x": ev.offsetX,
-                "y": ev.offsetY,
-                "dx": ev.deltaX * scale,
-                "dy": ev.deltaY * scale,
-                "buttons": last_buttons,
-                "modifiers": modifiers,
-                "time_stamp": time.time(),
-            }
-            if not ev.altKey:
-                ev.preventDefault()
-            self.submit_event(event)
-
-        def _js_key_down(ev):
-            if ev.repeat:
-                return  # don't repeat keys
-            modifiers = tuple([v for k, v in KEY_MOD_MAP.items() if getattr(ev, k)])
-            event = {
-                "event_type": "key_down",
-                "modifiers": modifiers,
-                "key": KEYMAP.get(ev.key, ev.key),
-                "time_stamp": time.time(),
-            }
-            # No need for stopPropagation or preventDefault because we are in a text-input.
-            self.submit_event(event)
-
-            # NOTE: to allow text-editing functionality *inside* a framebuffer, e.g. via imgui or something similar,
-            # we need events like arrow keys, backspace, and delete, with modifiers, and with repeat.
-            # Also see comment in jupyter_rfb
-
-        def _js_key_up(ev):
-            modifiers = tuple([v for k, v in KEY_MOD_MAP.items() if getattr(ev, k)])
-            event = {
-                "event_type": "key_up",
-                "modifiers": modifiers,
-                "key": KEYMAP.get(ev.key, ev.key),
-                "time_stamp": time.time(),
-            }
-            self.submit_event(event)
-
-        def _js_char(ev):
-            event = {
-                "event_type": "char",
-                "data": ev.data,
-                "is_composing": ev.isComposing,
-                "input_type": ev.inputType,
-                # "repeat": getattr(ev, "repeat", False),  # n.a.
-                "time_stamp": time.time(),
-            }
-            self.submit_event(event)
-            if not ev.isComposing:
-                focus_element.value = ""  # Prevent the text box from growing
-
-        add_event_listener(el, "pointerdown", _js_pointer_down)
-        add_event_listener(el, "lostpointercapture", _js_pointer_lost)
-        add_event_listener(el, "pointermove", _js_pointer_move)
-        add_event_listener(el, "pointerenter", _js_pointer_enter)
-        add_event_listener(el, "pointerleave", _js_pointer_leave)
-        add_event_listener(el, "dblclick", _js_double_click)
-        add_event_listener(el, "wheel", _js_wheel)
-        add_event_listener(focus_element, "keydown", _js_key_down)  # or document?
-        add_event_listener(focus_element, "keyup", _js_key_up)
-        add_event_listener(focus_element, "input", _js_char)
-
-        def unregister_events():
-            self._resize_observer.disconnect()
-            remove_event_listener(el, "pointerdown", _js_pointer_down)
-            remove_event_listener(el, "lostpointercapture", _js_pointer_lost)
-            remove_event_listener(el, "pointermove", _js_pointer_move)
-            remove_event_listener(el, "pointerenter", _js_pointer_enter)
-            remove_event_listener(el, "pointerleave", _js_pointer_leave)
-            remove_event_listener(el, "dblclick", _js_double_click)
-            remove_event_listener(el, "wheel", _js_wheel)
-            remove_event_listener(focus_element, "keydown", _js_key_down)
-            remove_event_listener(focus_element, "keyup", _js_key_up)
-            remove_event_listener(focus_element, "input", _js_char)
-
-        self._unregister_events = unregister_events
 
     def _rc_gui_poll(self):
         pass  # Nothing to be done; the JS loop is always running (and Pyodide wraps that in a global asyncio loop)
@@ -534,12 +247,9 @@ class PyodideRenderCanvas(BaseRenderCanvas):
         self._canvas_element = None
 
         # Disconnect events
-        if self._unregister_events:
-            self._unregister_events()
-            self._unregister_events = None
-
-        # Remove the focus element from the dom.
-        self._focus_element.remove()
+        if self._event_manager:
+            self._event_manager.close()
+            self._event_manager = None
 
         # Removing the element from the page. One can argue whether you want this or not.
         canvas_element.remove()
