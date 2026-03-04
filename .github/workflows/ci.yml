@@ -34,7 +34,7 @@ jobs:
           pip install ruff
     - name: Install JS dependencies
       run: |
-          apt install -y npm
+          sudo apt install -y npm
           npm install -g standard
     - name: Ruff lint
       run: |
