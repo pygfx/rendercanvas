@@ -78,7 +78,7 @@ const MOUSE_BUTTON_MAP = {
   4: 5 // forwards
 }
 
-function getButtons(ev) {
+function getButtons (ev) {
   // Note that ev.button has a historic awkward mapping, but ev.buttons is in the order that we want
   const button = MOUSE_BUTTON_MAP[ev.button] || 0
   const buttons = []
@@ -90,28 +90,28 @@ function getButtons(ev) {
   return [button, buttons]
 }
 
-function getModifiers(ev) {
+function getModifiers (ev) {
   return Object.entries(KEY_MOD_MAP)
     .filter(([k]) => ev[k])
     .map(([, v]) => v)
 }
 
-function getTimestamp() {
+function getTimestamp () {
   return Date.now() / 1000
 }
 
-function arraysEqual(a, b) {
+function arraysEqual (a, b) {
   return a.length === b.length && a.every((val, i) => val === b[i])
 }
 
-function noop() { }
+function noop () { }
 
 class RCModel {
   // this.on('change:cursor', function (cursor) { for (let view of this.views) { view.setCursor(cursor) } }) }, this);
 }
 
 class RCEventManagerOrView {
-  constructor({
+  constructor ({
     el,
     sizeCallback,
     eventCallback,
@@ -131,13 +131,13 @@ class RCEventManagerOrView {
     this._focusElement = null
     this._abortController = null
     this._resizeObserver = null
-    this._intersectionObserver = null;
+    this._intersectionObserver = null
 
     this._initElements()
     this._registerEvents()
   }
 
-  close() {
+  close () {
     this._eventCallback = noop
     this._sizeCallback = noop
 
@@ -159,7 +159,7 @@ class RCEventManagerOrView {
     }
   }
 
-  _initElements() {
+  _initElements () {
     // Prepare the element
 
     const el = this.el
@@ -207,7 +207,7 @@ class RCEventManagerOrView {
     }
   }
 
-  _registerEvents() {
+  _registerEvents () {
     // Register events
 
     const el = this.el
@@ -655,11 +655,11 @@ class RCEventManagerOrView {
     )
   }
 
-  render(data) {
+  render (data) {
     // ...
   }
 
-  setCursor(cursor) {
+  setCursor (cursor) {
     this.el.style.cursor = cursor
   }
 }
