@@ -23,10 +23,33 @@ from pyodide.ffi import create_proxy, to_js
 from js import window, document, ImageData, Uint8ClampedArray, OffscreenCanvas
 
 
+JS = """
+class PyodideRendercanvasView extends RendercanvasView {
+    constructor (el, pycanvas) {
+        super(el)
+        this.pycanvas = pycanvas
+        this.wheelThrottle = 0
+        this.moveThrottle = 0
+    }
+    onVisibleChanged(visible) {
+        this.pycanvas._onVisibleChanged(visible)
+    }
+    onResize(physicalWidth, physicalHeight, pixelRatio) {
+        this.pycanvas._onResize(physicalWidth, physicalHeight, pixelRatio)
+    }
+    onEvent(event) {
+        this.pycanvas._onEvent(event)
+    }
+}
+window.rendercanvas_events.PyodideRendercanvasView = PyodideRendercanvasView
+"""
+
+
 def _load_javascript():
+    # TODO: check the composition here, like JS should not be added to each loop iter
     for fname in ["rendercanvas_events.js"]:
         js_path = resource_files("rendercanvas.core").joinpath(fname)
-        js = js_path.read_text()
+        js = js_path.read_text() + JS
         js = "(function () {\n{JS}\n})();".replace("JS", js)  # wrap in IIFE module
         script = document.createElement("script")
         script.text = js
@@ -121,17 +144,28 @@ class PyodideRenderCanvas(BaseRenderCanvas):
         # Finalize init
         super().__init__(*args, **kwargs)
 
-        self._event_manager = window.rendercanvas_events.RCEventManagerOrView.new(
-            el=canvas_element,
-            sizeCallback=create_proxy(self._size_info.set_physical_size),
-            eventCallback=create_proxy(
-                lambda js_obj: self.submit_event(js_obj.to_py())
-            ),
-            wheelThrottle=0,
-            moveThrottle=0,
+        self._js_view = window.rendercanvas_events.PyodideRendercanvasView.new(
+            canvas_element, create_proxy(self)
         )
 
         self._final_canvas_init()
+
+    def _onVisibleChanged(self, visible):  # noqa: N802
+        # Called from JS
+        self._set_visible(visible)
+
+    def _onResize(self, physicalWidth, physicalHeight, pixelRatio):  # noqa: N802
+        # Called from JS
+        self._size_info.set_physical_size(physicalWidth, physicalHeight, pixelRatio)
+
+    def _onEvent(self, event):  # noqa: N802
+        # Called from JS
+        event = event.to_py()
+        if "buttons" in event:
+            event["buttons"] = tuple(event["buttons"])
+        if "modifiers" in event:
+            event["modifiers"] = tuple(event["modifiers"])
+        self.submit_event(event)
 
     def _rc_gui_poll(self):
         pass  # Nothing to be done; the JS loop is always running (and Pyodide wraps that in a global asyncio loop)
@@ -242,9 +276,9 @@ class PyodideRenderCanvas(BaseRenderCanvas):
         self._canvas_element = None
 
         # Disconnect events
-        if self._event_manager:
-            self._event_manager.close()
-            self._event_manager = None
+        if self._js_view:
+            self._js_view.close()
+            self._js_view = None
 
         # Removing the element from the page. One can argue whether you want this or not.
         canvas_element.remove()

@@ -47,6 +47,12 @@
 
  *************************************************************************************************/
 
+// TODO: rename this file?
+// TODO: rename the class?
+// TODO: can this be a proper ES module with export?
+
+'use strict'
+
 console.log('loading rendercanvas_events.js')
 
 const Element = window.Element
@@ -104,29 +110,18 @@ function arraysEqual (a, b) {
   return a.length === b.length && a.every((val, i) => val === b[i])
 }
 
-function noop () { }
-
-class RCModel {
-  // this.on('change:cursor', function (cursor) { for (let view of this.views) { view.setCursor(cursor) } }) }, this);
-}
-
-class RCEventManagerOrView {
-  constructor ({
-    el,
-    sizeCallback,
-    eventCallback,
-    wheelThrottle = 20,
-    moveThrottle = 20
-  }) {
+class RendercanvasView {
+  constructor (el) {
     if (el === undefined || !(el instanceof Element)) {
-      throw new Error('el must be given an an Element')
+      throw new Error('RendercanvasView: el must be an Element')
     }
     this.el = el
 
-    this._sizeCallback = sizeCallback || noop
-    this._eventCallback = eventCallback || noop
-    this.wheelThrottle = wheelThrottle || 0
-    this.moveThrottle = moveThrottle || 0
+    // TODO: use methods instead, if we go use e.g. setCursor
+    this.wheelThrottle = 20
+    this.moveThrottle = 20
+
+    this._isVisible = false // set by intersection observer
 
     this._focusElement = null
     this._abortController = null
@@ -138,9 +133,6 @@ class RCEventManagerOrView {
   }
 
   close () {
-    this._eventCallback = noop
-    this._sizeCallback = noop
-
     if (this._focusElement) {
       this._focusElement.remove()
       this._focusElement = null
@@ -198,7 +190,7 @@ class RCEventManagerOrView {
 
     // Prevent context menu on RMB. Firefox still shows it when shift is pressed. It seems
     // impossible to override this (tips welcome!), so let's make this the actual behavior.
-    el.oncontextmenu = function (e) {
+    el.oncontextmenu = (e) => {
       if (!e.shiftKey) {
         e.preventDefault()
         e.stopPropagation()
@@ -211,8 +203,6 @@ class RCEventManagerOrView {
     // Register events
 
     const el = this.el
-    const eventCallback = this._eventCallback
-    const sizeCallback = this._sizeCallback
     this._abortController = new AbortController()
     const signal = this._abortController.signal // to unregister/abort stuff
 
@@ -222,9 +212,13 @@ class RCEventManagerOrView {
       (entries, observer) => {
         // This gets called when one of the observed elements becomes visible/invisible.
         // Note that entries only contains the *changed* elements, so we keep track ourselves.
+        let isVisible = false
         for (const entry of entries) {
-          entry.target._rc_is_visible = entry.isIntersecting
-          // TODO: actually use this, but need some multi-view logic. The observer is best combined between all views, I suppose?
+          isVisible = isVisible || entry.isIntersecting
+        }
+        if (isVisible !== this._isVisible) {
+          this._isVisible = isVisible
+          this.onVisibleChanged(isVisible)
         }
       }
     )
@@ -281,7 +275,7 @@ class RCEventManagerOrView {
       el.width = psize[0]
       el.height = psize[1]
 
-      sizeCallback(psize[0], psize[1], ratio)
+      this.onResize(psize[0], psize[1], ratio)
     })
 
     this._resizeObserver.observe(this.el)
@@ -330,7 +324,7 @@ class RCEventManagerOrView {
           touches: {},
           time_stamp: getTimestamp()
         }
-        eventCallback(event)
+        this.onEvent(event)
       },
       { signal }
     )
@@ -341,7 +335,7 @@ class RCEventManagerOrView {
       if (pendingMoveEvent !== null) {
         const event = pendingMoveEvent
         pendingMoveEvent = null
-        eventCallback(event)
+        this.onEvent(event)
       }
     }
 
@@ -388,7 +382,7 @@ class RCEventManagerOrView {
             pendingMoveEvent = event
             window.setTimeout(sendMoveEvent, this.moveThrottle)
           } else {
-            eventCallback(event)
+            this.onEvent(event)
           }
         }
       },
@@ -420,7 +414,7 @@ class RCEventManagerOrView {
           touches: {},
           time_stamp: getTimestamp()
         }
-        eventCallback(event)
+        this.onEvent(event)
       },
       { signal }
     )
@@ -451,7 +445,7 @@ class RCEventManagerOrView {
           touches: {},
           time_stamp: getTimestamp()
         }
-        eventCallback(event)
+        this.onEvent(event)
       },
       { signal }
     )
@@ -482,7 +476,7 @@ class RCEventManagerOrView {
           touches: {},
           time_stamp: getTimestamp()
         }
-        eventCallback(event)
+        this.onEvent(event)
       },
       { signal }
     )
@@ -513,7 +507,7 @@ class RCEventManagerOrView {
           // no touches here
           time_stamp: getTimestamp()
         }
-        eventCallback(event)
+        this.onEvent(event)
       },
       { signal }
     )
@@ -526,7 +520,7 @@ class RCEventManagerOrView {
       if (pendingWheelEvent !== null) {
         const event = pendingWheelEvent
         pendingWheelEvent = null
-        eventCallback(event)
+        this.onEvent(event)
       }
     }
 
@@ -574,7 +568,7 @@ class RCEventManagerOrView {
             pendingWheelEvent = event
             window.setTimeout(sendWheelEvent, this.wheelThrottle)
           } else {
-            eventCallback(event)
+            this.onEvent(event)
           }
         }
       },
@@ -604,7 +598,7 @@ class RCEventManagerOrView {
           modifiers,
           time_stamp: getTimestamp()
         }
-        eventCallback(event)
+        this.onEvent(event)
       },
       { signal }
     )
@@ -624,7 +618,7 @@ class RCEventManagerOrView {
           modifiers,
           time_stamp: getTimestamp()
         }
-        eventCallback(event)
+        this.onEvent(event)
       },
       { signal }
     )
@@ -649,20 +643,22 @@ class RCEventManagerOrView {
           // repeat: ev.repeat,  // n.a.
           time_stamp: getTimestamp()
         }
-        eventCallback(event)
+        this.onEvent(event)
       },
       { signal }
     )
   }
 
-  render (data) {
-    // ...
-  }
-
   setCursor (cursor) {
     this.el.style.cursor = cursor
   }
+
+  // For subclasses to overload
+
+  onVisibleChanged (visible) { }
+  onResize (physicalWidth, physicalHeight, pixelRatio) { }
+  onEvent (event) { }
 }
 
 // Old-school export
-window.rendercanvas_events = { RCModel, RCEventManagerOrView }
+window.rendercanvas_events = { RendercanvasView }
