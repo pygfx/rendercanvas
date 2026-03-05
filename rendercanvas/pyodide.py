@@ -10,7 +10,6 @@ __all__ = ["PyodideRenderCanvas", "RenderCanvas", "loop"]
 
 import re
 import sys
-import time
 import ctypes
 from importlib.resources import files as resource_files
 
@@ -21,17 +20,7 @@ if "pyodide" not in sys.modules:
     raise ImportError("This module is only for use with Pyodide in the browser.")
 
 from pyodide.ffi import create_proxy, to_js
-from pyodide.ffi.wrappers import add_event_listener, remove_event_listener
-from js import (
-    document,
-    ImageData,
-    Uint8ClampedArray,
-    window,
-    ResizeObserver,
-    OffscreenCanvas,
-    navigator,
-    eval as eval_js,
-)
+from js import window, document, ImageData, Uint8ClampedArray, OffscreenCanvas
 
 
 def _load_javascript():
@@ -80,7 +69,9 @@ def buttons_mask_to_tuple(mask) -> tuple[int, ...]:
 
 
 looks_like_mobile = bool(
-    re.search(r"mobi|android|iphone|ipad|ipod|tablet", str(navigator.userAgent).lower())
+    re.search(
+        r"mobi|android|iphone|ipad|ipod|tablet", str(window.navigator.userAgent).lower()
+    )
 )
 
 
