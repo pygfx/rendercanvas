@@ -24,9 +24,14 @@ from js import window, document, ImageData, Uint8ClampedArray, OffscreenCanvas
 
 
 JS = """
+/**
+ * Adapter between the JS canvas and the Python canvas.
+ * The RendercanvasView handles all events, visibility and resizing,
+ * we just have to implement the hooks here.
+ */
 class PyodideRendercanvasView extends RendercanvasView {
-    constructor (el, pycanvas) {
-        super(el)
+    constructor (jscanvas, pycanvas) {
+        super(jscanvas, jscanvas)
         this.pycanvas = pycanvas
         this.wheelThrottle = 0
         this.moveThrottle = 0
@@ -35,6 +40,10 @@ class PyodideRendercanvasView extends RendercanvasView {
         this.pycanvas._onVisibleChanged(visible)
     }
     onResize(physicalWidth, physicalHeight, pixelRatio) {
+        // Set canvas physical size
+        this.viewElement.width = physicalWidth
+        this.viewElement.height = physicalHeight
+        // Notify canvas, so the render code knows the size
         this.pycanvas._onResize(physicalWidth, physicalHeight, pixelRatio)
     }
     onEvent(event) {
@@ -212,6 +221,7 @@ class PyodideRenderCanvas(BaseRenderCanvas):
         h, w = m.shape[:2]
 
         # Convert to a JS ImageData object
+        # Can we do zero-copy of we do the unwrapping in JS instead?
         if True:
             # Make sure that the array matches the number of pixels
             if self._js_array.length != m.nbytes:
@@ -263,8 +273,7 @@ class PyodideRenderCanvas(BaseRenderCanvas):
             ctx.drawImage(self._offscreen_canvas, 0, 0, cw, ch)
 
     def _rc_set_logical_size(self, width: float, height: float):
-        self._canvas_element.style.width = f"{width}px"
-        self._canvas_element.style.height = f"{height}px"
+        self._js_view.setCssSize(f"{width}px", f"{height}px")
 
     def _rc_close(self):
         # Closing is a bit weird in the browser ...
@@ -293,7 +302,7 @@ class PyodideRenderCanvas(BaseRenderCanvas):
         document.title = title
 
     def _rc_set_cursor(self, cursor: str):
-        self._canvas_element.style.cursor = cursor
+        self._js_view.setCursor(cursor)
 
 
 # Make available under a name that is the same for all backends

@@ -110,12 +110,26 @@ function arraysEqual (a, b) {
   return a.length === b.length && a.every((val, i) => val === b[i])
 }
 
+/**
+ * View that manages a render canvas inside a container element.
+ */
 class RendercanvasView {
-  constructor (el) {
-    if (el === undefined || !(el instanceof Element)) {
-      throw new Error('RendercanvasView: el must be an Element')
+  /**
+   * Create a new RendercanvasView.
+   *
+   * @param {HTMLElement} viewElement - The canvas element used for rendering.
+   * @param {HTMLElement} containerElement - The container that holds the canvas.
+   */
+  constructor (viewElement, containerElement) {
+    if (viewElement === undefined || !(viewElement instanceof Element)) {
+      throw new Error('RendercanvasView: viewElement must be an Element')
     }
-    this.el = el
+    if (containerElement === undefined || !(containerElement instanceof Element)) {
+      throw new Error('RendercanvasView: containerElement must be an Element')
+    }
+    this.viewElement = viewElement
+    this.containerElement = containerElement
+    this.sizeElement = viewElement
 
     // TODO: use methods instead, if we go use e.g. setCursor
     this.wheelThrottle = 20
@@ -127,6 +141,7 @@ class RendercanvasView {
     this._abortController = null
     this._resizeObserver = null
     this._intersectionObserver = null
+    this._cssSize = ['', '']
 
     this._initElements()
     this._registerEvents()
@@ -151,18 +166,35 @@ class RendercanvasView {
     }
   }
 
+  // TODO: since we only use setCssSize and setCursor in the pyodide backend, maybe add them in the corresponding subclass instead.
+  setCssSize (cssWidth, cssHeight) {
+    // Sets the intended size of the container element (which may be the same
+    // element as the view element) The browser will react by resizing the
+    // viewElement, which we detect with an observer, and will call onResize, so
+    // that the real size is known.
+    // We also store the set size, to reset it in case the env removes the inline style
+    this._cssSize = [cssWidth, cssHeight]
+    this.sizeElement.style.maxWidth = ''
+    this.sizeElement.style.maxHeight = ''
+    this.sizeElement.style.width = cssWidth
+    this.sizeElement.style.height = cssHeight
+  }
+
+  setCursor (cursor) {
+    this.viewElement.style.cursor = cursor
+  }
+
+  // For subclasses to overload
+  onVisibleChanged (visible) { }
+  onResize (physicalWidth, physicalHeight, pixelRatio) { }
+  onEvent (event) { }
+
   _initElements () {
-    // Prepare the element
-
-    const el = this.el
-    el.tabIndex = -1
-
     // Obtain container to put our hidden focus element.
     // Putting the focusElement as a child of the canvas prevents chrome from emitting input events.
     const focusElementContainerId = 'rendercanvas-focus-element-container'
-    let focusElementContainer = document.getElementById(
-      focusElementContainerId
-    )
+    let focusElementContainer = document.getElementById(focusElementContainerId)
+
     if (!focusElementContainer) {
       focusElementContainer = document.createElement('div')
       focusElementContainer.setAttribute('id', focusElementContainerId)
@@ -188,21 +220,27 @@ class RendercanvasView {
     focusElement.style.pointerEvents = 'none'
     focusElementContainer.appendChild(focusElement)
 
+    // Focus behavior
+    this.viewElement.tabIndex = -1
+
     // Prevent context menu on RMB. Firefox still shows it when shift is pressed. It seems
     // impossible to override this (tips welcome!), so let's make this the actual behavior.
-    el.oncontextmenu = (e) => {
+    this.viewElement.oncontextmenu = (e) => {
       if (!e.shiftKey) {
         e.preventDefault()
         e.stopPropagation()
         return false
       }
     }
+
+    // resize does not work if overflow is 'visible'
+    this.sizeElement.style.overflow = 'hidden'
   }
 
   _registerEvents () {
     // Register events
 
-    const el = this.el
+    const viewElement = this.viewElement
     this._abortController = new AbortController()
     const signal = this._abortController.signal // to unregister/abort stuff
 
@@ -222,7 +260,7 @@ class RendercanvasView {
         }
       }
     )
-    this._intersectionObserver.observe(el)
+    this._intersectionObserver.observe(viewElement)
 
     // ----- resize ---------------
 
@@ -232,20 +270,19 @@ class RendercanvasView {
       // from the physical size and the pixel ratio.
 
       // Select entry matching our element
-      const ourEntries = entries.filter((entry) => entry.target.id === el.id)
+      const ourEntries = entries.filter((entry) => entry.target.id === viewElement.id)
       if (!ourEntries.length) {
         return
       }
 
       const entry = ourEntries[0]
       const ratio = window.devicePixelRatio
-      let psize
+      let physicalWidth
+      let physicalHeight
 
       if (entry.devicePixelContentBoxSize) {
-        psize = [
-          entry.devicePixelContentBoxSize[0].inlineSize,
-          entry.devicePixelContentBoxSize[0].blockSize
-        ]
+        physicalWidth = entry.devicePixelContentBoxSize[0].inlineSize
+        physicalHeight = entry.devicePixelContentBoxSize[0].blockSize
       } else {
         // Some browsers don't support devicePixelContentBoxSize
         let lsize
@@ -257,28 +294,27 @@ class RendercanvasView {
         } else {
           lsize = [entry.contentRect.width, entry.contentRect.height]
         }
-        psize = [Math.floor(lsize[0] * ratio), Math.floor(lsize[1] * ratio)]
+        physicalWidth = Math.floor(lsize[0] * ratio)
+        physicalHeight = Math.floor(lsize[1] * ratio)
       }
 
-      // If the element does not set the size with its style, the canvas' width and height are used.
-      // On hidpi screens this'd cause the canvas size to quickly increase with factors of 2 :)
-      // Therefore we want to make sure that the style.width and style.height are set.
-      const lsize = [psize[0] / ratio, psize[1] / ratio]
-      if (!el.style.width) {
-        el.style.width = `${lsize[0]}px`
-      }
-      if (!el.style.height) {
-        el.style.height = `${lsize[1]}px`
+      // If the container element does not have its size set via its style, we set it to the logical size.
+      const logicalWidth = physicalWidth / ratio
+      const logicalHeight = physicalHeight / ratio
+      if ((!this.sizeElement.style.width) || (!this.sizeElement.style.height)) {
+        console.log('setting height in resize callback', this.sizeElement.style.width, this.sizeElement.style.height)
+        window.view2 = this
+        this.sizeElement.style.width = `${logicalWidth}px`
+        this.sizeElement.style.height = `${logicalHeight}px`
+        // prevent massive size due to auto-scroll (https://github.com/vispy/jupyter_rfb/issues/62)
+        this.sizeElement.style.maxWidth = Math.max(1024, window.innerWidth) + 'px'
+        this.sizeElement.style.maxHeight = Math.max(1024, window.innerHeight) + 'px'
       }
 
-      // Set canvas physical size
-      el.width = psize[0]
-      el.height = psize[1]
-
-      this.onResize(psize[0], psize[1], ratio)
+      this.onResize(physicalWidth, physicalHeight, ratio)
     })
 
-    this._resizeObserver.observe(this.el)
+    this._resizeObserver.observe(this.viewElement)
 
     // ----- pointer ---------------
 
@@ -288,7 +324,7 @@ class RendercanvasView {
     // The last used buttons, so we can pass to wheel event
     let lastButtons = []
 
-    el.addEventListener(
+    viewElement.addEventListener(
       'pointerdown',
       (ev) => {
         // When pointer is down, set focus to the focus-element.
@@ -299,7 +335,7 @@ class RendercanvasView {
         // Because we capture the event, there will be no other events when buttons are pressed down,
         // although they will end up in the 'buttons'. The lost/release will only get fired when all buttons
         // are released/lost. Which is why we look up the original button in our `pointers` list.
-        el.setPointerCapture(ev.pointerId)
+        viewElement.setPointerCapture(ev.pointerId)
         // Prevent default unless alt is pressed
         if (!ev.altKey) {
           ev.preventDefault()
@@ -339,7 +375,7 @@ class RendercanvasView {
       }
     }
 
-    el.addEventListener(
+    viewElement.addEventListener(
       'pointermove',
       (ev) => {
         // If this pointer is not down, but other pointers are, don't emit an event.
@@ -389,7 +425,7 @@ class RendercanvasView {
       { signal }
     )
 
-    el.addEventListener(
+    viewElement.addEventListener(
       'lostpointercapture',
       (ev) => {
         // This happens on pointer-up or pointer-cancel. We threat them the same.
@@ -419,7 +455,7 @@ class RendercanvasView {
       { signal }
     )
 
-    el.addEventListener(
+    viewElement.addEventListener(
       'pointerenter',
       (ev) => {
         // If this pointer is not down, but other pointers are, don't emit an event.
@@ -450,7 +486,7 @@ class RendercanvasView {
       { signal }
     )
 
-    el.addEventListener(
+    viewElement.addEventListener(
       'pointerleave',
       (ev) => {
         // If this pointer is not down, but other pointers are, don't emit an event.
@@ -485,7 +521,7 @@ class RendercanvasView {
 
     // Click events are not pointer events. In most apps that this targets, click events
     // don't add much over pointer events. But double-click can be useful.
-    el.addEventListener(
+    viewElement.addEventListener(
       'dblclick',
       (ev) => {
         // Prevent default unless alt is pressed
@@ -524,7 +560,7 @@ class RendercanvasView {
       }
     }
 
-    el.addEventListener(
+    viewElement.addEventListener(
       'wheel',
       (ev) => {
         // Only scroll if we have focus
@@ -581,7 +617,7 @@ class RendercanvasView {
       'keydown',
       (ev) => {
         // Failsafe in case the element is deleted or detached.
-        if (this.el.offsetParent === null) {
+        if (this.containerElement.offsetParent === null) {
           return
         }
         // Ignore repeated events (key being held down)
@@ -606,7 +642,7 @@ class RendercanvasView {
     this._focusElement.addEventListener(
       'keyup',
       (ev) => {
-        if (this.el.offsetParent === null) {
+        if (this.containerElement.offsetParent === null) {
           return
         }
 
@@ -627,7 +663,7 @@ class RendercanvasView {
       'input',
       (ev) => {
         // Failsafe in case the element is deleted or detached.
-        if (this.el.offsetParent === null) {
+        if (this.containerElement.offsetParent === null) {
           return
         }
         // Prevent the text box from growing
@@ -648,16 +684,6 @@ class RendercanvasView {
       { signal }
     )
   }
-
-  setCursor (cursor) {
-    this.el.style.cursor = cursor
-  }
-
-  // For subclasses to overload
-
-  onVisibleChanged (visible) { }
-  onResize (physicalWidth, physicalHeight, pixelRatio) { }
-  onEvent (event) { }
 }
 
 // Old-school export
