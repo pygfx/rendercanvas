@@ -640,6 +640,8 @@ class BaseRenderCanvas:
         This is meant for the backend to automatically enable/disable
         the rendering when the canvas is e.g. minimized or otherwise invisible.
         If not visible, frames are not rendered, but events are still processed.
+
+        Setting the visibility implicitly requests a new draw.
         """
         if self.__scheduler is not None:
             self.__scheduler.set_enabled(visible)

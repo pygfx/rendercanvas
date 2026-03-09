@@ -390,11 +390,9 @@ class GlfwRenderCanvas(BaseRenderCanvas):
             self._determine_size()
         finally:
             self._changing_pixel_ratio = False
-        self.request_draw()
 
     def _on_size_change(self, *args):
         self._determine_size()
-        self.request_draw()
         # During a resize, the glfw.poll_events() function blocks, so
         # our event-loop is on pause. However, glfw still sends resize
         # events, and we can use these to draw, to get a smoother
