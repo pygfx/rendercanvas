@@ -115,7 +115,6 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
             pwidth = int(logical_size[0] * pixel_ratio)
             pheight = int(logical_size[1] * pixel_ratio)
             self._size_info.set_physical_size(pwidth, pheight, pixel_ratio)
-            self.request_draw()
             return
 
         # Only submit events that rendercanvas knows. Otherwise, if new events are added

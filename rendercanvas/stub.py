@@ -68,10 +68,11 @@ class StubRenderCanvas(BaseRenderCanvas):
     Backends must call ``self._final_canvas_init()`` at the end of its
     ``__init__()``. This will set the canvas' logical size and title.
 
-    Backends must call ``self._size_info.set_physical_size(width, height, native_pixel_ratio)``,
-    whenever the size or pixel ratio changes. It must be called when the actual
-    viewport has changed, so typically not in ``_rc_set_logical_size()``, but
-    e.g. when the underlying GUI layer fires a resize event.
+    Backends must call ``self._size_info.set_physical_size(width, height,
+    native_pixel_ratio)``, whenever the size or pixel ratio changes. It must be
+    called when the actual viewport has changed, so typically not in
+    ``_rc_set_logical_size()``, but e.g. when the underlying GUI layer fires a
+    resize event. Setting the size implicitly requests a new draw.
 
     Backends must also call ``self.submit_event()``, if applicable, to produce
     events for mouse and keyboard. Backends must *not* submit a "resize" event;

@@ -164,6 +164,10 @@ class Scheduler:
             if (canvas := self.get_canvas()) is None:
                 break
 
+            # A resize should always draw.
+            if not do_draw:
+                do_draw = canvas._size_info["changed"]
+
             if do_draw:
                 # We do a draw and wait for the full draw to complete, including
                 # the presentation (i.e. the 'consumption' of the frame), using
