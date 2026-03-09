@@ -5,6 +5,7 @@ can be used as a standalone window or in a larger GUI.
 
 __all__ = ["RenderCanvas", "WxLoop", "WxRenderCanvas", "WxRenderWidget", "loop"]
 
+import os
 import sys
 import time
 import ctypes
@@ -461,14 +462,23 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
             delta = event.GetWheelDelta()
             axis = event.GetWheelAxis()
             rotation = event.GetWheelRotation()
+            # this is a little magic... it aims to match the scroll speed
+            # the Qt backend in a cross-platform way...
+            # Per the wx docs, GetWheelDelta() is the threshold divisor for one
+            # scroll action (not a multiplier).  So rotation / delta gives us the
+            # number of scroll "steps" (positive or negative).  Scaling by 120
+            # on windows gives us the same scroll speed as Qt, but macos accumulates
+            # scroll deltas differently, so we use a smaller gain there
+            # (otherwise it scrolls way too fast).
+            gain = 120 if os.name == "nt" else 24
 
             dx = 0
             dy = 0
 
             if axis == wx.MOUSE_WHEEL_HORIZONTAL:
-                dx = delta * rotation
+                dx = gain * rotation / delta
             elif axis == wx.MOUSE_WHEEL_VERTICAL:
-                dy = delta * rotation
+                dy = gain * rotation / delta
 
             ev.update({"dx": -dx, "dy": -dy})
 
