@@ -359,9 +359,9 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         except RuntimeError:
             return  # native C++ object is already deleted
         if isinstance(parent, WxRenderCanvas):
-            parent.Hide()
+            parent.Close()
         else:
-            self.Hide()
+            self.Close()
 
     def _rc_get_closed(self):
         return self._is_closed
