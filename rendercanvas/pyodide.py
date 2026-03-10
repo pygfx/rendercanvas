@@ -163,9 +163,9 @@ class PyodideRenderCanvas(BaseRenderCanvas):
         # Called from JS
         self._set_visible(visible)
 
-    def _onResize(self, physicalWidth, physicalHeight, pixelRatio):  # noqa: N802
+    def _onResize(self, physical_width, physical_height, pixel_ratio):  # noqa: N802
         # Called from JS
-        self._size_info.set_physical_size(physicalWidth, physicalHeight, pixelRatio)
+        self._size_info.set_physical_size(physical_width, physical_height, pixel_ratio)
 
     def _onEvent(self, event):  # noqa: N802
         # Called from JS
