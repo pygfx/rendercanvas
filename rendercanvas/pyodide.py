@@ -8,7 +8,6 @@ is not required to set the default sdl2 canvas as the Pyodide docs describe.
 
 __all__ = ["PyodideRenderCanvas", "RenderCanvas", "loop"]
 
-import re
 import sys
 import ctypes
 from importlib.resources import files as resource_files
@@ -68,45 +67,6 @@ def _inject_js_and_css():
 
 
 _inject_js_and_css()
-
-
-KEYMAP = {
-    "Ctrl": "Control",
-    "Del": "Delete",
-    "Esc": "Escape",
-}
-
-KEY_MOD_MAP = {
-    "altKey": "Alt",
-    "ctrlKey": "Control",
-    "metaKey": "Meta",
-    "shiftKey": "Shift",
-}
-
-MOUSE_BUTTON_MAP = {
-    -1: 0,  # no button
-    0: 1,  # left
-    1: 3,  # middle/wheel
-    2: 2,  # right
-    3: 4,  # backwards
-    4: 5,  # forwards
-}
-
-
-def buttons_mask_to_tuple(mask) -> tuple[int, ...]:
-    bin(mask)
-    res = ()
-    for i, v in enumerate(bin(mask)[:1:-1]):
-        if v == "1":
-            res += (MOUSE_BUTTON_MAP.get(i, i),)
-    return res
-
-
-looks_like_mobile = bool(
-    re.search(
-        r"mobi|android|iphone|ipad|ipod|tablet", str(window.navigator.userAgent).lower()
-    )
-)
 
 
 # The canvas group manages canvases of the type we define below. In general we don't have to implement anything here.
