@@ -33,8 +33,7 @@ class PyodideRenderView extends BaseRenderView {
     constructor (jscanvas, pycanvas) {
         super(jscanvas, jscanvas)
         this.pycanvas = pycanvas
-        this.wheelThrottle = 0
-        this.moveThrottle = 0
+        this.setThrottle(0)
     }
     onVisibleChanged(visible) {
         this.pycanvas._onVisibleChanged(visible)

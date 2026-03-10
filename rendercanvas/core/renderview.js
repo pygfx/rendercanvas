@@ -96,9 +96,8 @@ class BaseRenderView {
     this.wrapperElement = wrapperElement
     this.sizeElement = wrapperElement
 
-    // TODO: use methods instead, if we go use e.g. setCursor
-    this.wheelThrottle = 20
-    this.moveThrottle = 20
+    this._wheelThrottle = 20
+    this._moveThrottle = 20
 
     this._isVisible = false // set by intersection observer
 
@@ -133,21 +132,15 @@ class BaseRenderView {
     }
   }
 
-  // TODO: since we only use setCssSize and setCursor in the pyodide backend, maybe add them in the corresponding subclass instead.
-
   /**
    * Set the size of the view, expressed as CSS. Use e.g. '640px' to set in logical pixels.
    * If setting the new size affects the actual size of the view, `OnResize()` will be called.
    *
-   * @param {string} cssWidth - the requested width.
-   * @param {string} cssHeight - the requested height.
+   * @param {string} cssWidth - The requested width.
+   * @param {string} cssHeight - The requested height.
    */
   setCssSize (cssWidth, cssHeight) {
-    // Sets the intended size of the container element (which may be the same
-    // element as the view element) The browser will react by resizing the
-    // viewElement, which we detect with an observer, and will call onResize, so
-    // that the real size is known.
-    // We also store the set size, to reset it in case the env removes the inline style
+    // Sets the intended size of the container element (which may be the same element as the view element)
     this.sizeElement.style.maxWidth = ''
     this.sizeElement.style.maxHeight = ''
     this.sizeElement.style.width = cssWidth
@@ -156,31 +149,43 @@ class BaseRenderView {
 
   /**
    * Set the `style.cursor`.
+   *
+   * @param {string} cursor - A valid string for CSS cursor.
    */
   setCursor (cursor) {
     this.viewElement.style.cursor = cursor
   }
 
   /**
+   * Set the throttle setting. Set to zero to disable throttling.
+   *
+   * @param {number} throttle - The timeout (in ms) to wait before sending a move/wheel event.
+   */
+  setThrottle (throttle) {
+    this._wheelThrottle = throttle
+    this._moveThrottle = throttle
+  }
+
+  /**
    * The subclass should implement this to handle changes in visibility.
    *
-   * @param {boolean} visible - whether the view just became visible (true) or invisible (false).
+   * @param {boolean} visible - Whether the view just became visible (true) or invisible (false).
    */
   onVisibleChanged (visible) { }
 
   /**
    * The subclass should implement this to handle resizes. The base class does *not* emit resize events by itself.
    *
-   * @param {number} physicalWidth - the width in (physical) pixels.
-   * @param {number} physicalHeight - the height in (physical) pixels.
-   * @param {number} pixelRatio - the pixel ratio. Multiply this with the physical size to get the logical size.
+   * @param {number} physicalWidth - The width in (physical) pixels.
+   * @param {number} physicalHeight - The height in (physical) pixels.
+   * @param {number} pixelRatio - The pixel ratio. Multiply this with the physical size to get the logical size.
    */
   onResize (physicalWidth, physicalHeight, pixelRatio) { }
 
   /**
    * The subclass should implement this to handle events.
    *
-   * @param {object} event - the event object as a 'dictionary', following the spec.
+   * @param {object} event - The event object as a 'dictionary', following the spec.
    */
   onEvent (event) { }
 
@@ -407,10 +412,10 @@ class BaseRenderView {
           touches: {},
           time_stamp: getTimestamp()
         }
-        if (this.moveThrottle > 0) {
+        if (this._moveThrottle > 0) {
           sendMoveEvent() // Send previous (if any)
           pendingMoveEvent = event
-          window.setTimeout(sendMoveEvent, this.moveThrottle)
+          window.setTimeout(sendMoveEvent, this._moveThrottle)
         } else {
           this.onEvent(event)
         }
@@ -583,10 +588,10 @@ class BaseRenderView {
           modifiers,
           time_stamp: getTimestamp()
         }
-        if (this.wheelThrottle > 0) {
+        if (this._wheelThrottle > 0) {
           sendWheelEvent() // Send previous (if any)
           pendingWheelEvent = event
-          window.setTimeout(sendWheelEvent, this.wheelThrottle)
+          window.setTimeout(sendWheelEvent, this._wheelThrottle)
         } else {
           this.onEvent(event)
         }
