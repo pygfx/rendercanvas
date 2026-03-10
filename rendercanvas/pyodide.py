@@ -23,13 +23,13 @@ from pyodide.ffi import create_proxy, to_js
 from js import window, document, ImageData, Uint8ClampedArray, OffscreenCanvas
 
 
-JS = """
+pyodide_renderview_js = """
 /**
  * Adapter between the JS canvas and the Python canvas.
- * The RendercanvasView handles all events, visibility and resizing,
+ * The BaseRenderView handles all events, visibility and resizing,
  * we just have to implement the hooks here.
  */
-class PyodideRendercanvasView extends RendercanvasView {
+class PyodideRenderView extends BaseRenderView {
     constructor (jscanvas, pycanvas) {
         super(jscanvas, jscanvas)
         this.pycanvas = pycanvas
@@ -50,22 +50,25 @@ class PyodideRendercanvasView extends RendercanvasView {
         this.pycanvas._onEvent(event)
     }
 }
-window.rendercanvas_events.PyodideRendercanvasView = PyodideRendercanvasView
+window.PyodideRenderView = PyodideRenderView
 """
 
 
-def _load_javascript():
-    # TODO: check the composition here, like JS should not be added to each loop iter
-    for fname in ["rendercanvas_events.js"]:
-        js_path = resource_files("rendercanvas.core").joinpath(fname)
-        js = js_path.read_text() + JS
-        js = "(function () {\n{JS}\n})();".replace("JS", js)  # wrap in IIFE module
-        script = document.createElement("script")
-        script.text = js
-        document.head.appendChild(script)
+def _inject_js_and_css():
+    js_path = resource_files("rendercanvas.core").joinpath("renderview.js")
+    js = js_path.read_text() + pyodide_renderview_js
+    js = "(function () {\n{JS}\n})();".replace("JS", js)  # wrap in IIFE module
+    script_el = document.createElement("script")
+    script_el.text = js
+    document.head.appendChild(script_el)
+
+    css_path = resource_files("rendercanvas.core").joinpath("renderview.css")
+    style_el = document.createElement("style")
+    style_el.text = css_path.read_text()
+    document.head.appendChild(style_el)
 
 
-_load_javascript()
+_inject_js_and_css()
 
 
 KEYMAP = {
@@ -153,9 +156,7 @@ class PyodideRenderCanvas(BaseRenderCanvas):
         # Finalize init
         super().__init__(*args, **kwargs)
 
-        self._js_view = window.rendercanvas_events.PyodideRendercanvasView.new(
-            canvas_element, create_proxy(self)
-        )
+        self._js_view = window.PyodideRenderView.new(canvas_element, create_proxy(self))
 
         self._final_canvas_init()
 
