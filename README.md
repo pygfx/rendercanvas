@@ -2,6 +2,8 @@
 [![Documentation Status](https://readthedocs.org/projects/rendercanvas/badge/?version=stable)](https://rendercanvas.readthedocs.io)
 [![PyPI version](https://badge.fury.io/py/rendercanvas.svg)](https://badge.fury.io/py/rendercanvas)
 [![EffVer Versioning](https://img.shields.io/badge/version_scheme-EffVer-0097a7)](https://jacobtomlinson.dev/effver)
+[![Zenodo badge](https://zenodo.org/badge/DOI/10.5281/zenodo.18922945.svg)](https://doi.org/10.5281/zenodo.18922945)
+
 
 <h1 align="center"><img src="https://github.com/user-attachments/assets/74ddfc1e-03ae-4965-afe9-8697ec4614b5" height="128"><br>rendercanvas</h1>
 
