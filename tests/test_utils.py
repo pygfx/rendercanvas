@@ -1,5 +1,6 @@
 import os
 import gc
+import sys
 import time
 
 import rendercanvas
@@ -41,7 +42,11 @@ def test_weakbind():
 
 
 def test_call_later_thread():
-    leeway = 0.05 if os.getenv("CI") else 0
+    leeway = 0
+    if os.getenv("CI"):
+        leeway = 0.05
+        if sys.platform == "darwin":
+            leeway = 0.15
 
     t = rendercanvas.core.coreutils.CallLaterThread()
 
