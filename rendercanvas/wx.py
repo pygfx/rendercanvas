@@ -384,7 +384,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
     # %% Turn wx events into rendercanvas events
 
     def _on_resize(self, event: wx.SizeEvent):
-        self._draw_lock = True
+        # self._draw_lock = True
         self._resize_timer.Start(100, wx.TIMER_ONE_SHOT)
 
         lsize = float(self.Size[0]), float(self.Size[1])
