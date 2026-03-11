@@ -247,7 +247,8 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         if not self._draw_lock:
             self._time_to_paint()
         if self._last_image is not None:
-            dc.DrawBitmap(self._last_image, 0, 0, False)
+            # dc.DrawBitmap(self._last_image, 0, 0, False)
+            dc.drawRectangle(0, 0, 10, 10)
         else:
             event.Skip()
         del dc
