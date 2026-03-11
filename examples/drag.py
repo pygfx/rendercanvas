@@ -140,7 +140,7 @@ def animate():
     # Draw blocks, in order that they are in the list
     for x, y, size, color in blocks:
         hs = size // 2
-        world[y - hs : y + hs, x - hs : x + hs] = color
+        world[max(y - hs, 0) : y + hs, max(x - hs, 0) : x + hs] = color
 
     # Present
     context.set_bitmap(world)
