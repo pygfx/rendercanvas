@@ -1,4 +1,4 @@
-div.renderview-canvas-wrapper {
+div.renderview-wrapper {
     display: inline-block;
     position: relative;
     box-sizing: border-box;
@@ -7,16 +7,17 @@ div.renderview-canvas-wrapper {
     min-height: 32px;
 }
 
-div.renderview-canvas-wrapper img,
-div.renderview-canvas-wrapper canvas {
+div.renderview-wrapper img,
+div.renderview-wrapper canvas {
     display: block;
     box-sizing: border-box;
     width: 100%;
     height: 100%;
-    border-radius: 6px;
+    border-radius: 5px;
+    background: #777;
 }
 
-div.renderview-canvas-wrapper div.renderview-top {
+div.renderview-wrapper div.renderview-top {
     display: none;
     position: absolute;
     box-sizing: border-box;
@@ -25,20 +26,20 @@ div.renderview-canvas-wrapper div.renderview-top {
     height: 1.5em;
     width: 100%;
     border-top: 1px solid rgba(128, 128, 128, 0.5);
-    border-radius: 6px 6px 0 0;
+    border-radius: 5px 5px 0 0;
 }
 
-div.renderview-canvas-wrapper div.renderview-top span {
+div.renderview-wrapper div.renderview-top span {
     display: inline-block;
     box-sizing: border-box;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    padding: 0 0.5em 0 0.5em;
+    padding: 0.1em 0.5em;
     width: 100%;
 }
 
-div.renderview-canvas-wrapper div.renderview-resizer {
+div.renderview-wrapper div.renderview-resizer {
     display: none;
     position: absolute;
     box-sizing: border-box;
@@ -50,20 +51,20 @@ div.renderview-canvas-wrapper div.renderview-resizer {
     cursor: nwse-resize;
 }
 
-div.renderview-canvas-wrapper.has-titlebar {
-    margin-top: 2em;
+div.renderview-wrapper.has-titlebar {
+    margin-top: 2em !important;
 }
 
-div.renderview-canvas-wrapper.has-titlebar div.renderview-top {
+div.renderview-wrapper.has-titlebar div.renderview-top {
     display: block;
 }
 
-div.renderview-canvas-wrapper.has-titlebar img,
-div.renderview-canvas-wrapper.has-titlebar canvas {
-    border-top-left-radius: 0;
-    border-top-right-radius: 0;
+div.renderview-wrapper.has-titlebar img,
+div.renderview-wrapper.has-titlebar canvas {
+    border-top-left-radius: 0 !important;
+    border-top-right-radius: 0 !important;
 }
 
-div.renderview-canvas-wrapper.is-resizable div.renderview-resizer {
+div.renderview-wrapper.is-resizable div.renderview-resizer {
     display: block;
 }

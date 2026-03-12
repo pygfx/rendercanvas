@@ -22,47 +22,19 @@ from pyodide.ffi import create_proxy, to_js
 from js import window, document, ImageData, Uint8ClampedArray, OffscreenCanvas
 
 
-pyodide_renderview_js = """
-/**
- * Adapter between the JS canvas and the Python canvas.
- * The BaseRenderView handles all events, visibility and resizing,
- * we just have to implement the hooks here.
- */
-class PyodideRenderView extends BaseRenderView {
-    constructor (jscanvas, pycanvas) {
-        super(jscanvas, jscanvas)
-        this.pycanvas = pycanvas
-        this.setThrottle(0)
-    }
-    onVisibleChanged(visible) {
-        this.pycanvas._onVisibleChanged(visible)
-    }
-    onResize(physicalWidth, physicalHeight, pixelRatio) {
-        // Set canvas physical size
-        this.viewElement.width = physicalWidth
-        this.viewElement.height = physicalHeight
-        // Notify canvas, so the render code knows the size
-        this.pycanvas._onResize(physicalWidth, physicalHeight, pixelRatio)
-    }
-    onEvent(event) {
-        this.pycanvas._onEvent(event)
-    }
-}
-window.PyodideRenderView = PyodideRenderView
-"""
-
-
 def _inject_js_and_css():
-    js_path = resource_files("rendercanvas.core").joinpath("renderview.js")
-    js = js_path.read_text() + pyodide_renderview_js
+    js = ""
+    for fname in ["renderview.js", "renderview-pyodide.js"]:
+        js_path = resource_files("rendercanvas.core").joinpath(fname)
+        js += js_path.read_text()
     js = "(function () {\n{JS}\n})();".replace("JS", js)  # wrap in IIFE module
     script_el = document.createElement("script")
-    script_el.text = js
+    script_el.textContent = js
     document.head.appendChild(script_el)
 
     css_path = resource_files("rendercanvas.core").joinpath("renderview.css")
     style_el = document.createElement("style")
-    style_el.text = css_path.read_text()
+    style_el.textContent = css_path.read_text()
     document.head.appendChild(style_el)
 
 
@@ -81,25 +53,13 @@ class PyodideRenderCanvas(BaseRenderCanvas):
 
     def __init__(
         self,
-        canvas_element: str = "canvas",
+        canvas_element: object = "canvas",
         *args,
         **kwargs,
     ):
-        # Resolve and check the canvas element
-        canvas_id = None
-        if isinstance(canvas_element, str):
-            canvas_id = canvas_element
-            canvas_element = document.getElementById(canvas_id)
-        if not (
-            hasattr(canvas_element, "tagName") and canvas_element.tagName == "CANVAS"
-        ):
-            repr = f"{canvas_element!r}"
-            if canvas_id:
-                repr = f"{canvas_id!r} -> " + repr
-            raise TypeError(
-                f"Given canvas element does not look like a <canvas>: {repr}"
-            )
-        self._canvas_element = canvas_element
+        # Create JS component that handles events and the embedding in the page
+        self._js_view = window.PyodideRenderView.new(canvas_element, create_proxy(self))
+        self._canvas_element = self._js_view.viewElement
 
         # We need a buffer to store pixel data, until we figure out how we can map a Python memoryview to a JS ArrayBuffer without making a copy.
         # TODO: if its any easier for a numpy array, we could go that route!
@@ -110,13 +70,9 @@ class PyodideRenderCanvas(BaseRenderCanvas):
 
         # If size or title are not given, set them to None, so they are left as-is. This is usually preferred in html docs.
         kwargs["size"] = kwargs.get("size", None)
-        kwargs["title"] = kwargs.get("title", None)
 
         # Finalize init
         super().__init__(*args, **kwargs)
-
-        self._js_view = window.PyodideRenderView.new(canvas_element, create_proxy(self))
-
         self._final_canvas_init()
 
     def _onVisibleChanged(self, visible):  # noqa: N802
@@ -259,7 +215,7 @@ class PyodideRenderCanvas(BaseRenderCanvas):
         # A canvas element doesn't have a title directly.
         # We assume that when the canvas sets a title it's the only one, and we set the title of the document.
         # Maybe we want a mechanism to prevent this at some point, we'll see.
-        document.title = title
+        self._js_view.setTitle(title)
 
     def _rc_set_cursor(self, cursor: str):
         self._js_view.setCursor(cursor)
