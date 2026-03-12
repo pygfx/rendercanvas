@@ -1,0 +1,69 @@
+div.renderview-canvas-wrapper {
+    display: inline-block;
+    position: relative;
+    box-sizing: border-box;
+    overflow: visible;
+    min-width: 32px;
+    min-height: 32px;
+}
+
+div.renderview-canvas-wrapper img,
+div.renderview-canvas-wrapper canvas {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    border-radius: 6px;
+}
+
+div.renderview-canvas-wrapper div.renderview-top {
+    display: none;
+    position: absolute;
+    box-sizing: border-box;
+    z-index: 2;
+    top: -1.5em;
+    height: 1.5em;
+    width: 100%;
+    border-top: 1px solid rgba(128, 128, 128, 0.5);
+    border-radius: 6px 6px 0 0;
+}
+
+div.renderview-canvas-wrapper div.renderview-top span {
+    display: inline-block;
+    box-sizing: border-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 0 0.5em 0 0.5em;
+    width: 100%;
+}
+
+div.renderview-canvas-wrapper div.renderview-resizer {
+    display: none;
+    position: absolute;
+    box-sizing: border-box;
+    z-index: 3;
+    bottom: 0;
+    right: 0;
+    width: 16px;
+    height: 16px;
+    cursor: nwse-resize;
+}
+
+div.renderview-canvas-wrapper.has-titlebar {
+    margin-top: 2em;
+}
+
+div.renderview-canvas-wrapper.has-titlebar div.renderview-top {
+    display: block;
+}
+
+div.renderview-canvas-wrapper.has-titlebar img,
+div.renderview-canvas-wrapper.has-titlebar canvas {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+}
+
+div.renderview-canvas-wrapper.is-resizable div.renderview-resizer {
+    display: block;
+}

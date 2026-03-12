@@ -51,6 +51,11 @@ We love it even more if rendercanvas is referenced to help increase the visibili
 Also feel free to reach out to let us know!
 See our Zenodo page for citation details: https://doi.org/10.5281/zenodo.18922945
 
+### Adding a backend
+
+If you want to add a backend, please first create an issue to discuss the idea.
+Also have a look at https://rendercanvas.readthedocs.io/stable/backendapi.html to see what a backend looks like.
+
 ### Active contributions
 
 If you just want to help move the project forward, we welcome you to:
@@ -101,7 +106,15 @@ The use of an AI agent that writes code and then submits a pull request
 autonomously is not permitted.
 
 
-## Coding Style
+## Tips for working with this repo
+
+### Project structure
+
+All backends are represented as modules in the library root. Core functionality is in `rendercanvas.core`.
+Public utilities are in `rendercanvas.utils`. We try to avoid dependencies where possible, although we do allow
+optional dependencies for specific backends.
+
+### Coding Style
 
 The rendercanvas project uses `ruff` to format and lint the code:
 
@@ -111,3 +124,14 @@ ruff format
 # Check for linting errors.
 ruff check
 ```
+
+### JavaScript code
+
+This project includes some JavaScript code. It is formatted and linted using
+`standardjs`, which is similar to `ruff` in Python. CI runs a lint-job
+that uses `standardjs`. To format and lint your code locally:
+
+* Install npm if you don't have it already.
+* `npm install --global standard`
+* `standard rendercanvas`  (run this before committing changes to the JavaScript code)
+
