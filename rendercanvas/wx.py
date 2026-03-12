@@ -459,26 +459,24 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
             )
 
         if event_type == "wheel":
-            delta = event.GetWheelDelta()
             axis = event.GetWheelAxis()
             rotation = event.GetWheelRotation()
-            # this is a little magic... it aims to match the scroll speed
-            # the Qt backend in a cross-platform way...
-            # Per the wx docs, GetWheelDelta() is the threshold divisor for one
-            # scroll action (not a multiplier).  So rotation / delta gives us the
-            # number of scroll "steps" (positive or negative).  Scaling by 120
-            # on windows gives us the same scroll speed as Qt, but macos accumulates
-            # scroll deltas differently, so we use a smaller gain there
-            # (otherwise it scrolls way too fast).
-            gain = 120 if os.name == "nt" else 24
+
+            # This is a little magic... it aims to match the scroll speed the Qt
+            # backend in a cross-platform way... It looks like just using the
+            # rotation produces a similar scroll experience, except it's rather
+            # slow/sluggish on MacOS for some reason, so we use a multiplier to
+            # correct that. Note that the non-linear scrolling on MacOS means
+            # that the exact gain does not even matter so much ...
+            gain = 2 if sys.platform == "darwin" else 1
 
             dx = 0
             dy = 0
 
             if axis == wx.MOUSE_WHEEL_HORIZONTAL:
-                dx = gain * rotation / delta
+                dx = gain * rotation
             elif axis == wx.MOUSE_WHEEL_VERTICAL:
-                dy = gain * rotation / delta
+                dy = gain * rotation
 
             ev.update({"dx": -dx, "dy": -dy})
 
