@@ -5,7 +5,6 @@ can be used as a standalone window or in a larger GUI.
 
 __all__ = ["RenderCanvas", "WxLoop", "WxRenderCanvas", "WxRenderWidget", "loop"]
 
-import os
 import sys
 import time
 import ctypes
