@@ -135,6 +135,7 @@ class BaseRenderView {
     this.viewElement = viewElement
     this.wrapperElement = wrapperElement
     this.sizeElement = (wrapperElement === null) ? viewElement : wrapperElement
+    this.titleElement = null // is set in _initElements() if wrapperElement is given
 
     this._lsize = null // cached logical size
     this._wheelThrottle = 20 // to avoid flooding wheel events
@@ -170,6 +171,13 @@ class BaseRenderView {
     if (this._intersectionObserver) {
       this._intersectionObserver.disconnect()
       this._intersectionObserver = null
+    }
+    this.viewElement = null
+    this.sizeElement = null
+    this.titleElement = null
+    if (this.wrapperElement) {
+      this.wrapperElement.innerHTML = ''
+      this.wrapperElement = null
     }
   }
 
