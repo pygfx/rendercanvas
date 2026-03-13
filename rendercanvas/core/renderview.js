@@ -82,16 +82,13 @@ function arraysEqual (a, b) {
  * - it observes resizes and calls `this.OnResize()`.
  * - it observes user events ans calls this.OnEvent()`.
  *
- * It provides convenience methods:
- *
- * - `setCssSize()` to set the size on the appropriate element.
- * - `setCursor()` to set the `style.cursor`.
- * - `setThrottle()` for move and wheel events.
+ * It provides convenience methods for setting the size, cursor, and more.
  *
  * When used with a wrapper element, more features are enabled:
  *
- * - It can be manually resized if the wrapper has the 'is-resizable' class.
+ * - It can be manually resized if the wrapper element has the 'is-resizable' class.
  * - A title bar is shown if the wrapper has the 'has-titlebar' class.
+ * - The above mentioned classes can also be programmatically set via `setResizable()` and `showTitlebar()`.
  * - The title can be set using `setTitle()`.
  *
  */
@@ -103,7 +100,7 @@ class BaseRenderView {
    * No styling is applied except for `width` and `height`.
    *
    * If a wrapper element is also given, the view supports features like manual resizing and a title-bar.
-   * In this case, any styling that effects positioning should be applied to the wrapper.
+   * In this case, any user styling that effects positioning should be applied to the wrapper.
    * The wrapper may contain placeholder content; on initialization, it's innerHTML and padding are reset.
    *
    * @param {HTMLElement} viewElement - The element (e.g. canvas or img) used for rendering.
@@ -120,6 +117,7 @@ class BaseRenderView {
       }
       wrapperElement.innerHTML = ''
       wrapperElement.style.padding = '0'
+      wrapperElement.style.background = ''
     }
 
     // Tweak viewElement
@@ -138,12 +136,13 @@ class BaseRenderView {
     this.wrapperElement = wrapperElement
     this.sizeElement = (wrapperElement === null) ? viewElement : wrapperElement
 
-    this._wheelThrottle = 20
-    this._moveThrottle = 20
+    this._lsize = null // cached logical size
+    this._wheelThrottle = 20 // to avoid flooding wheel events
+    this._moveThrottle = 20 // to avoid flooding move events
     this._isVisible = false // set by intersection observer
 
-    this._abortController = new AbortController()
     this._focusElement = null
+    this._abortController = new AbortController()
     this._resizeObserver = null
     this._intersectionObserver = null
 
@@ -156,13 +155,13 @@ class BaseRenderView {
    * This does not remove the the element from the DOM; that's up to the caller.
    */
   close () {
-    if (this._abortController) {
-      this._abortController.abort()
-      this._abortController = null
-    }
     if (this._focusElement) {
       this._focusElement.remove()
       this._focusElement = null
+    }
+    if (this._abortController) {
+      this._abortController.abort()
+      this._abortController = null
     }
     if (this._resizeObserver) {
       this._resizeObserver.disconnect()
@@ -175,18 +174,82 @@ class BaseRenderView {
   }
 
   /**
-   * Set the size of the view, expressed as CSS. Use e.g. '640px' to set in logical pixels.
-   * If setting the new size affects the actual size of the view, `OnResize()` will be called.
+   * Set the view's size in logical pixels.
    *
-   * @param {string} cssWidth - The requested width.
-   * @param {string} cssHeight - The requested height.
+   * @param {string} width - The requested width.
+   * @param {string} height - The requested height.
    */
-  setCssSize (cssWidth, cssHeight) {
-    // Sets the intended size of the container element (which may be the same element as the view element)
+  setLogicalSize (width, height) {
     this.sizeElement.style.maxWidth = ''
     this.sizeElement.style.maxHeight = ''
+    this.sizeElement.style.width = width + 'px'
+    this.sizeElement.style.height = height + 'px'
+  }
+
+  /**
+   * Set the width of the view as a CSS string.
+   *
+   * @param {string} cssWidth - The requested width as a css string, e.g. '640px' or '90%' or 'calc(100% - 10px)'.
+   */
+  setCssWidth (cssWidth) {
+    this.sizeElement.style.maxWidth = ''
     this.sizeElement.style.width = cssWidth
+  }
+
+  /**
+   * Set the height of the view as a CSS string.
+   *
+   * @param {string} cssHeight - The requested height as a css string, e.g. '480px' or '40vh'.
+   */
+  setCssHeight (cssHeight) {
+    this.sizeElement.style.maxHeight = ''
     this.sizeElement.style.height = cssHeight
+  }
+
+  /**
+  * Set whether the view is manually resizable.
+  * Note that the view can only be made resizable if it was instantiated with a wrapper.
+  *
+  * @param {boolean} resizable - Whether to make it resizable or not.
+  */
+  setResizable (resizable) {
+    if (this.wrapperElement) {
+      if (resizable) {
+        this.wrapperElement.classList.add('is-resizable')
+      } else {
+        this.wrapperElement.classList.remove('is-resizable')
+      }
+    }
+  }
+
+  /**
+  * Set whether the view has a titlebar.
+  * Note that the view can only have a titlebar if it was instantiated with a wrapper.
+  *
+  * @param {boolean} titlebar - Whether to show the titlebar or not.
+  */
+  showTitlebar (titlebar) {
+    if (this.wrapperElement) {
+      if (titlebar) {
+        this.wrapperElement.classList.add('has-titlebar')
+      } else {
+        this.wrapperElement.classList.remove('has-titlebar')
+      }
+    }
+  }
+
+  /**
+   * Set the view's title in the titlebar.
+   *
+   * Note that the title is only visible if the view was instantiated with a wrapper,
+   * and the titlebar is shown.
+   *
+   * @param {string} title - The title to set.
+   */
+  setTitle (title) {
+    if (this.titleElement) {
+      this.titleElement.innerText = title
+    }
   }
 
   /**
@@ -196,18 +259,6 @@ class BaseRenderView {
    */
   setCursor (cursor) {
     this.viewElement.style.cursor = cursor
-  }
-
-  /**
-   * Set the view's title.
-   *
-   * Note that the title is only visible if the view was instantiated with a wrapper,
-   * and that wrapper has the 'renderview-has-titlebar' class.
-   */
-  setTitle (title) {
-    if (this.titleElement) {
-      this.titleElement.innerText = title
-    }
   }
 
   /**
@@ -232,7 +283,7 @@ class BaseRenderView {
    *
    * @param {number} physicalWidth - The width in (physical) pixels.
    * @param {number} physicalHeight - The height in (physical) pixels.
-   * @param {number} pixelRatio - The pixel ratio. Multiply this with the physical size to get the logical size.
+   * @param {number} pixelRatio - The pixel ratio. Divide the physical size with this to get the logical size.
    */
   onResize (physicalWidth, physicalHeight, pixelRatio) { }
 
@@ -301,18 +352,15 @@ class BaseRenderView {
       wrapperElement.appendChild(resizeElement)
       let resizeInfo = null
       resizeElement.addEventListener('pointerdown', (ev) => {
-        console.log('resize start!', this.sizeElement._rc_width)
-        if (this.sizeElement._rc_width !== undefined) {
-          resizeInfo = { w: this.sizeElement._rc_width, h: this.sizeElement._rc_height, x: ev.clientX, y: ev.clientY }
+        if (this._lsize) {
+          resizeInfo = { w: this._lsize[0], h: this._lsize[1], x: ev.clientX, y: ev.clientY }
           resizeElement.setPointerCapture(ev.pointerId)
         }
       },
       { signal }
       )
       resizeElement.addEventListener('pointermove', (ev) => {
-        console.log('resizing!', resizeInfo)
         if (resizeInfo !== null) {
-          console.log(resizeInfo.w + (ev.clientX - resizeInfo.x))
           this.sizeElement.style.maxWidth = ''
           this.sizeElement.style.maxHeight = ''
           this.sizeElement.style.width = resizeInfo.w + (ev.clientX - resizeInfo.x) + 'px'
@@ -394,17 +442,18 @@ class BaseRenderView {
       // If the container element does not have its size set via its style, we set it to the logical size.
       const logicalWidth = physicalWidth / ratio
       const logicalHeight = physicalHeight / ratio
-      if ((!this.sizeElement.style.width) || (!this.sizeElement.style.height)) {
-        window.view2 = this
+
+      // prevent massive size due to auto-scroll (https://github.com/vispy/jupyter_rfb/issues/62)
+      if (!this.sizeElement.style.width) {
         this.sizeElement.style.width = `${logicalWidth}px`
+        this.sizeElement.style.maxWidth = '90vmin'
+      }
+      if (!this.sizeElement.style.height) {
         this.sizeElement.style.height = `${logicalHeight}px`
-        // prevent massive size due to auto-scroll (https://github.com/vispy/jupyter_rfb/issues/62)
-        this.sizeElement.style.maxWidth = Math.max(1024, window.innerWidth) + 'px'
-        this.sizeElement.style.maxHeight = Math.max(1024, window.innerHeight) + 'px'
+        this.sizeElement.style.maxHeight = '90vmin'
       }
 
-      this.sizeElement._rc_width = logicalWidth
-      this.sizeElement._rc_height = logicalHeight
+      this._lsize = [logicalWidth, logicalHeight]
       this.onResize(physicalWidth, physicalHeight, ratio)
     })
 

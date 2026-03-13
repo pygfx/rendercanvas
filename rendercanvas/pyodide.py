@@ -189,7 +189,7 @@ class PyodideRenderCanvas(BaseRenderCanvas):
             ctx.drawImage(self._offscreen_canvas, 0, 0, cw, ch)
 
     def _rc_set_logical_size(self, width: float, height: float):
-        self._js_view.setCssSize(f"{width}px", f"{height}px")
+        self._js_view.setLogicalSize(width, height)
 
     def _rc_close(self):
         # Closing is a bit weird in the browser ...
@@ -219,6 +219,30 @@ class PyodideRenderCanvas(BaseRenderCanvas):
 
     def _rc_set_cursor(self, cursor: str):
         self._js_view.setCursor(cursor)
+
+    def set_css_width(self, css_width: str):
+        """Set the width of the canvas as a CSS string."""
+        self._js_view.setCssWidth(css_width)
+
+    def set_css_height(self, css_height: str):
+        """Set the height of the canvas as a CSS string."""
+        self._js_view.setCssHeight(css_height)
+
+    def set_resizable(self, resizable: bool):
+        """Set whether the canvas is manually resizable.
+
+        Note that the canvas can only be made resizable if it was attached to a
+        wrapper HTML element (not directly to a ``<canvas>``).
+        """
+        self._js_view.setResizable(resizable)
+
+    def show_titlebar(self, titlebar: bool):
+        """Set whether the canvas has a titlebar.
+
+        Note that the canvas can only have a titlebar if it was attached to a
+        wrapper HTML element (not directly to a ``<canvas>``).
+        """
+        self._js_view.showTitlebar(titlebar)
 
 
 # Make available under a name that is the same for all backends

@@ -91,7 +91,7 @@ pyscript_template = """
     <a href="/">Back to list</a><br><br>
     <p>docstring</p>
     <div id="canvas" class='renderview-wrapper is-resizable has-titlebar' style="width: 80%; height: 480px;">
-        <p style='width:100%; height:100%; background:#aaa; display: flex; justify-content: center; align-items: center; font-size:300%'>Loading ...</p>
+        <p style='width:100%; height:100%; background:#aaa; display: flex; justify-content: center; align-items: center; font-size:150%'>Loading ...</p>
     </div>
     <script type="py" src="example.py" ,
         config='{"packages": ["numpy", "rendercanvas"]}'>
