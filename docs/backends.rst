@@ -290,9 +290,11 @@ additional dependencies. Currently only presenting a bitmap is supported, as
 shown in the examples :doc:`noise.py <gallery/noise>` and :doc:`snake.py<gallery/snake>`.
 Support for wgpu is underway.
 
-An HTMLCanvasElement is assumed to be present in the
-DOM. By default it connects to the canvas with id "canvas", but a
-different id or element can also be provided using ``RenderCanvas(canvas_element)``.
+The ``PyodideRenderCanvas`` has a few additional methods that are specific to the browser:
+``set_css_width``, ``set_css_height``, ``set_resizable``, and ``show_titlebar``.
+
+The backend will render to an HTML ``<canvas>``. This can be provided with ``RenderCanvas(canvas_element=...)``,
+either by providing the element as an object, or via it's id. By default, it connects with the element with id "canvas".
 
 An example using PyScript (which uses Pyodide):
 
@@ -312,8 +314,34 @@ An example using PyScript (which uses Pyodide):
     </body>
     </html>
 
+The 'canvas_element' can also be a ``<div>`` element with the class 'rendercanvas-wrapper'. In this
+case the canvas will be created inside that wrapper, plus additional things to support features like
+a title bar and manual resizing. These features can be enabled with the 'has-titlebar' and 'is-resizable' css classes.
+The wrapper can also contain placeholder elements that will be deleted once the canvas is loaded:
 
-An example using Pyodide directly:
+.. code-block:: html
+
+    <!doctype html>
+    <html>
+    <head>
+        <meta name="viewport" content="width=device-width,initial-scale=1.0">
+        <script type="module" src="https://pyscript.net/releases/2025.11.1/core.js"></script>
+    </head>
+    <body>
+        <div id="canvas" class='renderview-wrapper is-resizable has-titlebar' style="width: 80%; height: 480px;">
+            <p style='width:100%; height:100%; background:#aaa; display: flex; justify-content: center; align-items: center; font-size:150%'>
+                Loading ...
+            </p>
+        </div>
+        <br>
+        <script type="py" src="yourcode.py" config='{"packages": ["numpy", "rendercanvas"]}'>
+        </script>
+    </body>
+    </html>
+
+
+It is also possible to use Pyodide directly. It requires a bit more plumbing.
+Similar as with PyScript, you can chose between a ``<canvas>``  and a ``<div class='renderview-wrapper'>``:
 
 .. code-block:: html
 
