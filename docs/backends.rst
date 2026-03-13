@@ -290,6 +290,9 @@ additional dependencies. Currently only presenting a bitmap is supported, as
 shown in the examples :doc:`noise.py <gallery/noise>` and :doc:`snake.py<gallery/snake>`.
 Support for wgpu is underway.
 
+The ``PyodideRenderCanvas`` has a few additional methods that are specific to the browser:
+``set_css_width``, ``set_css_height``, ``set_resizable``, and ``show_titlebar``.
+
 The backend will render to an HTML ``<canvas>``. This can be provided with ``RenderCanvas(canvas_element=...)``,
 either by providing the element as an object, or via it's id. By default, it connects with the element with id "canvas".
 
