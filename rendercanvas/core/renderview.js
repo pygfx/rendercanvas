@@ -1,12 +1,10 @@
 /*************************************************************************************************
   renderview.js
 
-  This module implements a common event spec for render targets in a browser. It
-  implements observers and event listeners and converts these into event
-  objects/dictionaries. The code is written with little assumptions about the
-  application, so that it can be shared between different use-cases, such as
-  rendercanvas backends (pyodide, anywidget, remote-browser), jupyter_rfb, and
-  other projects.
+  This module implements a common event spec for render targets in a browser.
+  The code is written with little assumptions about the application, so that it
+  can be shared between different use-cases, such as rendercanvas backends
+  (pyodide, anywidget, remote-browser), jupyter_rfb, and other projects.
 
   Code that loads this script should avoid loading it in the global scope.
   Either by putting it in a ``<script type='module>``, or wrapping it in an IIFE
@@ -76,33 +74,76 @@ function arraysEqual (a, b) {
 }
 
 /**
- * View that manages a render canvas inside a container element.
+ * The BaseRenderView handles the client-side logic for a render target (typically a <canvas> or <img>).
+ *
+ * It observes events:
+ *
+ * - it observes visibility and calls `this.OnVisibleChanged()`.
+ * - it observes resizes and calls `this.OnResize()`.
+ * - it observes user events ans calls this.OnEvent()`.
+ *
+ * It provides convenience methods for setting the size, cursor, and more.
+ *
+ * When used with a wrapper element, more features are enabled:
+ *
+ * - It can be manually resized if the wrapper element has the 'is-resizable' class.
+ * - A title bar is shown if the wrapper has the 'has-titlebar' class.
+ * - The above mentioned classes can also be programmatically set via `setResizable()` and `showTitlebar()`.
+ * - The title can be set using `setTitle()`.
+ *
  */
 class BaseRenderView {
   /**
    * Create a new RenderView.
    *
-   * @param {HTMLElement} viewElement - The canvas element used for rendering.
-   * @param {HTMLElement} wrapperElement - The element that holds the viewElement.
+   * If a single element is given, the view directly manages that element, nice and simple.
+   * No styling is applied except for `width` and `height`.
+   *
+   * If a wrapper element is also given, the view supports features like manual resizing and a title-bar.
+   * In this case, any user styling that effects positioning should be applied to the wrapper.
+   * The wrapper may contain placeholder content; on initialization, it's innerHTML and padding are reset.
+   *
+   * @param {HTMLElement} viewElement - The element (e.g. canvas or img) used for rendering.
+   * @param {HTMLElement} wrapperElement - The wrapper element (optional; can be null).
    */
   constructor (viewElement, wrapperElement) {
+    // Check given element
     if (viewElement === undefined || !(viewElement instanceof Element)) {
-      throw new Error('BaseRenderView: viewElement must be an Element')
+      throw new Error('BaseRenderView: viewElement must be an Element.')
     }
-    if (wrapperElement === undefined || !(wrapperElement instanceof Element)) {
-      throw new Error('BaseRenderView: wrapperElement must be an Element')
+    if (wrapperElement !== null) {
+      if (wrapperElement === undefined || !(wrapperElement instanceof Element)) {
+        throw new Error('BaseRenderView: wrapperElement must be null or an Element.')
+      }
+      wrapperElement.innerHTML = ''
+      wrapperElement.style.padding = '0'
+      wrapperElement.style.background = ''
     }
+
+    // Tweak viewElement
+    viewElement.tabIndex = -1
+    // Prevent context menu on RMB. Firefox still shows it when shift is pressed. It seems
+    // impossible to override this (tips welcome!), so let's make this the actual behavior.
+    viewElement.oncontextmenu = (e) => {
+      if (!e.shiftKey) {
+        e.preventDefault()
+        e.stopPropagation()
+        return false
+      }
+    }
+
     this.viewElement = viewElement
     this.wrapperElement = wrapperElement
-    this.sizeElement = wrapperElement
+    this.sizeElement = (wrapperElement === null) ? viewElement : wrapperElement
+    this.titleElement = null // is set in _initElements() if wrapperElement is given
 
-    this._wheelThrottle = 20
-    this._moveThrottle = 20
-
+    this._lsize = null // cached logical size
+    this._wheelThrottle = 20 // to avoid flooding wheel events
+    this._moveThrottle = 20 // to avoid flooding move events
     this._isVisible = false // set by intersection observer
 
     this._focusElement = null
-    this._abortController = null
+    this._abortController = new AbortController()
     this._resizeObserver = null
     this._intersectionObserver = null
 
@@ -112,6 +153,7 @@ class BaseRenderView {
 
   /**
    * Close the view, disconnecting observers and clearing callbacks.
+   * This does not remove the the element from the DOM; that's up to the caller.
    */
   close () {
     if (this._focusElement) {
@@ -130,21 +172,92 @@ class BaseRenderView {
       this._intersectionObserver.disconnect()
       this._intersectionObserver = null
     }
+    this.viewElement = null
+    this.sizeElement = null
+    this.titleElement = null
+    if (this.wrapperElement) {
+      this.wrapperElement.innerHTML = ''
+      this.wrapperElement = null
+    }
   }
 
   /**
-   * Set the size of the view, expressed as CSS. Use e.g. '640px' to set in logical pixels.
-   * If setting the new size affects the actual size of the view, `OnResize()` will be called.
+   * Set the view's size in logical pixels.
    *
-   * @param {string} cssWidth - The requested width.
-   * @param {string} cssHeight - The requested height.
+   * @param {string} width - The requested width.
+   * @param {string} height - The requested height.
    */
-  setCssSize (cssWidth, cssHeight) {
-    // Sets the intended size of the container element (which may be the same element as the view element)
+  setLogicalSize (width, height) {
     this.sizeElement.style.maxWidth = ''
     this.sizeElement.style.maxHeight = ''
+    this.sizeElement.style.width = width + 'px'
+    this.sizeElement.style.height = height + 'px'
+  }
+
+  /**
+   * Set the width of the view as a CSS string.
+   *
+   * @param {string} cssWidth - The requested width as a css string, e.g. '640px' or '90%' or 'calc(100% - 10px)'.
+   */
+  setCssWidth (cssWidth) {
+    this.sizeElement.style.maxWidth = ''
     this.sizeElement.style.width = cssWidth
+  }
+
+  /**
+   * Set the height of the view as a CSS string.
+   *
+   * @param {string} cssHeight - The requested height as a css string, e.g. '480px' or '40vh'.
+   */
+  setCssHeight (cssHeight) {
+    this.sizeElement.style.maxHeight = ''
     this.sizeElement.style.height = cssHeight
+  }
+
+  /**
+  * Set whether the view is manually resizable.
+  * Note that the view can only be made resizable if it was instantiated with a wrapper.
+  *
+  * @param {boolean} resizable - Whether to make it resizable or not.
+  */
+  setResizable (resizable) {
+    if (this.wrapperElement) {
+      if (resizable) {
+        this.wrapperElement.classList.add('is-resizable')
+      } else {
+        this.wrapperElement.classList.remove('is-resizable')
+      }
+    }
+  }
+
+  /**
+  * Set whether the view has a titlebar.
+  * Note that the view can only have a titlebar if it was instantiated with a wrapper.
+  *
+  * @param {boolean} titlebar - Whether to show the titlebar or not.
+  */
+  showTitlebar (titlebar) {
+    if (this.wrapperElement) {
+      if (titlebar) {
+        this.wrapperElement.classList.add('has-titlebar')
+      } else {
+        this.wrapperElement.classList.remove('has-titlebar')
+      }
+    }
+  }
+
+  /**
+   * Set the view's title in the titlebar.
+   *
+   * Note that the title is only visible if the view was instantiated with a wrapper,
+   * and the titlebar is shown.
+   *
+   * @param {string} title - The title to set.
+   */
+  setTitle (title) {
+    if (this.titleElement) {
+      this.titleElement.innerText = title
+    }
   }
 
   /**
@@ -178,7 +291,7 @@ class BaseRenderView {
    *
    * @param {number} physicalWidth - The width in (physical) pixels.
    * @param {number} physicalHeight - The height in (physical) pixels.
-   * @param {number} pixelRatio - The pixel ratio. Multiply this with the physical size to get the logical size.
+   * @param {number} pixelRatio - The pixel ratio. Divide the physical size with this to get the logical size.
    */
   onResize (physicalWidth, physicalHeight, pixelRatio) { }
 
@@ -190,9 +303,11 @@ class BaseRenderView {
   onEvent (event) { }
 
   /**
-   * Internal method to initialize the view's elements.
+   * Internal method to initialize the view's helper elements.
    */
   _initElements () {
+    const signal = this._abortController.signal
+
     // Obtain container to put our hidden focus element.
     // Putting the focusElement as a child of the canvas prevents chrome from emitting input events.
     const focusElementContainerId = 'rendercanvas-focus-element-container'
@@ -223,18 +338,51 @@ class BaseRenderView {
     focusElement.style.pointerEvents = 'none'
     focusElementContainer.appendChild(focusElement)
 
-    // Focus behavior
-    this.viewElement.tabIndex = -1
+    const wrapperElement = this.wrapperElement
 
-    // Prevent context menu on RMB. Firefox still shows it when shift is pressed. It seems
-    // impossible to override this (tips welcome!), so let's make this the actual behavior.
-    this.viewElement.oncontextmenu = (e) => {
-      if (!e.shiftKey) {
-        e.preventDefault()
-        e.stopPropagation()
-        return false
-      }
-    }
+    if (wrapperElement !== null) {
+      // Wrap it
+      wrapperElement.classList.add('renderview-wrapper')
+      wrapperElement.appendChild(this.viewElement)
+
+      // Create title bar
+      const topElement = document.createElement('div')
+      topElement.classList.add('renderview-top')
+      const titleElement = document.createElement('span')
+      this.titleElement = titleElement
+      titleElement.innerText = 'RenderView'
+      topElement.appendChild(titleElement)
+      wrapperElement.appendChild(topElement)
+
+      // Enable resizing
+      const resizeElement = document.createElement('div')
+      resizeElement.classList.add('renderview-resizer')
+      wrapperElement.appendChild(resizeElement)
+      let resizeInfo = null
+      resizeElement.addEventListener('pointerdown', (ev) => {
+        if (this._lsize) {
+          resizeInfo = { w: this._lsize[0], h: this._lsize[1], x: ev.clientX, y: ev.clientY }
+          resizeElement.setPointerCapture(ev.pointerId)
+        }
+      },
+      { signal }
+      )
+      resizeElement.addEventListener('pointermove', (ev) => {
+        if (resizeInfo !== null) {
+          this.sizeElement.style.maxWidth = ''
+          this.sizeElement.style.maxHeight = ''
+          this.sizeElement.style.width = resizeInfo.w + (ev.clientX - resizeInfo.x) + 'px'
+          this.sizeElement.style.height = resizeInfo.h + (ev.clientY - resizeInfo.y) + 'px'
+        }
+      },
+      { signal }
+      )
+      resizeElement.addEventListener('lostpointercapture', (ev) => {
+        resizeInfo = null
+      },
+      { signal }
+      )
+    } // wrapperElement !== null
   }
 
   /**
@@ -244,7 +392,6 @@ class BaseRenderView {
     // Register events
 
     const viewElement = this.viewElement
-    this._abortController = new AbortController()
     const signal = this._abortController.signal // to unregister/abort stuff
 
     // ----- visibility ---------------
@@ -303,17 +450,18 @@ class BaseRenderView {
       // If the container element does not have its size set via its style, we set it to the logical size.
       const logicalWidth = physicalWidth / ratio
       const logicalHeight = physicalHeight / ratio
-      if ((!this.sizeElement.style.width) || (!this.sizeElement.style.height)) {
-        window.view2 = this
+
+      // prevent massive size due to auto-scroll (https://github.com/vispy/jupyter_rfb/issues/62)
+      if (!this.sizeElement.style.width) {
         this.sizeElement.style.width = `${logicalWidth}px`
+        this.sizeElement.style.maxWidth = '90vmin'
+      }
+      if (!this.sizeElement.style.height) {
         this.sizeElement.style.height = `${logicalHeight}px`
-        // prevent massive size due to auto-scroll (https://github.com/vispy/jupyter_rfb/issues/62)
-        this.sizeElement.style.maxWidth = Math.max(1024, window.innerWidth) + 'px'
-        this.sizeElement.style.maxHeight = Math.max(1024, window.innerHeight) + 'px'
+        this.sizeElement.style.maxHeight = '90vmin'
       }
 
-      this.sizeElement._rc_width = logicalWidth
-      this.sizeElement._rc_height = logicalHeight
+      this._lsize = [logicalWidth, logicalHeight]
       this.onResize(physicalWidth, physicalHeight, ratio)
     })
 
@@ -604,7 +752,7 @@ class BaseRenderView {
 
     this._focusElement.addEventListener('keydown', (ev) => {
       // Failsafe in case the element is deleted or detached.
-      if (this.wrapperElement.offsetParent === null) {
+      if (this.sizeElement.offsetParent === null) {
         return
       }
       // Ignore repeated events (key being held down)
@@ -627,7 +775,7 @@ class BaseRenderView {
     )
 
     this._focusElement.addEventListener('keyup', (ev) => {
-      if (this.wrapperElement.offsetParent === null) {
+      if (this.sizeElement.offsetParent === null) {
         return
       }
 
@@ -646,7 +794,7 @@ class BaseRenderView {
 
     this._focusElement.addEventListener('input', (ev) => {
       // Failsafe in case the element is deleted or detached.
-      if (this.wrapperElement.offsetParent === null) {
+      if (this.sizeElement.offsetParent === null) {
         return
       }
       // Prevent the text box from growing

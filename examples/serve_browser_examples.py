@@ -89,20 +89,10 @@ pyscript_template = """
 
 <body>
     <a href="/">Back to list</a><br><br>
-
-    <p>
-    docstring
-    </p>
-    <dialog id="loading" style='outline: none; border: none; background: transparent;'>
-        <h1>Loading...</h1>
-    </dialog>
-    <script type="module">
-        const loading = document.getElementById('loading');
-        addEventListener('py:ready', () => loading.close());
-        loading.showModal();
-    </script>
-
-    <canvas id="canvas" style="background:#aaa; width: 90%; height: 480px;"></canvas>
+    <p>docstring</p>
+    <div id="canvas" class='renderview-wrapper is-resizable has-titlebar' style="width: 80%; height: 480px;">
+        <p style='width:100%; height:100%; background:#aaa; display: flex; justify-content: center; align-items: center; font-size:150%'>Loading ...</p>
+    </div>
     <script type="py" src="example.py" ,
         config='{"packages": ["numpy", "rendercanvas"]}'>
     </script>
