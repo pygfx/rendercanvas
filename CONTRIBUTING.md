@@ -133,5 +133,5 @@ that uses `standardjs`. To format and lint your code locally:
 
 * Install npm if you don't have it already.
 * `npm install --global standard`
-* `standard rendercanvas`  (run this before committing changes to the JavaScript code)
+* `standard rendercanvas --fix`  (run this before committing changes to the JavaScript code)
 

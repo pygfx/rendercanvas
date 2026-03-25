@@ -75,21 +75,28 @@ class PyodideRenderCanvas(BaseRenderCanvas):
         super().__init__(*args, **kwargs)
         self._final_canvas_init()
 
-    def _onVisibleChanged(self, visible):  # noqa: N802
+    def _on_visible_changed(self, visible):
         # Called from JS
         self._set_visible(visible)
 
-    def _onResize(self, physical_width, physical_height, pixel_ratio):  # noqa: N802
+    def _on_resize(self, physical_width, physical_height, pixel_ratio):
         # Called from JS
         self._size_info.set_physical_size(physical_width, physical_height, pixel_ratio)
 
-    def _onEvent(self, event):  # noqa: N802
+    def _on_event(self, event):
         # Called from JS
         event = event.to_py()
+
+        # Compatibility between new renderview event spec and current rendercanvas/pygfx events
+        event["event_type"] = event.pop("type")
+        event["time_stamp"] = event.pop("timestamp")
+
+        # Python prefers tuples over lists
         if "buttons" in event:
             event["buttons"] = tuple(event["buttons"])
         if "modifiers" in event:
             event["modifiers"] = tuple(event["modifiers"])
+
         self.submit_event(event)
 
     def _rc_gui_poll(self):

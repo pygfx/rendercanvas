@@ -1,6 +1,9 @@
 /*************************************************************************************************
   renderview.js
 
+  This file is dedicated to the public domain under CC0 1.0.
+  This file is developed at https://github.com/pygfx/renderview, please contribute changes there.
+
   This module implements a common event spec for render targets in a browser.
   The code is written with little assumptions about the application, so that it
   can be shared between different use-cases, such as rendercanvas backends
@@ -66,7 +69,7 @@ function getModifiers (ev) {
 }
 
 function getTimestamp () {
-  return Date.now() / 1000
+  return performance.now() / 1000
 }
 
 function arraysEqual (a, b) {
@@ -76,12 +79,7 @@ function arraysEqual (a, b) {
 /**
  * The BaseRenderView handles the client-side logic for a render target (typically a <canvas> or <img>).
  *
- * It observes events:
- *
- * - it observes visibility and calls `this.OnVisibleChanged()`.
- * - it observes resizes and calls `this.OnResize()`.
- * - it observes user events ans calls this.OnEvent()`.
- *
+ * It observes events and calls `this.OnEvent()`.
  * It provides convenience methods for setting the size, cursor, and more.
  *
  * When used with a wrapper element, more features are enabled:
@@ -179,6 +177,11 @@ class BaseRenderView {
       this.wrapperElement.innerHTML = ''
       this.wrapperElement = null
     }
+    const event = {
+      type: 'close',
+      timestamp: getTimestamp()
+    }
+    this.onEvent(event)
   }
 
   /**
@@ -215,11 +218,11 @@ class BaseRenderView {
   }
 
   /**
-  * Set whether the view is manually resizable.
-  * Note that the view can only be made resizable if it was instantiated with a wrapper.
-  *
-  * @param {boolean} resizable - Whether to make it resizable or not.
-  */
+   * Set whether the view is manually resizable.
+   * Note that the view can only be made resizable if it was instantiated with a wrapper.
+   *
+   * @param {boolean} resizable - Whether to make it resizable or not.
+   */
   setResizable (resizable) {
     if (this.wrapperElement) {
       if (resizable) {
@@ -231,11 +234,11 @@ class BaseRenderView {
   }
 
   /**
-  * Set whether the view has a titlebar.
-  * Note that the view can only have a titlebar if it was instantiated with a wrapper.
-  *
-  * @param {boolean} titlebar - Whether to show the titlebar or not.
-  */
+   * Set whether the view has a titlebar.
+   * Note that the view can only have a titlebar if it was instantiated with a wrapper.
+   *
+   * @param {boolean} titlebar - Whether to show the titlebar or not.
+   */
   showTitlebar (titlebar) {
     if (this.wrapperElement) {
       if (titlebar) {
@@ -278,22 +281,6 @@ class BaseRenderView {
     this._wheelThrottle = throttle
     this._moveThrottle = throttle
   }
-
-  /**
-   * The subclass should implement this to handle changes in visibility.
-   *
-   * @param {boolean} visible - Whether the view just became visible (true) or invisible (false).
-   */
-  onVisibleChanged (visible) { }
-
-  /**
-   * The subclass should implement this to handle resizes. The base class does *not* emit resize events by itself.
-   *
-   * @param {number} physicalWidth - The width in (physical) pixels.
-   * @param {number} physicalHeight - The height in (physical) pixels.
-   * @param {number} pixelRatio - The pixel ratio. Divide the physical size with this to get the logical size.
-   */
-  onResize (physicalWidth, physicalHeight, pixelRatio) { }
 
   /**
    * The subclass should implement this to handle events.
@@ -341,9 +328,17 @@ class BaseRenderView {
     const wrapperElement = this.wrapperElement
 
     if (wrapperElement !== null) {
+      this.viewElement.classList.add('renderview-view')
+
       // Wrap it
       wrapperElement.classList.add('renderview-wrapper')
       wrapperElement.appendChild(this.viewElement)
+
+      // Debug element
+      const debugElement = document.createElement('div')
+      debugElement.innerHTML = '<b>If you can read this, the rendercanvas.css is likely not applied.</b>'
+      debugElement.classList.add('renderview-hidden')
+      wrapperElement.appendChild(debugElement)
 
       // Create title bar
       const topElement = document.createElement('div')
@@ -405,10 +400,13 @@ class BaseRenderView {
       }
       if (isVisible !== this._isVisible) {
         this._isVisible = isVisible
-        this.onVisibleChanged(isVisible)
+        const event = {
+          type: isVisible ? 'show' : 'hide',
+          timestamp: getTimestamp()
+        }
+        this.onEvent(event)
       }
-    }
-    )
+    })
     this._intersectionObserver.observe(viewElement)
 
     // ----- resize ---------------
@@ -461,8 +459,19 @@ class BaseRenderView {
         this.sizeElement.style.maxHeight = '90vmin'
       }
 
+      // Store logical size
       this._lsize = [logicalWidth, logicalHeight]
-      this.onResize(physicalWidth, physicalHeight, ratio)
+
+      const event = {
+        type: 'resize',
+        width: logicalWidth,
+        height: logicalHeight,
+        pwidth: physicalWidth,
+        pheight: physicalHeight,
+        ratio,
+        timestamp: getTimestamp()
+      }
+      this.onEvent(event)
     })
 
     this._resizeObserver.observe(this.viewElement)
@@ -499,7 +508,7 @@ class BaseRenderView {
       lastButtons = buttons
 
       const event = {
-        event_type: 'pointer_down',
+        type: 'pointer_down',
         x: ev.offsetX,
         y: ev.offsetY,
         button,
@@ -507,7 +516,7 @@ class BaseRenderView {
         modifiers,
         ntouches: 0, // TODO later: maybe via https://developer.mozilla.org/en-US/docs/Web/API/TouchEvent
         touches: {},
-        time_stamp: getTimestamp()
+        timestamp: getTimestamp()
       }
       this.onEvent(event)
     },
@@ -550,7 +559,7 @@ class BaseRenderView {
         pendingMoveEvent.y = ev.offsetY
       } else {
         const event = {
-          event_type: 'pointer_move',
+          type: 'pointer_move',
           x: ev.offsetX,
           y: ev.offsetY,
           button,
@@ -558,7 +567,7 @@ class BaseRenderView {
           modifiers,
           ntouches: 0,
           touches: {},
-          time_stamp: getTimestamp()
+          timestamp: getTimestamp()
         }
         if (this._moveThrottle > 0) {
           sendMoveEvent() // Send previous (if any)
@@ -585,7 +594,7 @@ class BaseRenderView {
       lastButtons = buttons
 
       const event = {
-        event_type: 'pointer_up',
+        type: 'pointer_up',
         x: ev.offsetX,
         y: ev.offsetY,
         button,
@@ -593,7 +602,7 @@ class BaseRenderView {
         modifiers,
         ntouches: 0,
         touches: {},
-        time_stamp: getTimestamp()
+        timestamp: getTimestamp()
       }
       this.onEvent(event)
     },
@@ -614,7 +623,7 @@ class BaseRenderView {
       button = 0
 
       const event = {
-        event_type: 'pointer_enter',
+        type: 'pointer_enter',
         x: ev.offsetX,
         y: ev.offsetY,
         button,
@@ -622,7 +631,7 @@ class BaseRenderView {
         modifiers,
         ntouches: 0,
         touches: {},
-        time_stamp: getTimestamp()
+        timestamp: getTimestamp()
       }
       this.onEvent(event)
     },
@@ -643,7 +652,7 @@ class BaseRenderView {
       button = 0
 
       const event = {
-        event_type: 'pointer_leave',
+        type: 'pointer_leave',
         x: ev.offsetX,
         y: ev.offsetY,
         button,
@@ -651,7 +660,7 @@ class BaseRenderView {
         modifiers,
         ntouches: 0,
         touches: {},
-        time_stamp: getTimestamp()
+        timestamp: getTimestamp()
       }
       this.onEvent(event)
     },
@@ -673,14 +682,14 @@ class BaseRenderView {
       const modifiers = getModifiers(ev)
 
       const event = {
-        event_type: 'double_click',
+        type: 'double_click',
         x: ev.offsetX,
         y: ev.offsetY,
         button,
         buttons,
         modifiers,
         // no touches here
-        time_stamp: getTimestamp()
+        timestamp: getTimestamp()
       }
       this.onEvent(event)
     },
@@ -727,14 +736,14 @@ class BaseRenderView {
         pendingWheelEvent.dy += ev.deltaY * scale
       } else {
         const event = {
-          event_type: 'wheel',
+          type: 'wheel',
           x: ev.offsetX,
           y: ev.offsetY,
           dx: ev.deltaX * scale,
           dy: ev.deltaY * scale,
           buttons,
           modifiers,
-          time_stamp: getTimestamp()
+          timestamp: getTimestamp()
         }
         if (this._wheelThrottle > 0) {
           sendWheelEvent() // Send previous (if any)
@@ -764,10 +773,10 @@ class BaseRenderView {
       const modifiers = getModifiers(ev)
 
       const event = {
-        event_type: 'key_down',
+        type: 'key_down',
         key: KEY_MAP[ev.key] || ev.key,
         modifiers,
-        time_stamp: getTimestamp()
+        timestamp: getTimestamp()
       }
       this.onEvent(event)
     },
@@ -782,10 +791,10 @@ class BaseRenderView {
       const modifiers = getModifiers(ev)
 
       const event = {
-        event_type: 'key_up',
+        type: 'key_up',
         key: KEY_MAP[ev.key] || ev.key,
         modifiers,
-        time_stamp: getTimestamp()
+        timestamp: getTimestamp()
       }
       this.onEvent(event)
     },
@@ -803,12 +812,12 @@ class BaseRenderView {
       }
 
       const event = {
-        event_type: 'char',
+        type: 'char',
         data: ev.data,
         is_composing: ev.isComposing,
         input_type: ev.inputType,
         // repeat: ev.repeat,  // n.a.
-        time_stamp: getTimestamp()
+        timestamp: getTimestamp()
       }
       this.onEvent(event)
     },
