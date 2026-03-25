@@ -8,6 +8,7 @@ import os
 import sys
 import importlib
 from typing import cast
+import __main__ as main_module
 
 from .core.coreutils import (
     logger,
@@ -88,8 +89,8 @@ def backends_generator():
     """Generator that iterates over all sub-generators."""
     for gen in [
         backends_by_env_vars,
-        backends_by_browser,
-        backends_by_jupyter,
+        backends_by_pyodide,
+        backends_by_notebook,
         backends_by_imported_modules,
         backends_by_trying_in_order,
     ]:
@@ -129,8 +130,16 @@ def backends_by_env_vars():
         yield backend_name, f"{varname} is set"
 
 
-def backends_by_jupyter():
+def backends_by_notebook():
     """Generate backend names that are appropriate for the current Jupyter session (if any)."""
+
+    # Detect Marimo: https://github.com/marimo-team/marimo/discussions/8865
+    try:
+        main_module.__marimo__
+        yield "jupyter", "running in Marimo"
+    except AttributeError:
+        pass
+
     try:
         ip = get_ipython()  # type: ignore
     except NameError:
@@ -212,8 +221,8 @@ def backends_by_trying_in_order():
         yield backend_name, f"{libname} can be imported"
 
 
-def backends_by_browser():
-    """If python runs in a web browser, we use the pyodide backend."""
+def backends_by_pyodide():
+    """If python runs inside a web browser, we use the pyodide backend."""
     # https://pyodide.org/en/stable/usage/faq.html#how-to-detect-that-code-is-run-with-pyodide
     # Technically, we could also be in microPython/RustPython/etc. For now, we only target Pyodide.
     if sys.platform == "emscripten":
