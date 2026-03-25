@@ -282,9 +282,9 @@ When the ``auto`` backend is used in a notebook, the ``anywidget`` is selected.
 
 .. code-block:: py
 
-    # from rendercanvas.anywidget import RenderCanvas  # Direct approach
-    # from rendercanvas.jupyter import RenderCanvas  # Direct approach
-    from rendercanvas.auto import RenderCanvas  # also works, because rendercanvas detects Jupyter
+    # from rendercanvas.anywidget import RenderCanvas
+    # from rendercanvas.jupyter import RenderCanvas
+    from rendercanvas.auto import RenderCanvas  # defaults to anywidget when in a notebook
 
     canvas = RenderCanvas()
 

@@ -20,7 +20,7 @@ from .base import BaseRenderCanvas, BaseLoop
 
 
 # Note that wx is not in here, because it does not (yet) fully implement base.BaseRenderCanvas
-BACKEND_NAMES = ["glfw", "qt", "jupyter", "offscreen"]
+BACKEND_NAMES = ["glfw", "qt", "anywidget", "jupyter", "offscreen"]
 
 
 def _load_backend(backend_name):
@@ -29,6 +29,8 @@ def _load_backend(backend_name):
         from . import glfw as module
     elif backend_name == "qt":
         from . import qt as module
+    elif backend_name == "anywidget":
+        from . import anywidget as module
     elif backend_name == "jupyter":
         from . import jupyter as module
     elif backend_name == "wx":
@@ -136,7 +138,7 @@ def backends_by_notebook():
     # Detect Marimo: https://github.com/marimo-team/marimo/discussions/8865
     try:
         _ = main_module.__marimo__
-        yield "jupyter", "running in Marimo"
+        yield "anywidget", "running in Marimo"
     except AttributeError:
         pass
 
@@ -165,7 +167,7 @@ def backends_by_notebook():
         # elif "wx" in app.__class__.__name__.lower() == "wx":
         #     yield "wx", "running on Jupyter with wx gui"
 
-    yield "jupyter", "running on Jupyter"
+    yield "anywidget", "running on Jupyter"
 
 
 def backends_by_imported_modules():
