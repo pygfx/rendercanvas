@@ -8,7 +8,6 @@ import os
 import sys
 import importlib
 from typing import cast
-import __main__ as main_module
 
 from .core.coreutils import (
     logger,
@@ -136,11 +135,8 @@ def backends_by_notebook():
     """Generate backend names that are appropriate for the current Jupyter session (if any)."""
 
     # Detect Marimo: https://github.com/marimo-team/marimo/discussions/8865
-    try:
-        _ = main_module.__marimo__
-        yield "anywidget", "running in Marimo"
-    except AttributeError:
-        pass
+    if "marimo" in sys.modules and sys.modules["marimo"].running_in_notebook():
+        yield "anywidget", "running on Marimo"
 
     try:
         ip = get_ipython()  # type: ignore
