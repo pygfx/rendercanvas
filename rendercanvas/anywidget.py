@@ -20,7 +20,7 @@ from traitlets import Bool, Dict, Int, Unicode
 
 def _load_js_and_css():
     js = ""
-    for fname in ["renderview.js", "renderview-anywidget.js"]:
+    for fname in ["renderview.js", "renderview-rfb.js"]:
         js_path = resource_files("rendercanvas.core").joinpath(fname)
         js += js_path.read_text() + "\n\n"
 
