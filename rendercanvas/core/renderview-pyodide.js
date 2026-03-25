@@ -40,20 +40,22 @@ class PyodideRenderView extends BaseRenderView {
     this.setThrottle(0)
   }
 
-  onVisibleChanged (visible) {
-    this.pycanvas._onVisibleChanged(visible)
-  }
-
-  onResize (physicalWidth, physicalHeight, pixelRatio) {
-    // Set canvas physical size
-    this.viewElement.width = physicalWidth
-    this.viewElement.height = physicalHeight
-    // Notify canvas, so the render code knows the size
-    this.pycanvas._onResize(physicalWidth, physicalHeight, pixelRatio)
-  }
-
   onEvent (event) {
-    this.pycanvas._onEvent(event)
+    if (event.type === 'resize') {
+      // Set canvas physical size
+      this.viewElement.width = event.pwidth
+      this.viewElement.height = event.pheight
+      // Notify canvas, so the render code knows the size
+      this.pycanvas._on_resize(event.pwidth, event.pheight, event.ratio)
+    } else if (event.type === 'close') {
+      this.pycanvas.close()
+    } else if (event.type === 'show') {
+      this.pycanvas._on_visible_changed(true)
+    } else if (event.type === 'hide') {
+      this.pycanvas._on_visible_changed(false)
+    } else {
+      this.pycanvas._on_event(event)
+    }
   }
 }
 
