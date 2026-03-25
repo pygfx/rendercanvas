@@ -135,7 +135,7 @@ def backends_by_notebook():
 
     # Detect Marimo: https://github.com/marimo-team/marimo/discussions/8865
     try:
-        main_module.__marimo__
+        _ = main_module.__marimo__
         yield "jupyter", "running in Marimo"
     except AttributeError:
         pass
