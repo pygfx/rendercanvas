@@ -20,11 +20,16 @@ The table below gives an overview of the names in the different ``rendercanvas``
           | ``RenderCanvas`` (alias)
           | ``loop`` (an ``AsyncioLoop``)
         - | A lightweight backend.
+    *   - ``anywidget``
+        - | ``AnywidgetRenderCanvas``
+          | ``RenderCanvas`` (alias)
+          | ``loop`` (an ``AsyncioLoop``)
+        - | Integrate in notebooks.
     *   - ``jupyter``
         - | ``JupyterRenderCanvas``
           | ``RenderCanvas`` (alias)
           | ``loop`` (an ``AsyncioLoop``)
-        - | Integrate in Jupyter notebook / lab.
+        - | Integrate in notebooks via ``jupyter_rfb``.
     *   - ``offscreen``
         - | ``OffscreenRenderCanvas``
           | ``RenderCanvas`` (alias)
@@ -262,17 +267,24 @@ object, but in some cases it's convenient to do so with a canvas-like API.
     array = canvas.draw()  # numpy array with shape (400, 500, 4)
 
 
-Support for Jupyter lab and notebook
-------------------------------------
+Support for notebooks
+---------------------
 
-RenderCanvas can be used in Jupyter lab and the Jupyter notebook. This canvas
-is based on `jupyter_rfb <https://github.com/vispy/jupyter_rfb>`_, an ipywidget
-subclass implementing a remote frame-buffer. There are also some `wgpu examples <https://jupyter-rfb.readthedocs.io/en/stable/examples/>`_.
+RenderCanvas can be used in Jupyter lab, Jupyter notebook, VSCode, Google Colab, Marimo notebooks, and anywhere else where ``anywidget`` is supported.
+
+There are two backends that support the notebook:
+
+* The ``anywidget`` backend.
+* The ``jupyter`` backend, which relies on the `jupyter_rfb <https://github.com/vispy/jupyter_rfb>`_ library.
+
+Although they share the most part of their code, the latter has some additional functionality, such as a snapshot utility.
+When the ``auto`` backend is used in a notebook, the ``anywidget`` is selected.
 
 .. code-block:: py
 
-    # from rendercanvas.jupyter import RenderCanvas  # Direct approach
-    from rendercanvas.auto import RenderCanvas  # also works, because rendercanvas detects Jupyter
+    # from rendercanvas.anywidget import RenderCanvas
+    # from rendercanvas.jupyter import RenderCanvas
+    from rendercanvas.auto import RenderCanvas  # defaults to anywidget when in a notebook
 
     canvas = RenderCanvas()
 
@@ -417,9 +429,8 @@ Many interactive environments have some sort of GUI support, allowing the repl
 to stay active (i.e. you can run new code), while the GUI windows is also alive.
 In rendercanvas we try to select the GUI that matches the current environment.
 
-On ``jupyter notebook`` and ``jupyter lab`` the jupyter backend (i.e.
-``jupyter_rfb``) is normally selected. When you are using ``%gui qt``, rendercanvas will
-honor that and use Qt instead.
+In a notebook (e.g. jupyter) one of the notebook capable backends (``anywidget`` or ``jupyter``) is selected.
+When you are using ``%gui qt``, rendercanvas will honor that and use Qt instead.
 
 On ``jupyter console`` and ``qtconsole``, the kernel is the same as in ``jupyter notebook``,
 making it (about) impossible to tell that we cannot actually use
