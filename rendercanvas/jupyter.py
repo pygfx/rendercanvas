@@ -24,7 +24,15 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
 
     _rc_canvas_group = JupyterCanvasGroup(loop)
 
+    # Set jupyter_rfb bitmask to use the old-style events. Pygfx assumes these. We will solve this compat issue
+    # when we refactor rendercanvas event objects.
+    # In the new events:(event_type -> type, time_stamp -> timestamp, pixel_ratio -> ratio
+    _event_compatibility = 1
+
     def __init__(self, *args, **kwargs):
+        # The jupyter backend's default title is empty
+        kwargs["title"] = kwargs.get("title", "")
+
         super().__init__(*args, **kwargs)
 
         # Internal variables
@@ -32,6 +40,13 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
         self._is_closed = False
         self._draw_request_time = 0
         self._rendercanvas_event_types = set(EventType)
+
+        # The send_frame() method was added in jupyter_rfb 1.0, but it was always there as a private method,
+        # so we can make it backwards compatible.
+        try:
+            self.send_frame  # noqa
+        except AttributeError:
+            self.send_frame = self._rfb_send_frame
 
         # Set size, title, etc.
         self._final_canvas_init()
@@ -42,7 +57,7 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
         # The result is either a numpy array or None, and this matches
         # with what this method is expected to return.
         self._time_to_draw()
-        return self._last_image
+        return None
 
     # %% Methods to implement RenderCanvas
 
@@ -74,18 +89,12 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
         loop.call_soon(self._time_to_paint)
 
     def _rc_force_paint(self):
-        # A bit hacky to use the internals of jupyter_rfb this way.
-        # This pushes frames to the browser as long as the websocket
-        # buffer permits it. It works!
-        # But a better way would be `await canvas.wait_draw()`.
-        # Todo: would also be nice if jupyter_rfb had a public api for this.
-        array = self._last_image
-        if array is not None:
-            self._rfb_send_frame(array)
+        pass
 
     def _rc_present_bitmap(self, *, data, format, **kwargs):
         assert format == "rgba-u8"
         self._last_image = np.asarray(data)
+        self.send_frame(self._last_image)
 
     def _rc_set_logical_size(self, width, height):
         self.css_width = f"{width}px"
@@ -98,7 +107,8 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
         return self._is_closed
 
     def _rc_set_title(self, title):
-        pass  # not supported yet
+        self.title = title
+        self.has_titlebar = bool(title)  # show titlebar when a title is set
 
     def _rc_set_cursor(self, cursor):
         self.cursor = cursor
