@@ -352,10 +352,9 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
             painter.drawImage(rect2, image, rect1)
             painter.end()
 
-    # def update(self):
-    #     # Bypass Qt's mechanics and request a draw so that the scheduling mechanics work as intended.
-    #     # Eventually this will call _request_draw().
-    #     self.request_draw()
+    def update(self):
+        # Bypass Qt's mechanics and request a draw, which will eventually call the native update()
+        self.request_draw()
 
     # %% Methods to implement RenderCanvas
 

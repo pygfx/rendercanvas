@@ -19,9 +19,7 @@ class Example(wx.Frame):
         self.SetSize(640, 480)
 
         # Using present_method 'bitmap' because it reports "The surface texture is suboptimal"
-        self.canvas = RenderWidget(
-            self, update_mode="continuous", present_method="bitmap"
-        )
+        self.canvas = RenderWidget(self, update_mode="continuous")
         self.button = wx.Button(self, -1, "Hello world")
         self.output = wx.StaticText(self)
 
