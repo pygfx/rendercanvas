@@ -247,7 +247,8 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         if not self._draw_lock:
             self._time_to_paint()
         if self._last_image is not None:
-            dc.DrawBitmap(self._last_image, 0, 0, False)
+            # dc.DrawBitmap(self._last_image, 0, 0, False)
+            dc.drawRectangle(0, 0, 10, 10)
         else:
             event.Skip()
         del dc
@@ -359,9 +360,9 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         except RuntimeError:
             return  # native C++ object is already deleted
         if isinstance(parent, WxRenderCanvas):
-            parent.Hide()
+            parent.Close()
         else:
-            self.Hide()
+            self.Close()
 
     def _rc_get_closed(self):
         return self._is_closed
@@ -383,7 +384,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
     # %% Turn wx events into rendercanvas events
 
     def _on_resize(self, event: wx.SizeEvent):
-        self._draw_lock = True
+        # self._draw_lock = True
         self._resize_timer.Start(100, wx.TIMER_ONE_SHOT)
 
         lsize = float(self.Size[0]), float(self.Size[1])
