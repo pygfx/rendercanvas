@@ -30,7 +30,7 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
     _event_compatibility = 1
 
     def __init__(self, *args, **kwargs):
-        # The jupyter backend's default title is empty
+        # This backend's default title is empty
         kwargs["title"] = kwargs.get("title", "")
 
         super().__init__(*args, **kwargs)

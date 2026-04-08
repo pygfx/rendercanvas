@@ -256,6 +256,14 @@ def test_pyodide_module():
     assert canvas_class.name == "PyodideRenderCanvas"
 
 
+def test_anywidget_module():
+    m = Module("anywidget")
+
+    canvas_class = m.get_canvas_class()
+    m.check_canvas(canvas_class)
+    assert canvas_class.name == "AnywidgetRenderCanvas"
+
+
 def test_jupyter_module():
     m = Module("jupyter")
 

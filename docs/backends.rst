@@ -20,16 +20,6 @@ The table below gives an overview of the names in the different ``rendercanvas``
           | ``RenderCanvas`` (alias)
           | ``loop`` (an ``AsyncioLoop``)
         - | A lightweight backend.
-    *   - ``jupyter``
-        - | ``JupyterRenderCanvas``
-          | ``RenderCanvas`` (alias)
-          | ``loop`` (an ``AsyncioLoop``)
-        - | Integrate in Jupyter notebook / lab.
-    *   - ``offscreen``
-        - | ``OffscreenRenderCanvas``
-          | ``RenderCanvas`` (alias)
-          | ``loop`` (a ``StubLoop``)
-        - | For offscreen rendering.
     *   - ``qt``
         - | ``QRenderCanvas`` (toplevel)
           | ``RenderCanvas`` (alias)
@@ -46,13 +36,27 @@ The table below gives an overview of the names in the different ``rendercanvas``
           | ``loop``
         - | Create a standalone canvas using wx, or
           | integrate a render canvas in a wx application.
+    *   - ``offscreen``
+        - | ``OffscreenRenderCanvas``
+          | ``RenderCanvas`` (alias)
+          | ``loop`` (a ``StubLoop``)
+        - | For offscreen rendering.
+    *   - ``anywidget``
+        - | ``AnywidgetRenderCanvas``
+          | ``RenderCanvas`` (alias)
+          | ``loop`` (an ``AsyncioLoop``)
+        - | Integrate in notebooks using anywidget.
+    *   - ``jupyter``
+        - | ``JupyterRenderCanvas``
+          | ``RenderCanvas`` (alias)
+          | ``loop`` (an ``AsyncioLoop``)
+        - | Integrate in notebooks via ``jupyter_rfb`` (deprecated).
     *   - ``pyodide``
         - | ``PyodideRenderCanvas`` (toplevel)
           | ``RenderCanvas`` (alias)
           | ``loop`` (an ``AsyncioLoop``)
         - | Backend when Python is running in the browser,
           | via Pyodide or PyScript.
-
 
 There are also three loop-backends. These are mainly intended for use with the glfw backend:
 
@@ -262,23 +266,27 @@ object, but in some cases it's convenient to do so with a canvas-like API.
     array = canvas.draw()  # numpy array with shape (400, 500, 4)
 
 
-Support for Jupyter lab and notebook
-------------------------------------
+Support for notebooks
+---------------------
 
-RenderCanvas can be used in Jupyter lab and the Jupyter notebook. This canvas
-is based on `jupyter_rfb <https://github.com/vispy/jupyter_rfb>`_, an ipywidget
-subclass implementing a remote frame-buffer. There are also some `wgpu examples <https://jupyter-rfb.readthedocs.io/en/stable/examples/>`_.
+With the ``anywidget`` backend, RenderCanvas can be used in Jupyter lab, Jupyter notebook, VSCode, Google Colab, Marimo notebooks, and anywhere else where ``anywidget`` is supported.
+When the ``auto`` backend is used in a notebook, the ``anywidget`` is selected automatically.
+
+The ``jupyter`` backend is the previous backend to provide notebook support, which is based on ``jupyter_rfb``. It's kept for backwards compatibility.
 
 .. code-block:: py
 
-    # from rendercanvas.jupyter import RenderCanvas  # Direct approach
-    from rendercanvas.auto import RenderCanvas  # also works, because rendercanvas detects Jupyter
+    from rendercanvas.auto import RenderCanvas  # uses anywidget when in a notebook
 
     canvas = RenderCanvas()
 
     # ... rendering code
 
     canvas  # Use as cell output
+
+
+.. autoclass:: rendercanvas.anywidget.AnywidgetRenderCanvas
+    :members:
 
 
 Support for Pyodide
@@ -417,9 +425,8 @@ Many interactive environments have some sort of GUI support, allowing the repl
 to stay active (i.e. you can run new code), while the GUI windows is also alive.
 In rendercanvas we try to select the GUI that matches the current environment.
 
-On ``jupyter notebook`` and ``jupyter lab`` the jupyter backend (i.e.
-``jupyter_rfb``) is normally selected. When you are using ``%gui qt``, rendercanvas will
-honor that and use Qt instead.
+In a notebook (e.g. jupyter) one of the notebook capable backends (``anywidget`` or ``jupyter``) is selected.
+When you are using ``%gui qt``, rendercanvas will honor that and use Qt instead.
 
 On ``jupyter console`` and ``qtconsole``, the kernel is the same as in ``jupyter notebook``,
 making it (about) impossible to tell that we cannot actually use
