@@ -52,7 +52,7 @@ def encode_jpeg(array, quality: int = 75):
         colorsubsampling = "Gray"
     elif array.ndim == 3 and array.shape[2] in (3, 4):
         colorspace = "RGBA"[: array.shape[2]]
-        colorsubsampling = "444"  # TODO: does 420 make it faster?
+        colorsubsampling = "444"  # 420 does not seem to help the compression much
     else:
         raise ValueError(
             f"encode_jpeg() expects an NxM, NxMx3, or NxMx4 array, but got {array.shape}"
@@ -71,7 +71,6 @@ def encode_jpeg(array, quality: int = 75):
     )
 
 
-# TODO: unit tests
 def encode_png(array, level: int = 6):
     """Encode an image array to bytes to the png format.
 
