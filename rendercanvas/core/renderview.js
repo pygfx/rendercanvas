@@ -50,7 +50,7 @@ const MOUSE_BUTTON_MAP = {
   4: 5 // forwards
 }
 
-function getButtons (ev) {
+function getButtons(ev) {
   // Note that ev.button has a historic awkward mapping, but ev.buttons is in the order that we want
   const button = MOUSE_BUTTON_MAP[ev.button] || 0
   const buttons = []
@@ -62,17 +62,17 @@ function getButtons (ev) {
   return [button, buttons]
 }
 
-function getModifiers (ev) {
+function getModifiers(ev) {
   return Object.entries(KEY_MOD_MAP)
     .filter(([k]) => ev[k])
     .map(([, v]) => v)
 }
 
-function getTimestamp () {
+function getTimestamp() {
   return performance.now() / 1000
 }
 
-function arraysEqual (a, b) {
+function arraysEqual(a, b) {
   return a.length === b.length && a.every((val, i) => val === b[i])
 }
 
@@ -104,7 +104,7 @@ class BaseRenderView {
    * @param {HTMLElement} viewElement - The element (e.g. canvas or img) used for rendering.
    * @param {HTMLElement} wrapperElement - The wrapper element (optional; can be null).
    */
-  constructor (viewElement, wrapperElement) {
+  constructor(viewElement, wrapperElement) {
     // Check given element
     if (viewElement === undefined || !(viewElement instanceof Element)) {
       throw new Error('BaseRenderView: viewElement must be an Element.')
@@ -138,7 +138,7 @@ class BaseRenderView {
     this._lsize = null // cached logical size
     this._wheelThrottle = 20 // to avoid flooding wheel events
     this._moveThrottle = 20 // to avoid flooding move events
-    this._isVisible = false // set by intersection observer
+    this._isVisible = 0 // bitmask: 1->intersected, 2->nonzerosize
 
     this._focusElement = null
     this._abortController = new AbortController()
@@ -153,7 +153,7 @@ class BaseRenderView {
    * Close the view, disconnecting observers and clearing callbacks.
    * This does not remove the the element from the DOM; that's up to the caller.
    */
-  close () {
+  close() {
     if (this._focusElement) {
       this._focusElement.remove()
       this._focusElement = null
@@ -173,8 +173,12 @@ class BaseRenderView {
     this.viewElement = null
     this.sizeElement = null
     this.titleElement = null
+    this.butCloseElement = null
     if (this.wrapperElement) {
       this.wrapperElement.innerHTML = ''
+      this.wrapperElement.classList.remove('renderview-wrapper')
+      this.wrapperElement.style.width = ''
+      this.wrapperElement.style.height = ''
       this.wrapperElement = null
     }
     const event = {
@@ -190,7 +194,7 @@ class BaseRenderView {
    * @param {string} width - The requested width.
    * @param {string} height - The requested height.
    */
-  setLogicalSize (width, height) {
+  setLogicalSize(width, height) {
     this.sizeElement.style.maxWidth = ''
     this.sizeElement.style.maxHeight = ''
     this.sizeElement.style.width = width + 'px'
@@ -202,7 +206,7 @@ class BaseRenderView {
    *
    * @param {string} cssWidth - The requested width as a css string, e.g. '640px' or '90%' or 'calc(100% - 10px)'.
    */
-  setCssWidth (cssWidth) {
+  setCssWidth(cssWidth) {
     this.sizeElement.style.maxWidth = ''
     this.sizeElement.style.width = cssWidth
   }
@@ -212,7 +216,7 @@ class BaseRenderView {
    *
    * @param {string} cssHeight - The requested height as a css string, e.g. '480px' or '40vh'.
    */
-  setCssHeight (cssHeight) {
+  setCssHeight(cssHeight) {
     this.sizeElement.style.maxHeight = ''
     this.sizeElement.style.height = cssHeight
   }
@@ -223,7 +227,7 @@ class BaseRenderView {
    *
    * @param {boolean} resizable - Whether to make it resizable or not.
    */
-  setResizable (resizable) {
+  setResizable(resizable) {
     if (this.wrapperElement) {
       if (resizable) {
         this.wrapperElement.classList.add('is-resizable')
@@ -234,12 +238,44 @@ class BaseRenderView {
   }
 
   /**
+  * Set whether the view has a button to minimize the widget.
+  * Note that the view can only be made minimizable if it was instantiated with a wrapper.
+  *
+  * @param {boolean} minimizable - Whether to make it minimizable or not.
+  */
+  setMinimizable(minimizable) {
+    if (this.wrapperElement) {
+      if (minimizable) {
+        this.wrapperElement.classList.add('is-minimizable')
+      } else {
+        this.wrapperElement.classList.remove('is-minimizable')
+      }
+    }
+  }
+
+  /**
+  * Set whether the view has a button to close the widget.
+  * Note that the view can only be made closable if it was instantiated with a wrapper.
+  *
+  * @param {boolean} closable - Whether to make it closable or not.
+  */
+  setClosable(closable) {
+    if (this.wrapperElement) {
+      if (closable) {
+        this.wrapperElement.classList.add('is-closable')
+      } else {
+        this.wrapperElement.classList.remove('is-closable')
+      }
+    }
+  }
+
+  /**
    * Set whether the view has a titlebar.
    * Note that the view can only have a titlebar if it was instantiated with a wrapper.
    *
    * @param {boolean} titlebar - Whether to show the titlebar or not.
    */
-  showTitlebar (titlebar) {
+  showTitlebar(titlebar) {
     if (this.wrapperElement) {
       if (titlebar) {
         this.wrapperElement.classList.add('has-titlebar')
@@ -257,7 +293,7 @@ class BaseRenderView {
    *
    * @param {string} title - The title to set.
    */
-  setTitle (title) {
+  setTitle(title) {
     if (this.titleElement) {
       this.titleElement.innerText = title
     }
@@ -268,7 +304,7 @@ class BaseRenderView {
    *
    * @param {string} cursor - A valid string for CSS cursor.
    */
-  setCursor (cursor) {
+  setCursor(cursor) {
     this.viewElement.style.cursor = cursor
   }
 
@@ -277,7 +313,7 @@ class BaseRenderView {
    *
    * @param {number} throttle - The timeout (in ms) to wait before sending a move/wheel event.
    */
-  setThrottle (throttle) {
+  setThrottle(throttle) {
     this._wheelThrottle = throttle
     this._moveThrottle = throttle
   }
@@ -287,12 +323,31 @@ class BaseRenderView {
    *
    * @param {object} event - The event object as a 'dictionary', following the spec.
    */
-  onEvent (event) { }
+  onEvent(event) { }
+
+  /**
+   * Internal method to handle visibility.
+   */
+  _updateVisibleBitmask(i, bitValue) {
+    const wasVisible = this._isVisible === 3
+    if (bitValue) { this._isVisible |= i } else { this._isVisible &= (~i) }
+    const nowVisible = this._isVisible === 3
+    if (nowVisible !== wasVisible) {
+      if (!nowVisible) {
+        this._focusElement.blur()
+      }
+      const event = {
+        type: nowVisible ? 'show' : 'hide',
+        timestamp: getTimestamp()
+      }
+      this.onEvent(event)
+    }
+  }
 
   /**
    * Internal method to initialize the view's helper elements.
    */
-  _initElements () {
+  _initElements() {
     const signal = this._abortController.signal
 
     // Obtain container to put our hidden focus element.
@@ -343,10 +398,21 @@ class BaseRenderView {
       // Create title bar
       const topElement = document.createElement('div')
       topElement.classList.add('renderview-top')
-      const titleElement = document.createElement('span')
-      this.titleElement = titleElement
-      titleElement.innerText = 'RenderView'
-      topElement.appendChild(titleElement)
+      this.titleElement = document.createElement('span')
+      this.titleElement.innerText = 'RenderView'
+      this.titleElement.classList.add('renderview-title')
+      this.butMinimizeElement = document.createElement('span')
+      this.butMinimizeElement.innerText = '_'
+      this.butMinimizeElement.classList.add('renderview-button', 'renderview-minimize-button')
+      this.butCloseElement = document.createElement('span')
+      this.butCloseElement.innerText = '×'
+      this.butCloseElement.classList.add('renderview-button', 'renderview-close-button')
+      const butPadElement = document.createElement('span')
+      butPadElement.style.width = '0.3em'
+      topElement.appendChild(this.titleElement)
+      topElement.appendChild(this.butMinimizeElement)
+      topElement.appendChild(this.butCloseElement)
+      topElement.appendChild(butPadElement)
       wrapperElement.appendChild(topElement)
 
       // Enable resizing
@@ -360,7 +426,7 @@ class BaseRenderView {
           resizeElement.setPointerCapture(ev.pointerId)
         }
       },
-      { signal }
+        { signal }
       )
       resizeElement.addEventListener('pointermove', (ev) => {
         if (resizeInfo !== null) {
@@ -370,12 +436,12 @@ class BaseRenderView {
           this.sizeElement.style.height = resizeInfo.h + (ev.clientY - resizeInfo.y) + 'px'
         }
       },
-      { signal }
+        { signal }
       )
       resizeElement.addEventListener('lostpointercapture', (ev) => {
         resizeInfo = null
       },
-      { signal }
+        { signal }
       )
     } // wrapperElement !== null
   }
@@ -383,13 +449,13 @@ class BaseRenderView {
   /**
    * Internal method to setup listeners and register callbacks.
    */
-  _registerEvents () {
+  _registerEvents() {
     // Register events
 
     const viewElement = this.viewElement
     const signal = this._abortController.signal // to unregister/abort stuff
 
-    // ----- visibility ---------------
+    // ----- visibility and focus and closing ---------------
 
     this._intersectionObserver = new IntersectionObserver((entries, observer) => {
       // This gets called when one of the observed elements becomes visible/invisible.
@@ -398,16 +464,51 @@ class BaseRenderView {
       for (const entry of entries) {
         isVisible = isVisible || entry.isIntersecting
       }
-      if (isVisible !== this._isVisible) {
-        this._isVisible = isVisible
-        const event = {
-          type: isVisible ? 'show' : 'hide',
-          timestamp: getTimestamp()
-        }
-        this.onEvent(event)
-      }
+      this._updateVisibleBitmask(1, isVisible) // 1 for intersection bit
     })
     this._intersectionObserver.observe(viewElement)
+
+    this._focusElement.addEventListener('focus', (ev) => {
+      if (this.wrapperElement) {
+        this.wrapperElement.classList.add('has-focus')
+      }
+      const event = {
+        type: 'focus_in',
+        timestamp: getTimestamp()
+      }
+      this.onEvent(event)
+    },
+      { signal }
+    )
+
+    this._focusElement.addEventListener('blur', (ev) => {
+      if (this.wrapperElement) {
+        this.wrapperElement.classList.remove('has-focus')
+      }
+      const event = {
+        type: 'focus_out',
+        timestamp: getTimestamp()
+      }
+      this.onEvent(event)
+    },
+      { signal }
+    )
+
+    if (this.butMinimizeElement) {
+      this.butMinimizeElement.addEventListener('click', (ev) => {
+        this.wrapperElement.classList.toggle('is-minimized')
+      },
+        { signal }
+      )
+    }
+
+    if (this.butCloseElement) {
+      this.butCloseElement.addEventListener('click', (ev) => {
+        this.close()
+      },
+        { signal }
+      )
+    }
 
     // ----- resize ---------------
 
@@ -443,6 +544,14 @@ class BaseRenderView {
         }
         physicalWidth = Math.floor(lsize[0] * ratio)
         physicalHeight = Math.floor(lsize[1] * ratio)
+      }
+
+      // Handle visibility. If zero-size we assume we're minimized or otherwise hidden; zero size is not valid.
+      if (!physicalHeight || !physicalWidth) {
+        this._updateVisibleBitmask(2, false) // 2 for non-zero-size bit
+        return
+      } else {
+        this._updateVisibleBitmask(2, true)
       }
 
       // If the container element does not have its size set via its style, we set it to the logical size.
@@ -520,7 +629,7 @@ class BaseRenderView {
       }
       this.onEvent(event)
     },
-    { signal }
+      { signal }
     )
 
     let pendingMoveEvent = null
@@ -578,7 +687,7 @@ class BaseRenderView {
         }
       }
     },
-    { signal }
+      { signal }
     )
 
     viewElement.addEventListener('lostpointercapture', (ev) => {
@@ -606,7 +715,7 @@ class BaseRenderView {
       }
       this.onEvent(event)
     },
-    { signal }
+      { signal }
     )
 
     viewElement.addEventListener('pointerenter', (ev) => {
@@ -635,7 +744,7 @@ class BaseRenderView {
       }
       this.onEvent(event)
     },
-    { signal }
+      { signal }
     )
 
     viewElement.addEventListener('pointerleave', (ev) => {
@@ -664,7 +773,7 @@ class BaseRenderView {
       }
       this.onEvent(event)
     },
-    { signal }
+      { signal }
     )
 
     // ----- click ---------------
@@ -693,7 +802,7 @@ class BaseRenderView {
       }
       this.onEvent(event)
     },
-    { signal }
+      { signal }
     )
 
     // ----- wheel ---------------
@@ -754,7 +863,7 @@ class BaseRenderView {
         }
       }
     },
-    { signal }
+      { signal }
     )
 
     // ----- key ---------------
@@ -780,7 +889,7 @@ class BaseRenderView {
       }
       this.onEvent(event)
     },
-    { signal }
+      { signal }
     )
 
     this._focusElement.addEventListener('keyup', (ev) => {
@@ -798,7 +907,7 @@ class BaseRenderView {
       }
       this.onEvent(event)
     },
-    { signal }
+      { signal }
     )
 
     this._focusElement.addEventListener('input', (ev) => {
@@ -821,7 +930,7 @@ class BaseRenderView {
       }
       this.onEvent(event)
     },
-    { signal }
+      { signal }
     )
   }
 }
