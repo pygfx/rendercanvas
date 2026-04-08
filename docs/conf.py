@@ -22,6 +22,32 @@ sys.path.insert(0, ROOT_DIR)
 os.environ["RENDERCANVAS_FORCE_OFFSCREEN"] = "true"
 
 
+class FakeTrait:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def tag(self, *args, **kwargs):
+        pass
+
+
+class FakeModule:
+    # from anywidget import AnyWidget
+    AnyWidget = object
+    # from traitlets import ...
+    Dict = FakeTrait
+    Unicode = FakeTrait
+    Int = FakeTrait
+    Bool = FakeTrait
+    # from IPython.display import ...
+    HTML = lambda *a, **kw: None
+    display = lambda *a, **kw: None
+
+
+sys.modules["anywidget"] = FakeModule
+sys.modules["traitlets"] = FakeModule
+sys.modules["IPython.display"] = FakeModule
+
+
 # Load wgpu so autodoc can query docstrings
 import rendercanvas  # noqa: E402
 import rendercanvas.stub  # noqa: E402 - we use the stub backend to generate docs

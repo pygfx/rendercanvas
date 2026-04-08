@@ -275,6 +275,7 @@ When the ``auto`` backend is used in a notebook, the ``anywidget`` is selected a
 The ``jupyter`` backend is the previous backend to provide notebook support, which is based on ``jupyter_rfb``. It's kept for backwards compatibility.
 
 .. code-block:: py
+
     from rendercanvas.auto import RenderCanvas  # uses anywidget when in a notebook
 
     canvas = RenderCanvas()
