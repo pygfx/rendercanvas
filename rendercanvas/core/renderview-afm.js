@@ -1,10 +1,17 @@
+/*************************************************************************************************
+  renderview-afm.js
+
+  The Anywidget Frontend Module for renderview.
+
+ *************************************************************************************************/
+
 /* global BaseRenderView getTimestamp */
 
 /**
- * An object that represents the model (wrapping the anywidget model object), that can have multiple views.
+ * An object that represents the model(wrapping the anywidget model object), that can have multiple views.
  */
-class RendercanvasAnywidgetModel {
-  constructor (anymodel) {
+class RenderviewAnywidgetModel {
+  constructor(anymodel) {
     this.anymodel = anymodel
     this.views = []
     this._hasVisibleViews = false
@@ -46,6 +53,18 @@ class RendercanvasAnywidgetModel {
           view.setResizable(resizable)
         }
       })
+      anymodel.on(`change:${prefix}is_minimizable`, () => {
+        const minimizable = anymodel.get(`${prefix}is_minimizable`)
+        for (const view of this.views) {
+          view.setMinimizable(minimizable)
+        }
+      })
+      anymodel.on(`change:${prefix}is_closable`, () => {
+        const closable = anymodel.get(`${prefix}is_closable`)
+        for (const view of this.views) {
+          view.setClosable(closable)
+        }
+      })
       anymodel.on(`change:${prefix}has_titlebar`, () => {
         const titlebar = anymodel.get(`${prefix}has_titlebar`)
         for (const view of this.views) {
@@ -71,7 +90,7 @@ class RendercanvasAnywidgetModel {
     this._request_animation_frame()
   }
 
-  close () {
+  close() {
     URL.revokeObjectURL(this._lastSrc)
     this._lastSrc = null
     this._lastFrame = null
@@ -88,7 +107,7 @@ class RendercanvasAnywidgetModel {
     this.onEvent(event)
   }
 
-  addView (view) {
+  addView(view) {
     this.views.push(view)
     this.updateVisibility()
     // Init attrs
@@ -105,12 +124,12 @@ class RendercanvasAnywidgetModel {
     }
   }
 
-  removeView (view) {
+  removeView(view) {
     this.views = this.views.filter(v => v !== view)
     this.updateVisibility()
   }
 
-  updateVisibility () {
+  updateVisibility() {
     let visibleViewsCount = 0
     for (const view of this.views) {
       if (view.isVisible) { visibleViewsCount += 1 }
@@ -123,7 +142,7 @@ class RendercanvasAnywidgetModel {
     }
   }
 
-  _send_response () {
+  _send_response() {
     // Let Python know what we have at the frame. This prop is a dict, making it "atomic".
     const frame = this._lastFrame
     const frameFeedback = { index: frame.index, timestamp: frame.timestamp, localtime: Date.now() / 1000 }
@@ -131,7 +150,7 @@ class RendercanvasAnywidgetModel {
     this.anymodel.save_changes()
   }
 
-  _request_animation_frame () {
+  _request_animation_frame() {
     // Request an animation frame.
     // Before the anywidget refactor, we did this via a tiny delay, which supposedly made things more smooth,
     // but it also increases the delay for a frame to hit the screen, and limits the max fps, so let's not do that.
@@ -142,7 +161,7 @@ class RendercanvasAnywidgetModel {
     }
   }
 
-  _animate () {
+  _animate() {
     this._img_update_pending = false
     if (this._frames.length === 0) { return };
 
@@ -171,7 +190,7 @@ class RendercanvasAnywidgetModel {
     this._send_response()
   }
 
-  onEvent (event) {
+  onEvent(event) {
     try {
       this.anymodel.send(event)
     } catch { } // probably attempt to send when widget is closed
@@ -182,7 +201,7 @@ class RendercanvasAnywidgetModel {
  * View to show the anywidget output and observe events, based on renderview.js.
  */
 class AnywidgetRenderView extends BaseRenderView {
-  constructor (model, containerElement) {
+  constructor(model, containerElement) {
     // Create the wrapper element
     const wrapperElement = document.createElement('div')
     wrapperElement.classList.add('renderview-wrapper')
@@ -206,12 +225,12 @@ class AnywidgetRenderView extends BaseRenderView {
     this.model.addView(this)
   }
 
-  close () {
+  close() {
     super.close()
     this.model.removeView(this)
   }
 
-  onEvent (event) {
+  onEvent(event) {
     if (event.type === 'resize') {
       // Note that there can be multiple views that can possibly be individually resized.
       // TODO: keep logical size in check between different views?
@@ -236,12 +255,12 @@ class AnywidgetRenderView extends BaseRenderView {
 export default () => {
   let model
   return {
-    initialize (ctx) {
-      model = new RendercanvasAnywidgetModel(ctx.model)
+    initialize(ctx) {
+      model = new RenderviewAnywidgetModel(ctx.model)
       // window.model = model // debug
       return () => { model.close() }
     },
-    render (ctx) {
+    render(ctx) {
       const view = new AnywidgetRenderView(model, ctx.el)
       return () => { view.close() }
     }
