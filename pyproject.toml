@@ -18,23 +18,24 @@ keywords = [
     "jupyter",
 ]
 requires-python = ">= 3.10"
-dependencies = ['numpy'] # Numpy is the only hard dependency
+dependencies = ["numpy"] # Numpy is the only hard dependency
+
 [project.optional-dependencies]
 # For users
-jupyter = ["jupyter_rfb>=0.4.2"]
+jupyter = ["jupyter_rfb>=0.4.2", "simplejpeg; implementation_name != 'pypy'"]
+notebook = ["anywidget", "simplejpeg; implementation_name != 'pypy'"]
 glfw = ["glfw>=1.9"]
 # For devs / ci
 lint = ["ruff", "pre-commit"]
 examples = ["flit", "numpy", "wgpu", "glfw", "pyside6", "imageio", "pytest"]
-docs = [
-    "flit",
-    "sphinx>7.2",
-    "sphinx_rtd_theme",
-    "sphinx-gallery",
-    "numpy",
+docs = ["flit", "sphinx>7.2", "sphinx_rtd_theme", "sphinx-gallery", "wgpu"]
+tests = [
+    "pytest",
     "wgpu",
+    "glfw",
+    "trio",
+    "simplejpeg; implementation_name != 'pypy'",
 ]
-tests = ["pytest", "numpy", "wgpu", "glfw", "trio"]
 dev = ["rendercanvas[lint,tests,examples,docs]"]
 
 [project.entry-points."pyinstaller40"]
