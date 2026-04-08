@@ -58,6 +58,8 @@ class AnywidgetRenderCanvas(BaseRenderCanvas, anywidget.AnyWidget):
     _css_width = Unicode("500px").tag(sync=True)
     _css_height = Unicode("300px").tag(sync=True)
     _resizable = Bool(True).tag(sync=True)
+    _is_minimizable = Bool(False).tag(sync=True)
+    _is_closable = Bool(False).tag(sync=True)
     _has_titlebar = Bool(False).tag(sync=True)
     _title = Unicode("").tag(sync=True)
     _cursor = Unicode("default").tag(sync=True)
@@ -386,12 +388,20 @@ class AnywidgetRenderCanvas(BaseRenderCanvas, anywidget.AnyWidget):
         self._css_height = css_height
 
     def set_resizable(self, resizable: bool):
-        """Set whether the canvas is manually resizable.
-
-        Note that the canvas can only be made resizable if it was attached to a
-        wrapper HTML element (not directly to a ``<canvas>``).
-        """
+        """Set whether the canvas is manually resizable."""
         self._resizable = resizable
+
+    def set_minimizable(self, minimizable: bool):
+        """Set whether the canvas is manually minimizable  via a button in the titlebar.
+
+        If all views of the canvas are hidden (out of view or minimized), its rendering is paused,
+        saving CPU cycles and battery.
+        """
+        self._is_minimizable = minimizable
+
+    def set_closable(self, closable: bool):
+        """Set whether the canvas is manually closable via a button in the titlebar."""
+        self._is_closable = closable
 
 
 # Make available under a common name
