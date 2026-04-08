@@ -132,7 +132,7 @@ def backends_by_env_vars():
 
 
 def backends_by_notebook():
-    """Generate backend names that are appropriate for the current Jupyter session (if any)."""
+    """Generate backend names that are appropriate for the current notebook session (if any)."""
 
     # Detect Marimo: https://github.com/marimo-team/marimo/discussions/8865
     if "marimo" in sys.modules and sys.modules["marimo"].running_in_notebook():

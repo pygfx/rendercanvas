@@ -20,21 +20,6 @@ The table below gives an overview of the names in the different ``rendercanvas``
           | ``RenderCanvas`` (alias)
           | ``loop`` (an ``AsyncioLoop``)
         - | A lightweight backend.
-    *   - ``anywidget``
-        - | ``AnywidgetRenderCanvas``
-          | ``RenderCanvas`` (alias)
-          | ``loop`` (an ``AsyncioLoop``)
-        - | Integrate in notebooks.
-    *   - ``jupyter``
-        - | ``JupyterRenderCanvas``
-          | ``RenderCanvas`` (alias)
-          | ``loop`` (an ``AsyncioLoop``)
-        - | Integrate in notebooks via ``jupyter_rfb``.
-    *   - ``offscreen``
-        - | ``OffscreenRenderCanvas``
-          | ``RenderCanvas`` (alias)
-          | ``loop`` (a ``StubLoop``)
-        - | For offscreen rendering.
     *   - ``qt``
         - | ``QRenderCanvas`` (toplevel)
           | ``RenderCanvas`` (alias)
@@ -51,13 +36,27 @@ The table below gives an overview of the names in the different ``rendercanvas``
           | ``loop``
         - | Create a standalone canvas using wx, or
           | integrate a render canvas in a wx application.
+    *   - ``offscreen``
+        - | ``OffscreenRenderCanvas``
+          | ``RenderCanvas`` (alias)
+          | ``loop`` (a ``StubLoop``)
+        - | For offscreen rendering.
+    *   - ``anywidget``
+        - | ``AnywidgetRenderCanvas``
+          | ``RenderCanvas`` (alias)
+          | ``loop`` (an ``AsyncioLoop``)
+        - | Integrate in notebooks using anywidget.
+    *   - ``jupyter``
+        - | ``JupyterRenderCanvas``
+          | ``RenderCanvas`` (alias)
+          | ``loop`` (an ``AsyncioLoop``)
+        - | Integrate in notebooks via ``jupyter_rfb`` (deprecated).
     *   - ``pyodide``
         - | ``PyodideRenderCanvas`` (toplevel)
           | ``RenderCanvas`` (alias)
           | ``loop`` (an ``AsyncioLoop``)
         - | Backend when Python is running in the browser,
           | via Pyodide or PyScript.
-
 
 There are also three loop-backends. These are mainly intended for use with the glfw backend:
 
@@ -270,27 +269,23 @@ object, but in some cases it's convenient to do so with a canvas-like API.
 Support for notebooks
 ---------------------
 
-RenderCanvas can be used in Jupyter lab, Jupyter notebook, VSCode, Google Colab, Marimo notebooks, and anywhere else where ``anywidget`` is supported.
+With the ``anywidget`` backend, RenderCanvas can be used in Jupyter lab, Jupyter notebook, VSCode, Google Colab, Marimo notebooks, and anywhere else where ``anywidget`` is supported.
+When the ``auto`` backend is used in a notebook, the ``anywidget`` is selected automatically.
 
-There are two backends that support the notebook:
-
-* The ``anywidget`` backend.
-* The ``jupyter`` backend, which relies on the `jupyter_rfb <https://github.com/vispy/jupyter_rfb>`_ library.
-
-Although they share the most part of their code, the latter has some additional functionality, such as a snapshot utility.
-When the ``auto`` backend is used in a notebook, the ``anywidget`` is selected.
+The ``jupyter`` backend is the previous backend to provide notebook support, which is based on ``jupyter_rfb``. It's kept for backwards compatibility.
 
 .. code-block:: py
-
-    # from rendercanvas.anywidget import RenderCanvas
-    # from rendercanvas.jupyter import RenderCanvas
-    from rendercanvas.auto import RenderCanvas  # defaults to anywidget when in a notebook
+    from rendercanvas.auto import RenderCanvas  # uses anywidget when in a notebook
 
     canvas = RenderCanvas()
 
     # ... rendering code
 
     canvas  # Use as cell output
+
+
+.. autoclass:: rendercanvas.anywidget.AnywidgetRenderCanvas
+    :members:
 
 
 Support for Pyodide
