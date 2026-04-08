@@ -18,12 +18,24 @@ keywords = [
     "jupyter",
 ]
 requires-python = ">= 3.10"
-dependencies = ['numpy'] # Numpy is the only hard dependency
+dependencies = ["numpy"] # Numpy is the only hard dependency
+
 [project.optional-dependencies]
-notebook = ["simplejpeg; implementation_name != 'pypy']
+# For users
+jupyter = ["jupyter_rfb>=0.4.2", "simplejpeg; implementation_name != 'pypy'"]
+notebook = ["simplejpeg; implementation_name != 'pypy'"]
 glfw = ["glfw>=1.9"]
 # For devs / ci
-tests = ["pytest", "numpy", "wgpu", "glfw", "trio", "simplejpeg; implementation_name != 'pypy'"]
+lint = ["ruff", "pre-commit"]
+examples = ["flit", "numpy", "wgpu", "glfw", "pyside6", "imageio", "pytest"]
+docs = ["flit", "sphinx>7.2", "sphinx_rtd_theme", "sphinx-gallery", "wgpu"]
+tests = [
+    "pytest",
+    "wgpu",
+    "glfw",
+    "trio",
+    "simplejpeg; implementation_name != 'pypy'",
+]
 dev = ["rendercanvas[lint,tests,examples,docs]"]
 
 [project.entry-points."pyinstaller40"]
@@ -54,13 +66,4 @@ ignore = [
     "E731",   # Do not assign a `lambda` expression, use a `def`
     "B007",   # Loop control variable `x` not used within loop body
     "RUF012", # Mutable class attributes should be annotated with `typing.ClassVar`
-]# For userslint = ["ruff", "pre-commit"]
-examples = ["flit", "numpy", "wgpu", "glfw", "pyside6", "imageio", "pytest"]
-docs = [
-    "flit",
-    "sphinx>7.2",
-    "sphinx_rtd_theme",
-    "sphinx-gallery",
-    "numpy",
-    "wgpu",
-]jupyter = ["jupyter_rfb>=0.4.2", "simplejpeg; implementation_name != 'pypy'"]
+]
