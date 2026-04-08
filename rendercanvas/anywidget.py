@@ -15,12 +15,13 @@ from .core.encoders import encode_array, CAN_JPEG
 
 import numpy as np
 import anywidget
+from IPython.display import display, HTML
 from traitlets import Bool, Dict, Int, Unicode
 
 
 def _load_js_and_css():
     js = ""
-    for fname in ["renderview.js", "renderview-rfb.js"]:
+    for fname in ["renderview.js", "renderview-afm.js"]:
         js_path = resource_files("rendercanvas.core").joinpath(fname)
         js += js_path.read_text() + "\n\n"
 
@@ -77,6 +78,10 @@ class AnywidgetRenderCanvas(BaseRenderCanvas, anywidget.AnyWidget):
         self._rfb_last_confirmed_index = 0
         self._rfb_warned_png = False
         self._rfb_lossless_draw_info = None
+        self._rfb_last_resize_event = None
+        self._rfb_pending_snapshot_display = None
+
+        self._last_set_logical_size = 100, 100
         self._use_websocket = True  # Could be a prop, private for now
 
         self.reset_stats()
@@ -88,6 +93,52 @@ class AnywidgetRenderCanvas(BaseRenderCanvas, anywidget.AnyWidget):
 
         # Set size, title, etc.
         self._final_canvas_init()
+
+    def snapshot(self, *, pixel_ratio=None):
+        """Render a frame and include the resulting image in the output.
+
+        An initial placeholder output is produced, which is replaced by an html
+        ``<img>`` as soon as the next frame is rendered.
+
+        If the widget is not displayed yet, a resize event is emitted to mimic a widget
+        size. The ``pixel_ratio`` argument is then used to calculate the physical size.
+        """
+        if self._rfb_last_resize_event is None:
+            w, h = self._last_set_logical_size
+            r = float(pixel_ratio) if pixel_ratio is not None else 1.0
+            pw, ph = int(w * r), (h * r)
+            event = {
+                "type": "resize",
+                "width": pw / r,
+                "height": ph / r,
+                "pwidth": pw,
+                "pheight": ph,
+                "ratio": r,
+                "timestamp": 0,
+            }
+            self._rfb_handle_msg(self, event, [])
+
+        self._rfb_pending_snapshot_display = display(
+            HTML(
+                "<div style='display: inline-block; padding: 5px; border-radius: 5px; background:#ddd; color:#000'>pending screenshot ...</span>"
+            ),
+            display_id=True,
+        )
+        self.request_draw()
+
+    def _replace_snapshot(self, array):
+        pending_display = self._rfb_pending_snapshot_display
+        self._rfb_pending_snapshot_display = None
+
+        event = self._rfb_last_resize_event or {}
+        w = event.get("width", array.shape[1])
+        h = event.get("height", array.shape[0])
+
+        mimetype, data = encode_array(array, 70)
+        src = f"data:image/{mimetype};base64," + encodebytes(data).decode()
+        html = f"<img src='{src}' style='width:{w}px;height:{h}px;' />"
+
+        pending_display.update(HTML(html))
 
     def _rfb_handle_msg(self, widget, content, buffers):
         """Receive custom messages and filter our events."""
@@ -133,7 +184,7 @@ class AnywidgetRenderCanvas(BaseRenderCanvas, anywidget.AnyWidget):
         should_draw = (
             self._rfb_draw_requested
             and frames_in_flight < self._max_buffered_frames
-            and self._has_visible_views
+            and (self._has_visible_views or self._rfb_pending_snapshot_display)
         )
         # Do the draw if we should.
         if should_draw:
@@ -198,6 +249,10 @@ class AnywidgetRenderCanvas(BaseRenderCanvas, anywidget.AnyWidget):
             if self._rfb_stats["start_time"] <= 0:  # Start measuring
                 self._rfb_stats["start_time"] = timestamp
                 self._rfb_last_confirmed_index = self._rfb_frame_index - 1
+
+        # Reload the output if we did not have a frame when the widget was first loaded
+        if self._rfb_pending_snapshot_display is not None:
+            self._replace_snapshot(array)
 
         # Compose message and send
         msg = dict(
@@ -303,6 +358,7 @@ class AnywidgetRenderCanvas(BaseRenderCanvas, anywidget.AnyWidget):
         self._rfb_send_frame(np.asarray(data))
 
     def _rc_set_logical_size(self, width, height):
+        self._last_set_logical_size = width, height
         self._css_width = f"{width}px"
         self._css_height = f"{height}px"
 
