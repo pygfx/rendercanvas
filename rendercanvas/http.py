@@ -14,6 +14,7 @@ from importlib.resources import files as resource_files
 from .base import BaseCanvasGroup, BaseRenderCanvas, logger
 from .asyncio import AsyncioLoop
 from .core.encoders import encode_array, CAN_JPEG
+from .core.events import valid_event_types
 
 import numpy as np
 
@@ -21,45 +22,23 @@ import numpy as np
 HTML = """<!DOCTYPE html>
 <html>
 <head>
-    <title>Minimal WS App</title>
-    <script src='renderview.js'></script>
+    <title>RenderCanvas over http</title>
+    <script type='module' src='renderview.js'></script>
+    <script type='module' src='renderview-client.js'></script>
     <link rel="stylesheet" href="renderview.css">
 </head>
 <body>
-  <h1>WebSocket Test</h1>
+  <h1>RenderCanvas over http</h1>
 
-    <div id='canvas' class='renderview-wrapper' style='width:640px; height:480px'>
-        Loading ...
+    <div id='canvas' class='renderview-wrapper is-resizable' style='width:640px; height:480px'>
+        <p style='width:100%; height:100%; background:#aaa; display: flex; justify-content: center; align-items: center; font-size:150%'>Loading ...</p>
     </div>
     <br><br>
     <input id="msg" placeholder="Type message..." />
     <button onclick="send()">Send</button>
     <pre id="log"></pre>
 
-    <script>
-        const log = (msg) => {
-            document.getElementById("log").textContent += msg + "\\n";
-        };
-
-        const ws = new WebSocket("ws://" + location.host + "/ws");
-
-        ws.onopen = () => log("Connected!");
-        ws.onmessage = (e) => log("Server: " + e.data);
-        ws.onclose = () => log("Disconnected");
-
-        function send() {
-            const input = document.getElementById("msg");
-            ws.send(input.value);
-            log("You: " + input.value);
-            input.value = "";
-        }
-
-    </script>
-    <script type='module'>
-        let wrapperElement = document.getElementById('canvas')
-        let viewElement = document.createElement("img")
-        window.view = new window.BaseRenderView(viewElement, wrapperElement)
-    </script>
+    <div id='status' style='position:fixed; top:0; right:0; background:#ccc; color:#000; padding:1em; font-family: monospace'></div>
 </body>
 </html>
 """
@@ -73,8 +52,9 @@ def _load_resource(fname):
 resources = {}
 resources["/"] = "text/html", HTML
 resources["/index.html"] = "text/html", HTML
-resources["/renderview.js"] = "text/javascript", _load_resource("renderview.js")
 resources["/renderview.css"] = "text/css", _load_resource("renderview.css")
+for fname in ("renderview.js", "renderview-afm.js", "renderview-client.js"):
+    resources[f"/{fname}"] = "text/javascript", _load_resource(fname)
 
 
 class Websocket:
@@ -128,7 +108,13 @@ class Websocket:
 
     def send(self, data):
         """Send data into the websocket."""
-        _ = self._send_queue.put(data)
+        if isinstance(data, dict):
+            data = json.dumps(data)
+        elif isinstance(data, bytes):
+            data = data
+        else:
+            RuntimeError("ws.send expects dict or bytes")
+        asyncio.create_task(self._send_queue.put(data))
 
     def close(self):
         """Close the websocket from our end."""
@@ -158,7 +144,23 @@ class Asgi:
     async def __call__(self, scope, receive, send):
         """The ASGI entrypoint."""
 
-        if scope["type"] == "http":
+        if scope["type"] == "lifespan":
+            while True:
+                message = await receive()
+                if message["type"] == "lifespan.startup":
+                    try:
+                        asyncio.get_running_loop().create_task(loop._rc_run_async())
+                    except Exception as err:
+                        print("could not start rendercanvas loop:", err)
+                    else:
+                        print("rendercanvas loop started in server")
+                    await send({"type": "lifespan.startup.complete"})
+                elif message["type"] == "lifespan.shutdown":
+                    ...  # Do some shutdown here!
+                    await send({"type": "lifespan.shutdown.complete"})
+                    return
+
+        elif scope["type"] == "http":
             content_type_and_body = self._resources.get(scope["path"], None)
             if content_type_and_body is not None:
                 content_type, body = content_type_and_body
@@ -188,6 +190,7 @@ class Asgi:
             self._ws_count += 1
             ws = Websocket(self, self._ws_count)
             self._websockets.append(ws)
+            self._event_callback(0, {"type": "_new_client"})
 
             try:
                 receiver = asyncio.create_task(ws._websocket_receiver(receive))
@@ -203,9 +206,12 @@ class Asgi:
 
     def _on_event(self, id, event):
         """Called when a websocket receives an event."""
-        self._event_callback(id, event)
+        try:
+            self._event_callback(id, event)
+        except Exception as err:
+            print(f"Error handling ws event callback: {err}")
 
-    def send_all(self, data: bytes):
+    def send_all(self, data: str | bytes):
         """Send data to all websockets."""
         for ws in self._websockets:
             ws.send(data)
@@ -215,6 +221,9 @@ class Asgi:
         # TODO: also put in a closed (non-restartable) state? i.e. think about lifetime cycle
         for ws in self._websockets:
             ws.close()
+
+    def get_count(self):
+        return len(self._websockets)
 
 
 class HttpLoop(AsyncioLoop):
@@ -261,6 +270,7 @@ class HttpRenderCanvas(BaseRenderCanvas):
         self._is_closed = False
 
         self._draw_requested = False
+        self._frame_feedback = {}
         self._frame_index = 0
         self._last_confirmed_index = 0
         self._warned_png = False
@@ -281,12 +291,13 @@ class HttpRenderCanvas(BaseRenderCanvas):
         # TODO: some logic depends on the id
         # TODO: keep track of frame feedback per id, main ws determines frame rate, others drop frames as necessary
 
-        if type.startswith("comm-"):
-            if type == "comm-frame-feedback":
-                self._frame_feedback = event["value"]
+        if type.startswith("_"):
+            if type == "_framefeedback":
+                self._frame_feedback = event
                 loop.call_soon(self._maybe_draw)
-            elif type == "comm-has-visible-views":
-                self._has_visible_views = event["value"]
+            elif type == "_new_client":
+                # Force a draw. With a new client, we want to override frame feedback
+                self._draw_requested = 2
                 loop.call_soon(self._maybe_draw)
             else:
                 logger.warning(f"Unknown comm event: {event!r}")
@@ -299,7 +310,7 @@ class HttpRenderCanvas(BaseRenderCanvas):
                 )
             elif type == "close":
                 self.close()
-            else:
+            elif type in valid_event_types:
                 # Compatibility between new renderview event spec and current rendercanvas/pygfx events
                 event["event_type"] = event.pop("type")
                 event["time_stamp"] = event.pop("timestamp")
@@ -320,8 +331,11 @@ class HttpRenderCanvas(BaseRenderCanvas):
         frames_in_flight = self._frame_index - feedback.get("index", 0)
         should_draw = (
             self._draw_requested
-            and frames_in_flight < self._max_buffered_frames
-            and self._has_visible_views
+            and (
+                frames_in_flight < self._max_buffered_frames
+                or self._draw_requested >= 2
+            )
+            and asgi.get_count() > 0
         )
         # Do the draw if we should.
         if should_draw:
@@ -348,7 +362,6 @@ class HttpRenderCanvas(BaseRenderCanvas):
         """Actually send a frame over to the client."""
         # For considerations about performance,
         # see https://github.com/vispy/jupyter_rfb/issues/3
-
         quality = 100 if is_lossless_redraw else self._quality
 
         self._frame_index += 1
@@ -357,8 +370,14 @@ class HttpRenderCanvas(BaseRenderCanvas):
         # Turn array into a based64-encoded JPEG or PNG
         t1 = time.perf_counter()
         mimetype, data = encode_array(array, quality)
-        datas = [data]
-        data_b64 = None
+        if False:  # use_websocket:
+            buffers = [data]
+            data_b64 = None
+        else:
+            buffers = []
+            from base64 import encodebytes
+
+            data_b64 = f"data:{mimetype};base64," + encodebytes(data).decode()
         t2 = time.perf_counter()
 
         if "jpeg" in mimetype:
@@ -386,12 +405,15 @@ class HttpRenderCanvas(BaseRenderCanvas):
         # Compose message and send
         msg = dict(
             type="framebufferdata",
+            nbuffers=len(buffers),
             mimetype=mimetype,
             data_b64=data_b64,
             index=self._frame_index,
             timestamp=timestamp,
         )
-        self.send(msg, datas)
+        asgi.send_all(msg)
+        for buffer in buffers:
+            asgi.send_all(buffer)
 
     # ----- related to stats
 
@@ -487,8 +509,8 @@ class HttpRenderCanvas(BaseRenderCanvas):
         self._send_frame(np.asarray(data))
 
     def _rc_set_logical_size(self, width, height):
-        asgi.send({"type": "comm-css-width", "value": f"{width}px"})
-        asgi.send({"type": "comm-css-height", "value": f"{height}px"})
+        asgi.send_all({"type": "comm-css-width", "value": f"{width}px"})
+        asgi.send_all({"type": "comm-css-height", "value": f"{height}px"})
 
     def _rc_close(self):
         asgi.close()
@@ -498,18 +520,18 @@ class HttpRenderCanvas(BaseRenderCanvas):
         return self._is_closed
 
     def _rc_set_title(self, title):
-        asgi.send({"type": "comm-title", "value": title})
+        asgi.send_all({"type": "comm-title", "value": title})
 
     def _rc_set_cursor(self, cursor):
-        asgi.send({"type": "comm-cursor", "value": cursor})
+        asgi.send_all({"type": "comm-cursor", "value": cursor})
 
     def set_css_width(self, css_width: str):
         """Set the width of the canvas as a CSS string."""
-        asgi.send({"type": "comm-css-width", "value": css_width})
+        asgi.send_all({"type": "comm-css-width", "value": css_width})
 
     def set_css_height(self, css_height: str):
         """Set the height of the canvas as a CSS string."""
-        asgi.send({"type": "comm-css-height", "value": css_height})
+        asgi.send_all({"type": "comm-css-height", "value": css_height})
 
 
 asgi = Asgi(resources)
