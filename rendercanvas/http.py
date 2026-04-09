@@ -370,7 +370,7 @@ class HttpRenderCanvas(BaseRenderCanvas):
         # Turn array into a based64-encoded JPEG or PNG
         t1 = time.perf_counter()
         mimetype, data = encode_array(array, quality)
-        if False:  # use_websocket:
+        if True:  # use_websocket:
             buffers = [data]
             data_b64 = None
         else:
