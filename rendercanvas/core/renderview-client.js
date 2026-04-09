@@ -101,7 +101,7 @@ function updateStatus() {
 }
 
 function openWebsocketConnection() {
-    const ws = new WebSocket('ws://' + window.location.host + '/ws')
+    const ws = new WebSocket('ws://' + window.location.host + window.location.pathname)
 
     ws.onopen = (e) => {
         console.log('websocket opened')

@@ -50,11 +50,11 @@ def _load_resource(fname):
 
 # A dict with resources to serve. It maps path -> (content-type, body)
 resources = {}
-resources["/"] = "text/html", HTML
-resources["/index.html"] = "text/html", HTML
-resources["/renderview.css"] = "text/css", _load_resource("renderview.css")
+resources[""] = "text/html", HTML
+resources["index.html"] = "text/html", HTML
+resources["renderview.css"] = "text/css", _load_resource("renderview.css")
 for fname in ("renderview.js", "renderview-afm.js", "renderview-client.js"):
-    resources[f"/{fname}"] = "text/javascript", _load_resource(fname)
+    resources[fname] = "text/javascript", _load_resource(fname)
 
 
 class Websocket:
@@ -114,7 +114,7 @@ class Websocket:
             data = data
         else:
             RuntimeError("ws.send expects dict or bytes")
-        asyncio.create_task(self._send_queue.put(data))
+        asyncio.create_task(self._send_queue.put(data))  # noqa: RUF006
 
     def close(self):
         """Close the websocket from our end."""
@@ -148,12 +148,7 @@ class Asgi:
             while True:
                 message = await receive()
                 if message["type"] == "lifespan.startup":
-                    try:
-                        asyncio.get_running_loop().create_task(loop._rc_run_async())
-                    except Exception as err:
-                        print("could not start rendercanvas loop:", err)
-                    else:
-                        print("rendercanvas loop started in server")
+                    loop.kickstart()
                     await send({"type": "lifespan.startup.complete"})
                 elif message["type"] == "lifespan.shutdown":
                     ...  # Do some shutdown here!
@@ -161,7 +156,9 @@ class Asgi:
                     return
 
         elif scope["type"] == "http":
-            content_type_and_body = self._resources.get(scope["path"], None)
+            # Just assume a flat resources dict, so we can mount anywhere in a larger app
+            fname = scope["path"].rsplit("/", 1)[-1]
+            content_type_and_body = self._resources.get(fname, None)
             if content_type_and_body is not None:
                 content_type, body = content_type_and_body
                 if isinstance(body, str):
@@ -186,6 +183,9 @@ class Asgi:
 
         elif scope["type"] == "websocket":
             await send({"type": "websocket.accept"})
+
+            # When running mounted in a larger app, we miss out on the lifespan events
+            loop.kickstart()
 
             self._ws_count += 1
             ws = Websocket(self, self._ws_count)
@@ -244,6 +244,15 @@ class HttpLoop(AsyncioLoop):
                 f"{__name__}:asgi",
             ]
         )
+
+    def kickstart(self):
+        if self._run_loop is None:
+            try:
+                asyncio.get_running_loop().create_task(loop._rc_run_async())
+            except Exception as err:
+                print("could not start rendercanvas loop:", err)
+            else:
+                print("rendercanvas loop started")
 
 
 loop = HttpLoop()
