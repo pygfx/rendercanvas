@@ -73,7 +73,6 @@ class Websocket:
                 elif "bytes" in event:
                     self._on_receive(event["bytes"])
             elif event["type"] == "websocket.disconnect":
-                # TODO: handle closing from client side
                 break
 
     async def _websocket_sender(self, send):
@@ -96,12 +95,12 @@ class Websocket:
             except Exception:
                 short_text = text[:100] + "…" if len(text) > 100 else text
                 print(f"Received non-json message: {short_text!r}")
+                # todo: convert print to log calls
                 return
             else:
-                # todo: some messages, like frame feedback, should be processed per-ws, others only by one.
-                self._app._on_event(self._id, event)
+                self._app._on_event(event, self._id)
 
-    def send(self, data):
+    def send(self, data: dict | bytes):
         """Send data into the websocket."""
         if isinstance(data, dict):
             data = json.dumps(data)
@@ -114,9 +113,6 @@ class Websocket:
     def close(self):
         """Close the websocket from our end."""
         _ = self._send_queue.put(None)  # None means close, see _websocket_sender()
-
-
-# TODO: how does this work when ppl want to include this in a larger web application, with e.g. FastAPI or Falcon?
 
 
 class Asgi:
@@ -132,9 +128,9 @@ class Asgi:
 
     def __init__(self, resources):
         self._resources = resources
-        self._websockets = []
-        self._event_callback = lambda id, ev: None
-        self._ws_count = 0
+        self._websockets = {}  # id -> ws
+        self._event_callback = lambda ev, id: None
+        self._ws_counter = 0
 
     async def __call__(self, scope, receive, send):
         """The ASGI entrypoint."""
@@ -183,10 +179,13 @@ class Asgi:
             # When running mounted in a larger app, we miss out on the lifespan events
             loop.kickstart()
 
-            self._ws_count += 1
-            ws = Websocket(self, self._ws_count)
-            self._websockets.append(ws)
-            self._event_callback(0, {"type": "_new_client"})
+            self._ws_counter += 1
+            id = self._ws_counter
+            ws = Websocket(self, id)
+            self._websockets[id] = ws
+            self._event_callback(
+                {"type": "_clients_change", "ids": tuple(self._websockets)}, 0
+            )
 
             try:
                 receiver = asyncio.create_task(ws._websocket_receiver(receive))
@@ -198,24 +197,38 @@ class Asgi:
                 for task in pending:
                     task.cancel()
             finally:
-                self._websockets.remove(ws)
+                self._websockets.pop(id, None)
+                self._event_callback(
+                    {"type": "_clients_change", "ids": tuple(self._websockets)}, 0
+                )
 
-    def _on_event(self, id, event):
+    def _on_event(self, event, id):
         """Called when a websocket receives an event."""
         try:
-            self._event_callback(id, event)
+            self._event_callback(event, id)
         except Exception as err:
             print(f"Error handling ws event callback: {err}")
 
-    def send_all(self, data: str | bytes):
+    def send_all(self, msg: dict):
         """Send data to all websockets."""
-        for ws in self._websockets:
-            ws.send(data)
+        assert isinstance(msg, dict)
+        for ws in self._websockets.values():
+            ws.send(msg)
+
+    def send_to(self, msg: dict, buffers: list[bytes], ids=list[int]):
+        if len(buffers) > 0:
+            assert msg["nbuffers"] == len(buffers)
+        for id in ids:
+            ws = self._websockets.get(id, None)
+            if ws is not None:
+                ws.send(msg)
+                for buffer in buffers:
+                    ws.send(buffer)
 
     def close(self):
         """Disconnect all clients."""
         # TODO: also put in a closed (non-restartable) state? i.e. think about lifetime cycle
-        for ws in self._websockets:
+        for ws in self._websockets.values():
             ws.close()
 
     def get_count(self):
@@ -264,6 +277,7 @@ class HttpRenderCanvas(BaseRenderCanvas):
     _rc_canvas_group = HttpCanvasGroup(loop)
 
     _max_buffered_frames = 2
+
     _quality = 80
 
     def __init__(self, *args, **kwargs):
@@ -281,33 +295,47 @@ class HttpRenderCanvas(BaseRenderCanvas):
         self._warned_png = False
         self._lossless_draw_info = None
 
+        self._active_client = 0
+        self._confirmed_frame_per_client = {}
+
         self.reset_stats()
 
         # Set size, title, etc.
         self._final_canvas_init()
 
-    def _on_event(self, id: int, event: dict):
+    def _on_event(self, event: dict, id: int):
         try:
             type = event["type"]
         except KeyError:
             logger.warning(f"Invalid event: {event!r}")
             return
 
-        # TODO: some logic depends on the id
-        # TODO: keep track of frame feedback per id, main ws determines frame rate, others drop frames as necessary
-
         if type.startswith("_"):
-            if type == "_framefeedback":
-                self._frame_feedback = event
-                loop.call_soon(self._maybe_draw)
-            elif type == "_new_client":
+            # Internal event
+            if type == "_clients_change":
+                # Update our per-client info
+                self._confirmed_frame_per_client = {
+                    id: self._confirmed_frame_per_client.get(id, 0)
+                    for id in event["ids"]
+                }
+                print(self._confirmed_frame_per_client)
+                # select longest connected client as the new active one
+                self._active_client = event["ids"][0]
                 # Force a draw. With a new client, we want to override frame feedback
                 self._draw_requested = 2
                 loop.call_soon(self._maybe_draw)
+            elif type == "_framefeedback":
+                # Update last confirmed frame. But only schedule new draws based on the active client.
+                self._confirmed_frame_per_client[id] = event["index"]
+                if id == self._active_client:
+                    self._frame_feedback = event
+                loop.call_soon(self._maybe_draw)
             else:
-                logger.warning(f"Unknown comm event: {event!r}")
+                logger.warning(f"Unknown event: {event!r}")
         else:
             # A renderview event
+            if id != self._active_client:
+                return  # ignore events from passive clients
 
             if type == "resize":
                 self._size_info.set_physical_size(
@@ -328,14 +356,22 @@ class HttpRenderCanvas(BaseRenderCanvas):
 
     def _maybe_draw(self):
         """Perform a draw, if we can and should."""
+        # TODO: restore _schedule_maybe_draw? bc there's quite a lot of invocations with multiple clients
         feedback = self._frame_feedback
         # Update stats
         self._update_stats(feedback)
+        # Determine frames in flight for all clients, allowing 2 more in-flight
+        need_index = self._frame_index - self._max_buffered_frames + 1 - 2
+        all_clients_ok = all(
+            index == 0 or index >= need_index
+            for index in self._confirmed_frame_per_client.values()
+        )
         # Determine whether we should perform a draw: a draw was requested, and
         # the client is ready for a new frame, and the client widget is visible.
         frames_in_flight = self._frame_index - feedback.get("index", 0)
         should_draw = (
             self._draw_requested
+            and all_clients_ok
             and (
                 frames_in_flight < self._max_buffered_frames
                 or self._draw_requested >= 2
@@ -416,9 +452,30 @@ class HttpRenderCanvas(BaseRenderCanvas):
             index=self._frame_index,
             timestamp=timestamp,
         )
-        asgi.send_all(msg)
-        for buffer in buffers:
-            asgi.send_all(buffer)
+
+        # Which client receive this?
+        ids = list(self._confirmed_frame_per_client.keys())
+
+        # Currently we send each frame to all clients, and also throttle on the slowest
+        # client (though allowing more in-flight frames for passive clients). This means
+        # that one slow client means a low framerate for all clients. Alternatively, we
+        # can throttle on the active client, and drop frames for the passive clients
+        # that are not up-to-date enough. The commented code below does that. It is not
+        # fully functional, bc the frames_in_flight is over-estimated bc we drop frames
+        # ;) In any case, when/if we use diff images each client MUST have each frame.
+        # Therefore I kept the simpler throttle-on-all approach.
+        #
+        # ids  = [self._active_client]
+        # for id, confirmed_index in self._confirmed_frame_per_client.items():
+        #     if id != self._active_client:
+        #         # Add id if it has not too many frames in flight. Subtract 1 bc we just bumped self._frame_index. Allow 1 extra in-flight frame for passive clients.
+        #         frames_in_flight = self._frame_index - confirmed_index - 1
+        #         if frames_in_flight < self._max_buffered_frames + 1:
+        #             ids.append(id)
+        #         elif confirmed_index == 0:
+        #             ids.append(id)  # new client
+
+        asgi.send_to(msg, buffers, ids)
 
     # ----- related to stats
 
@@ -525,18 +582,19 @@ class HttpRenderCanvas(BaseRenderCanvas):
         return self._is_closed
 
     def _rc_set_title(self, title):
-        asgi.send_all({"type": "comm-title", "value": title})
+        asgi.send_all({"type": "title", "value": title})
 
     def _rc_set_cursor(self, cursor):
-        asgi.send_all({"type": "comm-cursor", "value": cursor})
+        # todo: fix/test this
+        asgi.send_all({"type": "cursor", "value": cursor})
 
     def set_css_width(self, css_width: str):
         """Set the width of the canvas as a CSS string."""
-        asgi.send_all({"type": "comm-css-width", "value": css_width})
+        asgi.send_all({"type": "css_width", "value": css_width})
 
     def set_css_height(self, css_height: str):
         """Set the height of the canvas as a CSS string."""
-        asgi.send_all({"type": "comm-css-height", "value": css_height})
+        asgi.send_all({"type": "css_height", "value": css_height})
 
 
 asgi = Asgi(resources)

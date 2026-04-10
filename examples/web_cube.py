@@ -24,7 +24,7 @@ canvas.request_draw(draw_frame)
 
 
 # Define custom HTML. This is optional.
-html =  """<!DOCTYPE html>
+html = """<!DOCTYPE html>
 <html>
 <head>
     <title>RenderCanvas over http</title>
