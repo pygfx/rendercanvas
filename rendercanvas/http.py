@@ -33,10 +33,6 @@ HTML = """<!DOCTYPE html>
     <div id='canvas' class='renderview-wrapper is-resizable' style='width:640px; height:480px'>
         <p style='width:100%; height:100%; background:#aaa; display: flex; justify-content: center; align-items: center; font-size:150%'>Loading ...</p>
     </div>
-    <br><br>
-    <input id="msg" placeholder="Type message..." />
-    <button onclick="send()">Send</button>
-    <pre id="log"></pre>
 
     <div id='status' style='position:fixed; top:0; right:0; background:#ccc; color:#000; padding:1em; font-family: monospace'></div>
 </body>
@@ -50,10 +46,9 @@ def _load_resource(fname):
 
 # A dict with resources to serve. It maps path -> (content-type, body)
 resources = {}
-resources[""] = "text/html", HTML
 resources["index.html"] = "text/html", HTML
 resources["renderview.css"] = "text/css", _load_resource("renderview.css")
-for fname in ("renderview.js", "renderview-afm.js", "renderview-client.js"):
+for fname in ("renderview.js", "renderview-client.js"):
     resources[fname] = "text/javascript", _load_resource(fname)
 
 
@@ -158,6 +153,7 @@ class Asgi:
         elif scope["type"] == "http":
             # Just assume a flat resources dict, so we can mount anywhere in a larger app
             fname = scope["path"].rsplit("/", 1)[-1]
+            fname = fname or "index.html"
             content_type_and_body = self._resources.get(fname, None)
             if content_type_and_body is not None:
                 content_type, body = content_type_and_body
