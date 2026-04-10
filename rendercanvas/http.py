@@ -321,6 +321,7 @@ class HttpRenderCanvas(BaseRenderCanvas):
                 print(self._confirmed_frame_per_client)
                 # select longest connected client as the new active one
                 self._active_client = event["ids"][0]
+                self._update_active_states()
                 # Force a draw. With a new client, we want to override frame feedback
                 self._draw_requested = 2
                 loop.call_soon(self._maybe_draw)
@@ -595,6 +596,14 @@ class HttpRenderCanvas(BaseRenderCanvas):
     def set_css_height(self, css_height: str):
         """Set the height of the canvas as a CSS string."""
         asgi.send_all({"type": "css_height", "value": css_height})
+
+    def _update_active_states(self):
+        active_ids = [self._active_client]
+        passive_ids = set(self._confirmed_frame_per_client.keys())
+        passive_ids.discard(self._active_client)
+
+        asgi.send_to({"type": "active", "value": True}, [], active_ids)
+        asgi.send_to({"type": "active", "value": False}, [], passive_ids)
 
 
 asgi = Asgi(resources)

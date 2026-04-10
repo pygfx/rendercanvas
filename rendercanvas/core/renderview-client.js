@@ -15,6 +15,7 @@ const wrapperElement = document.getElementById('canvas')
 const statusElement = document.getElementById('status')
 let view = null
 let websocket = null
+let isActive = null
 
 updateStatus()
 openWebsocketConnection()
@@ -93,10 +94,15 @@ class ClientRenderView extends BaseRenderView {
 function updateStatus() {
     if (statusElement === null) { return }
 
+    let activeText = ''
+    if (isActive !== null) {
+        activeText = isActive ? ' (active)' : '(passive)'
+    }
+
     if (websocket === null) {
         statusElement.innerHTML = "<span style='color:#900'>?</span> Disconnected <button onclick='openWebsocketConnection()'>reconnect</button>"
     } else {
-        statusElement.innerHTML = "<span style='color:#090'>+</span> Connected"
+        statusElement.innerHTML = `<span style='color:#090'>+</span> Connected ${activeText}`
     }
 }
 
@@ -150,6 +156,9 @@ function openWebsocketConnection() {
         if (msg.type === 'framebufferdata') {
             view.frames.push(msg)
             view.requestAnimationFrame()
+        } else if (msg.type === 'active') {
+            isActive = msg.value
+            updateStatus()
         } else if (msg.type === 'cursor') {
             view.setCursor(msg.value)
         }
