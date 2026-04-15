@@ -8,7 +8,7 @@ __all__ = ["JupyterRenderCanvas", "RenderCanvas", "loop"]
 import time
 
 from .base import BaseCanvasGroup, BaseRenderCanvas
-from .core.events import EventType
+from .core.events import valid_event_types
 from .asyncio import loop
 
 import numpy as np
@@ -39,7 +39,6 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
         self._last_image = None
         self._is_closed = False
         self._draw_request_time = 0
-        self._rendercanvas_event_types = set(EventType)
 
         # The send_frame() method was added in jupyter_rfb 1.0, but it was always there as a private method,
         # so we can make it backwards compatible.
@@ -129,7 +128,7 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
 
         # Only submit events that rendercanvas knows. Otherwise, if new events are added
         # to jupyter_rfb that rendercanvas does not (yet) know, rendercanvas will complain.
-        if event_type in self._rendercanvas_event_types:
+        if event_type in valid_event_types:
             self.submit_event(event)
 
 

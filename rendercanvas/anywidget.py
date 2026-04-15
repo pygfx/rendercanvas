@@ -12,6 +12,7 @@ from importlib.resources import files as resource_files
 from .base import BaseCanvasGroup, BaseRenderCanvas, logger
 from .asyncio import loop
 from .core.encoders import encode_array, CAN_JPEG
+from .core.events import valid_event_types
 
 import numpy as np
 import anywidget
@@ -156,7 +157,7 @@ class AnywidgetRenderCanvas(BaseRenderCanvas, anywidget.AnyWidget):
                 )
             elif event_type == "close":
                 self.close()
-            else:
+            elif event_type in valid_event_types:
                 # Compatibility between new renderview event spec and current rendercanvas/pygfx events
                 event["event_type"] = event.pop("type")
                 event["time_stamp"] = event.pop("timestamp")
