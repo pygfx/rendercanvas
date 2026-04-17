@@ -14,6 +14,7 @@ from importlib.resources import files as resource_files
 
 from .base import BaseRenderCanvas, BaseCanvasGroup
 from .asyncio import loop
+from .core.events import valid_event_types
 
 if "pyodide" not in sys.modules:
     raise ImportError("This module is only for use with Pyodide in the browser.")
@@ -86,6 +87,10 @@ class PyodideRenderCanvas(BaseRenderCanvas):
     def _on_event(self, event):
         # Called from JS
         event = event.to_py()
+
+        # renderview.js may generate events that rendercanvas does not yet know
+        if event["type"] not in valid_event_types:
+            return
 
         # Compatibility between new renderview event spec and current rendercanvas/pygfx events
         event["event_type"] = event.pop("type")
