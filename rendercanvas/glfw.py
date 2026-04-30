@@ -25,25 +25,6 @@ glfw_version_info = tuple(int(i) for i in glfw.__version__.split(".")[:2])
 if glfw_version_info < (1, 9):
     raise ImportError("rendercanvas requires glfw 1.9 or higher.")
 
-# Do checks to prevent pitfalls on hybrid Xorg/Wayland systems
-api_is_wayland = False
-if sys.platform.startswith("linux") and SYSTEM_IS_WAYLAND:
-    if not hasattr(glfw, "get_x11_window"):
-        # glfw was imported before this module, so we missed our chance
-        # to set the env var to make glfw use x11.
-        api_is_wayland = True
-        logger.warning("Using GLFW with Wayland, which is experimental.")
-    else:
-        # On some systems glfw is built with both X11 and Wayland support.
-        # In that case get_x11_window exists but returns None when glfw is
-        # actually running on the Wayland backend. Log an info note so that
-        # the runtime check in get_glfw_present_info can handle this case.
-        logger.debug(
-            "GLFW has get_x11_window but system is Wayland; "
-            "will verify backend at runtime."
-        )
-
-
 # Some glfw functions are not always available
 set_window_content_scale_callback = lambda *args: None
 set_window_maximize_callback = lambda *args: None
@@ -154,12 +135,7 @@ def get_glfw_present_info(window):
                 else None
             )
 
-        if api_is_wayland or wayland_display is not None:
-            if wayland_display is None:
-                raise RuntimeError(
-                    "GLFW Wayland backend is active but get_wayland_display() "
-                    "returned None. Is libglfw3-wayland installed?"
-                )
+        if wayland_display is not None:
             return {
                 "method": "screen",
                 "platform": "wayland",
