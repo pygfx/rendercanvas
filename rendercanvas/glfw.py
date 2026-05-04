@@ -17,7 +17,7 @@ import glfw
 
 from .base import BaseRenderCanvas, BaseCanvasGroup
 from .asyncio import loop
-from .core.coreutils import SYSTEM_IS_WAYLAND, weakbind, logger
+from .core.coreutils import SYSTEM_IS_WAYLAND, weakbind
 
 
 # Make sure that glfw is new enough
@@ -127,15 +127,20 @@ def get_glfw_present_info(window):
 
     elif sys.platform.startswith("linux"):
         # When the respective platform (X11 or Wayland) is not initialized, glfw emits a GLFWError warning and returns None. We treat None as "backend not active" here so that the warning carries no actionable information for the caller.
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", glfw.GLFWError)
-            wayland_display = (
-                glfw.get_wayland_display()
-                if hasattr(glfw, "get_wayland_display")
-                else None
-            )
+        if SYSTEM_IS_WAYLAND:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", glfw.GLFWError)
+                wayland_display = (
+                    glfw.get_wayland_display()
+                    if hasattr(glfw, "get_wayland_display")
+                    else None
+                )
 
-        if wayland_display is not None:
+            if wayland_display is None:
+                raise RuntimeError(
+                    "GLFW Wayland backend is active but get_wayland_display() "
+                    "returned None. Is libglfw3-wayland installed?"
+                )
             return {
                 "method": "screen",
                 "platform": "wayland",
@@ -143,6 +148,7 @@ def get_glfw_present_info(window):
                 "display": int(wayland_display),
             }
 
+        # fall back to X11
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", glfw.GLFWError)
             x11_display = (
