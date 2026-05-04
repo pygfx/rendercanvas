@@ -345,9 +345,6 @@ def close_agen(agen):
 SYSTEM_IS_WAYLAND = "wayland" in os.getenv("XDG_SESSION_TYPE", "").lower()
 
 if sys.platform.startswith("linux") and SYSTEM_IS_WAYLAND:
-    # Force glfw to use X11. Note that this does not work if glfw is already imported.
-    if "glfw" not in sys.modules:
-        os.environ["PYGLFW_LIBRARY_VARIANT"] = "x11"
     # Force Qt to use X11. Qt is more flexible - it ok if e.g. PySide6 is already imported.
     os.environ["QT_QPA_PLATFORM"] = "xcb"
     # Force wx to use X11, probably.
