@@ -140,8 +140,9 @@ class Task:
             return self._close()
 
         error = None
+
         if not (isinstance(result, dict) and result.get("wait_method", None)):
-            error = f"Incompatible awaitable result {result!r}. Maybe you used asyncio or trio (this does not run on either)?"
+            error = f"Incompatible awaitable result {result!r} from coro {self.coro!r}. Maybe you used asyncio or trio (this does not run on either)?"
         else:
             wait_method = result["wait_method"]
             if wait_method == "sleep":
@@ -152,8 +153,6 @@ class Task:
                 error = f"Unknown wait_method {wait_method!r}."
 
         if error:
-            logger.error(
-                f"Incompatible awaitable result {result!r}. Maybe you used asyncio or trio (this does not run on either)?"
-            )
+            logger.error(error)
             self.cancel()
             self.call_step_later(0)
