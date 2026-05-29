@@ -1,5 +1,5 @@
 """
-A remote backend one or more browser views.
+A remote backend with one or more browser views.
 
 This module implements an ASGI web application, so it runs on any ASGI server. We default to uvicorn.
 """
@@ -65,25 +65,35 @@ class Websocket:
         self._send_queue = asyncio.Queue()
 
     async def _websocket_receiver(self, receive):
-        while True:
-            event = await receive()  # asgi event
-            if event["type"] == "websocket.receive":
-                if "text" in event:
-                    self._on_receive(event["text"])
-                elif "bytes" in event:
-                    self._on_receive(event["bytes"])
-            elif event["type"] == "websocket.disconnect":
-                break
+        try:
+            while True:
+                event = await receive()  # asgi event
+                if event["type"] == "websocket.receive":
+                    if "text" in event:
+                        self._on_receive(event["text"])
+                    elif "bytes" in event:
+                        self._on_receive(event["bytes"])
+                elif event["type"] == "websocket.disconnect":
+                    break
+        except asyncio.CancelledError:
+            pass
 
     async def _websocket_sender(self, send):
-        while True:
-            msg = await self._send_queue.get()
-            if msg is None:
-                await send({"type": "websocket.close", "code": 1000})
-            elif isinstance(msg, str):
-                await send({"type": "websocket.send", "text": msg})
-            else:
-                await send({"type": "websocket.send", "bytes": msg})
+        try:
+            while True:
+                msg = await self._send_queue.get()
+                if msg is None:
+                    await send({"type": "websocket.close", "code": 1000})
+                    break
+                elif isinstance(msg, str):
+                    await send({"type": "websocket.send", "text": msg})
+                else:
+                    await send({"type": "websocket.send", "bytes": msg})
+        except asyncio.CancelledError:
+            pass
+        except Exception as err:
+            if "disconnect" not in err.__class__.__name__.lower():
+                raise err from None
 
     def _on_receive(self, text_or_bytes: str | bytes):
         if isinstance(text_or_bytes, bytes):
@@ -242,6 +252,8 @@ class HttpLoop(AsyncioLoop):
         return super().run()
 
     def _rc_run(self):
+        # Allow the standard rendercanvas usage (``loop.run()``) to start the web server
+
         from uvicorn.main import main as uvicorn_main
 
         print(f"Starting server at http://{self._host}:{self._port}")
@@ -320,7 +332,7 @@ class HttpRenderCanvas(BaseRenderCanvas):
                 }
                 print(self._confirmed_frame_per_client)
                 # select longest connected client as the new active one
-                self._active_client = event["ids"][0]
+                self._active_client = event["ids"][0] if event["ids"] else 0
                 self._update_active_states()
                 # Force a draw. With a new client, we want to override frame feedback
                 self._draw_requested = 2

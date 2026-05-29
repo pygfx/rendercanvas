@@ -9,7 +9,7 @@ with the FastAPI web framework.
 
 You can now run this like any AGI app, e.g. with uvicorn:
 
-    uvicorn web_fastapi:app
+    uvicorn fastapi_app:app
 
 """
 

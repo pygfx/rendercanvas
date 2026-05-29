@@ -2,10 +2,12 @@
 Cube in the browser
 -------------------
 
-Run a wgpu example with the http backend. Also see web_fastapi.py for
-how to integrate a rendercanvas into a larger web application.
+Run a wgpu example with the http backend. Note that the http backend can be used
+with most examples by simply using ``from rendercanvas.http import RenderCanvas,
+loop``. This example also shows how the web-page can be customized.
 
-This example also shows how the web-page can be customized.
+Also see fastapi_app.py for how to integrate a rendercanvas into a larger web
+application.
 """
 
 # run_example = false

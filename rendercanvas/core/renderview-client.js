@@ -4,7 +4,7 @@
   Code to use renderview in a remote browser (rendercanvas http backend).
   There are basically two approaches to take. Either use renderview-afm.js and re-use the render logic,
   but implement an AFM host. Or directly attach a RenderView to a websocket. I went for the latter. Even
-  though that means duplicating some code, it looks like this leads to simpler and shorter code.
+  though that means duplicating some code, it looks like this leads to simpler code.
 
   *************************************************************************************************/
 
