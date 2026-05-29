@@ -97,15 +97,14 @@ class Websocket:
 
     def _on_receive(self, text_or_bytes: str | bytes):
         if isinstance(text_or_bytes, bytes):
-            print("Unexpectedly received bytes ({len(msg}).")
+            logger.warning("Unexpectedly received bytes ({len(msg}).")
         else:
             text = text_or_bytes
             try:
                 event = json.loads(text)  # JS event
             except Exception:
                 short_text = text[:100] + "…" if len(text) > 100 else text
-                print(f"Received non-json message: {short_text!r}")
-                # todo: convert print to log calls
+                logger.warning(f"Received non-json message: {short_text!r}")
                 return
             else:
                 self._app._on_event(event, self._id)
@@ -217,7 +216,7 @@ class Asgi:
         try:
             self._event_callback(event, id)
         except Exception as err:
-            print(f"Error handling ws event callback: {err}")
+            logger.warning(f"Error handling ws event callback: {err}")
 
     def send_all(self, msg: dict):
         """Send data to all websockets."""
@@ -237,7 +236,7 @@ class Asgi:
 
     def close(self):
         """Disconnect all clients."""
-        # TODO: also put in a closed (non-restartable) state? i.e. think about lifetime cycle
+        # I guess technically clients can reconnect again. Not sure if that works.
         for ws in self._websockets.values():
             ws.close()
 
@@ -256,7 +255,8 @@ class HttpLoop(AsyncioLoop):
 
         from uvicorn.main import main as uvicorn_main
 
-        print(f"Starting server at http://{self._host}:{self._port}")
+        # Use warning level; if using info, the message may not be shown
+        logger.warning(f"Starting server at http://{self._host}:{self._port}")
         uvicorn_main(
             [
                 f"--host={self._host}",
@@ -271,9 +271,9 @@ class HttpLoop(AsyncioLoop):
             try:
                 asyncio.get_running_loop().create_task(loop._rc_run_async())
             except Exception as err:
-                print("could not start rendercanvas loop:", err)
+                logger.error("could not start rendercanvas loop:", err)
             else:
-                print("rendercanvas loop started")
+                logger.info("rendercanvas loop started")
 
 
 loop = HttpLoop()
@@ -295,7 +295,7 @@ class HttpRenderCanvas(BaseRenderCanvas):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # todo: limit to a single canvas
+        # Note: we assume there is only a sinle canvas
         asgi._event_callback = self._on_event
 
         self._is_closed = False
@@ -598,7 +598,6 @@ class HttpRenderCanvas(BaseRenderCanvas):
         asgi.send_all({"type": "title", "value": title})
 
     def _rc_set_cursor(self, cursor):
-        # todo: fix/test this
         asgi.send_all({"type": "cursor", "value": cursor})
 
     def set_css_width(self, css_width: str):
