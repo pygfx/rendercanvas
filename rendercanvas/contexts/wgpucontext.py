@@ -446,7 +446,6 @@ class ImageDownloader:
             "bytes_per_row": stride,
             "rows_per_image": texture.size[1],
         }
-
         # Copy data to temp buffer
         encoder = self._device.create_command_encoder()
         encoder.copy_texture_to_buffer(source, destination, texture.size)
@@ -491,7 +490,7 @@ class AsyncImageDownloadAction:
                 buffer.unmap()
             result = {
                 "method": "bitmap",
-                "format": "rgba-u8",
+                "format": self._short_format,
                 "data": data,
             }
             for callback in self._callbacks:
@@ -501,41 +500,16 @@ class AsyncImageDownloadAction:
 
     def _parse_texture_metadata(self, texture):
         size = texture.size
-        format = texture.format
-        nchannels = 4  # we expect rgba or bgra
 
-        if not format.startswith(("rgba", "bgra")):
-            raise RuntimeError(f"Image present unsupported texture format {format}.")
-        if "8" in format:
-            bytes_per_pixel = nchannels
-        elif "16" in format:
-            bytes_per_pixel = nchannels * 2
-        elif "32" in format:
-            bytes_per_pixel = nchannels * 4
-        else:
-            raise RuntimeError(
-                f"Image present unsupported texture format bitdepth {format}."
-            )
-
-        dtype = "uint8"
-        if "float" in format:
-            dtype = "float16" if "16" in format else "float32"
-        else:
-            dtype = "int" if "sint" in format else "uint"
-            if "32" in format:
-                dtype += "32"
-            elif "16" in format:
-                dtype += "16"
-            else:
-                dtype += "8"
+        self._dtype, self._short_format, self._nchannels, bytes_per_pixel = (
+            parse_format(texture.format)
+        )
 
         plain_stride = bytes_per_pixel * size[0]
         extra_stride = (256 - plain_stride % 256) % 256
         padded_stride = plain_stride + extra_stride
 
-        self._dtype = dtype
-        self._nchannels = nchannels
-        self._padded_stride = padded_stride
+        self._array_stride = padded_stride // bytes_per_pixel
         self._texture_size = size
 
         # For ImageDownloader
@@ -545,7 +519,7 @@ class AsyncImageDownloadAction:
     def _get_bitmap(self, buffer):
         dtype = self._dtype
         nchannels = self._nchannels
-        padded_stride = self._padded_stride
+        array_stride = self._array_stride
         size = self._texture_size
         plain_shape = (size[1], size[0], nchannels)
         present_params = self._present_params or {}
@@ -578,8 +552,8 @@ class AsyncImageDownloadAction:
             # This is the default.
 
             # Wrap the data in a (possible strided) numpy array
-            data = np.asarray(mapped_data, dtype=dtype).reshape(
-                plain_shape[0], padded_stride // nchannels, nchannels
+            data = np.frombuffer(mapped_data, dtype).reshape(
+                plain_shape[0], array_stride, nchannels
             )
             # Make a copy, making it contiguous.
             data = data[:, : plain_shape[1], :].copy()
@@ -589,8 +563,8 @@ class AsyncImageDownloadAction:
             # e.g. when the data must be uploaded to a GPU again.
 
             # Wrap the data in a (possible strided) numpy array
-            data = np.asarray(mapped_data, dtype=dtype).reshape(
-                plain_shape[0], padded_stride // nchannels, nchannels
+            data = np.frombuffer(mapped_data, dtype).reshape(
+                plain_shape[0], array_stride, nchannels
             )
             # Make a copy of the strided data, and create a view on that.
             data = data.copy()[:, : plain_shape[1], :]
@@ -601,8 +575,8 @@ class AsyncImageDownloadAction:
             import simplejpeg
 
             # Get strided array view
-            data = np.asarray(mapped_data, dtype=dtype).reshape(
-                plain_shape[0], padded_stride // nchannels, nchannels
+            data = np.frombuffer(mapped_data, dtype).reshape(
+                plain_shape[0], array_stride, nchannels
             )
             data = data[:, : plain_shape[1], :]
 
@@ -628,3 +602,50 @@ class AsyncImageDownloadAction:
             raise RuntimeError(f"Unknown present submethod {submethod!r}")
 
         return data
+
+
+FORMAT_CACHE = {}  # wgpu.TextureFormat -> (dtype, short-format, nchannels, bytes_per_pixel)
+
+
+def parse_format(format: str) -> tuple[str, str, int, int]:
+    """Parse a wgpu TextureFormat, using a cache."""
+
+    try:
+        return FORMAT_CACHE[format]
+    except KeyError:
+        pass
+
+    if format.startswith(("rgba", "bgra")):
+        nchannels = 4
+    else:
+        raise RuntimeError(f"Image present unsupported texture format {format}.")
+    if "8" in format:
+        bytes_per_pixel = nchannels
+    elif "16" in format:
+        bytes_per_pixel = nchannels * 2
+    elif "32" in format:
+        bytes_per_pixel = nchannels * 4
+    else:
+        raise RuntimeError(
+            f"Image present unsupported texture format bitdepth {format}."
+        )
+
+    if "float" in format:
+        dtype = "float16" if "16" in format else "float32"
+    else:
+        dtype = "int" if "sint" in format else "uint"
+        if "32" in format:
+            dtype += "32"
+        elif "16" in format:
+            dtype += "16"
+        else:
+            dtype += "8"
+
+    short_dtype = dtype
+    for s1, s2 in [("float", "f"), ("uint", "u"), ("int", "i")]:
+        short_dtype = short_dtype.replace(s1, s2)
+    short_format = format[:4] + "-" + short_dtype
+
+    result = dtype, short_format, nchannels, bytes_per_pixel
+    FORMAT_CACHE[format] = result
+    return result
