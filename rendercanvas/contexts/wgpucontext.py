@@ -446,6 +446,7 @@ class ImageDownloader:
             "bytes_per_row": stride,
             "rows_per_image": texture.size[1],
         }
+
         # Copy data to temp buffer
         encoder = self._device.create_command_encoder()
         encoder.copy_texture_to_buffer(source, destination, texture.size)
