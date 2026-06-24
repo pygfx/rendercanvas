@@ -135,6 +135,12 @@ By default, the ``glfw`` backend uses an event-loop based on asyncio. But you ca
     trio.run(main)
 
 
+For Linux users with Wayland: Glfw support on Wayland is ... complicated.
+Rendercanvas forces x11 mode by setting the env var ``PYGLFW_LIBRARY_VARIANT`` to 'x11'.
+To avoid this, e.g. when you want to use the system's ``libglfw3``, set ``PYGLFW_LIBRARY``
+or ``PYGLFW_LIBRARY_VARIANT``.
+
+
 Support for Qt
 --------------
 
