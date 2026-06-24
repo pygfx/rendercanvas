@@ -92,7 +92,11 @@ class Websocket:
         except asyncio.CancelledError:
             pass
         except Exception as err:
-            if "disconnect" not in err.__class__.__name__.lower():
+            if "disconnect" in err.__class__.__name__.lower():
+                pass
+            elif "websocket.close" in err.args[0]:
+                pass
+            else:
                 raise err from None
 
     def _on_receive(self, text_or_bytes: str | bytes):
@@ -295,20 +299,20 @@ class HttpRenderCanvas(BaseRenderCanvas):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # Note: we assume there is only a sinle canvas
+        # Note: we assume there is only a single canvas on the page
         asgi._event_callback = self._on_event
 
         self._is_closed = False
-
         self._draw_requested = False
-        self._frame_feedback = {}
-        self._frame_index = 0
-        self._last_confirmed_index = 0
+        self._pending_maybe_draw = False
+
+        self._last_frame = None, None
+        self._ref_index = 0  # global index to identify a frame
+        self._active_client = 0
+        self._frame_info_per_client = {}  # {sent: int, confirmed: int, ref: int}
+
         self._warned_png = False
         self._lossless_draw_info = None
-
-        self._active_client = 0
-        self._confirmed_frame_per_client = {}
 
         self.reset_stats()
 
@@ -326,27 +330,26 @@ class HttpRenderCanvas(BaseRenderCanvas):
             # Internal event
             if type == "_clients_change":
                 # Update our per-client info
-                self._confirmed_frame_per_client = {
-                    id: self._confirmed_frame_per_client.get(id, 0)
-                    for id in event["ids"]
+                new = {"sent": 0, "confirmed": 0, "ref": 0}
+                self._frame_info_per_client = {
+                    id: self._frame_info_per_client.get(id, new) for id in event["ids"]
                 }
-                print(self._confirmed_frame_per_client)
                 # select longest connected client as the new active one
                 self._active_client = event["ids"][0] if event["ids"] else 0
                 self._update_active_states()
-                # Force a draw. With a new client, we want to override frame feedback
-                self._draw_requested = 2
-                loop.call_soon(self._maybe_draw)
+                self._schedule_maybe_draw()
             elif type == "_framefeedback":
                 # Update last confirmed frame. But only schedule new draws based on the active client.
-                self._confirmed_frame_per_client[id] = event["index"]
+                self._frame_info_per_client[id]["confirmed"] = event["index"]
+                self._schedule_maybe_draw()
                 if id == self._active_client:
-                    self._frame_feedback = event
-                loop.call_soon(self._maybe_draw)
+                    self._update_stats_on_frame_receive(event["timestamp"])
             else:
                 logger.warning(f"Unknown event: {event!r}")
         else:
             # A renderview event
+
+            # if type == "visible"
             if id != self._active_client:
                 return  # ignore events from passive clients
 
@@ -367,34 +370,35 @@ class HttpRenderCanvas(BaseRenderCanvas):
                     event["modifiers"] = tuple(event["modifiers"])
                 self.submit_event(event)
 
+    def _schedule_maybe_draw(self, *args):
+        if not self._pending_maybe_draw:
+            self._pending_maybe_draw = True
+            loop.call_soon(self._maybe_draw)
+
     def _maybe_draw(self):
         """Perform a draw, if we can and should."""
-        # TODO: restore _schedule_maybe_draw? bc there's quite a lot of invocations with multiple clients
-        feedback = self._frame_feedback
-        # Update stats
-        self._update_stats(feedback)
-        # Determine frames in flight for all clients, allowing 2 more in-flight
-        need_index = self._frame_index - self._max_buffered_frames + 1 - 2
-        all_clients_ok = all(
-            index == 0 or index >= need_index
-            for index in self._confirmed_frame_per_client.values()
-        )
-        # Determine whether we should perform a draw: a draw was requested, and
-        # the client is ready for a new frame, and the client widget is visible.
-        frames_in_flight = self._frame_index - feedback.get("index", 0)
+        self._pending_maybe_draw = False
+
+        # Based on the active client, determine if we need a new draw
+        try:
+            info = self._frame_info_per_client[self._active_client]
+        except KeyError:
+            active_client_ready_for_new_frame = False
+        else:
+            active_client_ready_for_new_frame = (
+                info["sent"] - info["confirmed"] < self._max_buffered_frames
+            )
         should_draw = (
             self._draw_requested
-            and all_clients_ok
-            and (
-                frames_in_flight < self._max_buffered_frames
-                or self._draw_requested >= 2
-            )
-            and asgi.get_count() > 0
+            and active_client_ready_for_new_frame
+            and len(self._frame_info_per_client) > 0
         )
-        # Do the draw if we should.
+        # Do the draw if we should. Otherwise maybe send frames to other clients.
         if should_draw:
             self._draw_requested = False
-            self._time_to_draw()  # -> _rc_present_bitmap -> _send_frame
+            self._time_to_draw()  # -> _rc_present_bitmap -> _encode_frame
+        elif len(self._frame_info_per_client) > 1:
+            self._send_last_frame_to_ready_clients()
 
     def _schedule_lossless_draw(self, array, delay=0.3):
         self._cancel_lossless_draw()
@@ -409,29 +413,22 @@ class HttpRenderCanvas(BaseRenderCanvas):
             handle.cancel()
 
     def _lossless_draw(self):
-        array, _ = self._lossless_draw_info
-        self._send_frame(array, True)
+        if self._lossless_draw_info is not None:
+            array, _ = self._lossless_draw_info
+            self._encode_frame(array, True)
 
-    def _send_frame(self, array, is_lossless_redraw=False):
+    def _encode_frame(self, array, is_lossless_redraw=False):
         """Actually send a frame over to the client."""
         # For considerations about performance,
         # see https://github.com/vispy/jupyter_rfb/issues/3
         quality = 100 if is_lossless_redraw else self._quality
 
-        self._frame_index += 1
         timestamp = time.time()
 
         # Turn array into a based64-encoded JPEG or PNG
         t1 = time.perf_counter()
         mimetype, data = encode_array(array, quality)
-        if True:  # use_websocket:
-            buffers = [data]
-            data_b64 = None
-        else:
-            buffers = []
-            from base64 import encodebytes
-
-            data_b64 = f"data:{mimetype};base64," + encodebytes(data).decode()
+        buffers = [data]
         t2 = time.perf_counter()
 
         if "jpeg" in mimetype:
@@ -445,106 +442,88 @@ class HttpRenderCanvas(BaseRenderCanvas):
                     "No JPEG encoder found, using PNG instead. Install simplejpeg for better performance."
                 )
 
-        if is_lossless_redraw:
-            # No stats, also not on the confirmation of this frame
-            self._last_confirmed_index = self._frame_index
-        else:
-            # Stats
-            self._stats["img_encoding_sum"] += t2 - t1
-            self._stats["sent_frames"] += 1
+        # Stats
+        if not is_lossless_redraw:
+            self._stats["encoding_sum"] += t2 - t1
+            self._stats["encoded_frames"] += 1
             if self._stats["start_time"] <= 0:  # Start measuring
                 self._stats["start_time"] = timestamp
-                self._last_confirmed_index = self._frame_index - 1
 
         # Compose message and send
         msg = dict(
             type="framebufferdata",
             nbuffers=len(buffers),
             mimetype=mimetype,
-            data_b64=data_b64,
-            index=self._frame_index,
             timestamp=timestamp,
+            index=0,
         )
 
-        # Which client receive this?
-        ids = list(self._confirmed_frame_per_client.keys())
+        # Store this frame
+        self._last_frame = msg, buffers
+        self._ref_index += 1
 
-        # Currently we send each frame to all clients, and also throttle on the slowest
-        # client (though allowing more in-flight frames for passive clients). This means
-        # that one slow client means a low framerate for all clients. Alternatively, we
-        # can throttle on the active client, and drop frames for the passive clients
-        # that are not up-to-date enough. The commented code below does that. It is not
-        # fully functional, bc the frames_in_flight is over-estimated bc we drop frames
-        # ;) In any case, when/if we use diff images each client MUST have each frame.
-        # Therefore I kept the simpler throttle-on-all approach.
-        #
-        # ids  = [self._active_client]
-        # for id, confirmed_index in self._confirmed_frame_per_client.items():
-        #     if id != self._active_client:
-        #         # Add id if it has not too many frames in flight. Subtract 1 bc we just bumped self._frame_index. Allow 1 extra in-flight frame for passive clients.
-        #         frames_in_flight = self._frame_index - confirmed_index - 1
-        #         if frames_in_flight < self._max_buffered_frames + 1:
-        #             ids.append(id)
-        #         elif confirmed_index == 0:
-        #             ids.append(id)  # new client
+        # Send to clients that are ready
+        self._send_last_frame_to_ready_clients()
 
-        asgi.send_to(msg, buffers, ids)
+    def _send_last_frame_to_ready_clients(self):
+        msg, buffers = self._last_frame
+        max_buffered_frames = self._max_buffered_frames
+        ref_index = self._ref_index
+
+        for id, info in self._frame_info_per_client.items():
+            if info["sent"] - info["confirmed"] < max_buffered_frames:
+                if info["ref"] < ref_index:
+                    this_msg = msg.copy()
+                    info["ref"] = ref_index
+                    info["sent"] += 1
+                    this_msg["index"] = info["sent"]
+                    self._stats["sent_frames"] += 1
+                    asgi.send_to(this_msg, buffers, [id])
 
     # ----- related to stats
 
     def reset_stats(self):
         """Restart measuring statistics from the next sent frame."""
         self._stats = {
-            "start_time": 0,
-            "last_time": 1,
+            "start_time": 0.0,
+            "last_time": 0.0,
+            "encoded_frames": 0,
             "sent_frames": 0,
             "confirmed_frames": 0,
-            "roundtrip_count": 0,
-            "roundtrip_sum": 0,
-            "delivery_sum": 0,
-            "img_encoding_sum": 0,
+            "encoding_sum": 0.0,
+            "roundtrip_sum": 0.0,
         }
+
+    def _update_stats_on_frame_receive(self, timestamp):
+        """Update the stats when a new frame feedback has arrived."""
+        now = time.time()
+        self._stats["confirmed_frames"] += 1
+        self._stats["roundtrip_sum"] += now - timestamp
+        self._stats["last_time"] = now
 
     def get_stats(self):
         """Get the current stats since the last time ``.reset_stats()`` was called.
 
         Stats is a dict with the following fields:
 
+        * *encoded_frames*: the number of encoded frames.
         * *sent_frames*: the number of frames sent.
         * *confirmed_frames*: number of frames confirmed by the client.
         * *roundtrip*: average time for processing a frame, including receiver confirmation.
-        * *delivery*: average time for processing a frame until it's received by the client.
-          This measure assumes that the clock of the server and client are precisely synced.
-        * *img_encoding*: the average time spent on encoding the array into an image.
-        * *b64_encoding*: the average time spent on base64 encoding the data.
+        * *encoding*: the average time spent on encoding the array into an image.
         * *fps*: the average FPS, measured from the first frame sent since ``.reset_stats()``
           was called, until the last confirmed frame.
         """
         d = self._stats
-        roundtrip_count_div = d["roundtrip_count"] or 1
-        sent_frames_div = d["sent_frames"] or 1
         fps_div = (d["last_time"] - d["start_time"]) or 0.001
         return {
+            "encoded_frames": d["encoded_frames"],
             "sent_frames": d["sent_frames"],
             "confirmed_frames": d["confirmed_frames"],
-            "roundtrip": d["roundtrip_sum"] / roundtrip_count_div,
-            "delivery": d["delivery_sum"] / roundtrip_count_div,
-            "img_encoding": d["img_encoding_sum"] / sent_frames_div,
+            "encoding": d["encoding_sum"] / d["encoded_frames"],
+            "roundtrip": d["roundtrip_sum"] / d["confirmed_frames"],
             "fps": d["confirmed_frames"] / fps_div,
         }
-
-    def _update_stats(self, feedback):
-        """Update the stats when a new frame feedback has arrived."""
-        last_index = feedback.get("index", 0)
-        if last_index > self._last_confirmed_index:
-            timestamp = feedback["timestamp"]
-            nframes = last_index - self._last_confirmed_index
-            self._last_confirmed_index = last_index
-            self._stats["confirmed_frames"] += nframes
-            self._stats["roundtrip_count"] += 1
-            self._stats["roundtrip_sum"] += time.time() - timestamp
-            self._stats["delivery_sum"] += feedback["localtime"] - timestamp
-            self._stats["last_time"] = time.time()
 
     # --- the API to be a rendercanvas backend
 
@@ -568,7 +547,7 @@ class HttpRenderCanvas(BaseRenderCanvas):
         if not self._draw_requested:
             self._draw_requested = True
             self._cancel_lossless_draw()
-            loop.call_soon(self._maybe_draw)
+            self._schedule_maybe_draw()
 
     def _rc_request_paint(self):
         # We technically don't need to call _time_to_paint, because this backend only does bitmap mode.
@@ -581,7 +560,7 @@ class HttpRenderCanvas(BaseRenderCanvas):
 
     def _rc_present_bitmap(self, *, data, format, **kwargs):
         assert format == "rgba-u8"
-        self._send_frame(np.asarray(data))
+        self._encode_frame(np.asarray(data))
 
     def _rc_set_logical_size(self, width, height):
         asgi.send_all({"type": "comm-css-width", "value": f"{width}px"})
@@ -610,7 +589,7 @@ class HttpRenderCanvas(BaseRenderCanvas):
 
     def _update_active_states(self):
         active_ids = [self._active_client]
-        passive_ids = set(self._confirmed_frame_per_client.keys())
+        passive_ids = set(self._frame_info_per_client.keys())
         passive_ids.discard(self._active_client)
 
         asgi.send_to({"type": "active", "value": True}, [], active_ids)
