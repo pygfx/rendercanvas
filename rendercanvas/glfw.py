@@ -11,28 +11,19 @@ __all__ = ["GlfwRenderCanvas", "RenderCanvas", "loop"]
 
 import sys
 import time
+import warnings
 
 import glfw
 
 from .base import BaseRenderCanvas, BaseCanvasGroup
 from .asyncio import loop
-from .core.coreutils import SYSTEM_IS_WAYLAND, weakbind, logger
+from .core.coreutils import weakbind
 
 
 # Make sure that glfw is new enough
 glfw_version_info = tuple(int(i) for i in glfw.__version__.split(".")[:2])
 if glfw_version_info < (1, 9):
     raise ImportError("rendercanvas requires glfw 1.9 or higher.")
-
-# Do checks to prevent pitfalls on hybrid Xorg/Wayland systems
-api_is_wayland = False
-if sys.platform.startswith("linux") and SYSTEM_IS_WAYLAND:
-    if not hasattr(glfw, "get_x11_window"):
-        # Probably glfw was imported before this module, so we missed our chance
-        # to set the env var to make glfw use x11.
-        api_is_wayland = True
-        logger.warning("Using GLFW with Wayland, which is experimental.")
-
 
 # Some glfw functions are not always available
 set_window_content_scale_callback = lambda *args: None
@@ -135,21 +126,43 @@ def get_glfw_present_info(window):
         }
 
     elif sys.platform.startswith("linux"):
-        if api_is_wayland:
+        # When the respective platform (X11 or Wayland) is not initialized, glfw emits a GLFWError warning and returns None. We treat None as "backend not active" here so that the warning carries no actionable information for the caller.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", glfw.GLFWError)
+            wayland_display = (
+                glfw.get_wayland_display()
+                if hasattr(glfw, "get_wayland_display")
+                else None
+            )
+
+        if wayland_display is not None:
             return {
                 "method": "screen",
                 "platform": "wayland",
                 "window": int(glfw.get_wayland_window(window)),
-                "display": int(glfw.get_wayland_display()),
+                "display": int(wayland_display),
             }
 
-        else:
+        # fall back to X11 if obtaining a wayland window handle fails (e.g. if Wayland is not available)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", glfw.GLFWError)
+            x11_display = (
+                glfw.get_x11_display() if hasattr(glfw, "get_x11_display") else None
+            )
+        if x11_display is not None:
             return {
                 "method": "screen",
                 "platform": "x11",
                 "window": int(glfw.get_x11_window(window)),
-                "display": int(glfw.get_x11_display()),
+                "display": int(x11_display),
             }
+
+        raise RuntimeError(
+            "Cannot get GLFW surface info on Linux: neither a Wayland nor "
+            "an X11 display handle is available. "
+            "Make sure a display server is running and the matching glfw "
+            "library variant is installed."
+        )
 
     else:
         raise RuntimeError(f"Cannot get GLFW surface info on {sys.platform}.")
