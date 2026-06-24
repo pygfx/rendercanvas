@@ -288,7 +288,14 @@ class HttpCanvasGroup(BaseCanvasGroup):
 
 
 class HttpRenderCanvas(BaseRenderCanvas):
-    """A remote canvas that is served over http and viewed in a browser."""
+    """A remote canvas that is served over http and viewed in a browser.
+
+    It is assumed that there is exactly one canvas per connected client.
+    Multiple clients can simultaneously connect to the server. They will be served
+    the same stream of images. There is one "active" client, which determines
+    the pase of rendering. Events from the passive clients are ignored.
+    Passive clients drop frames if necessary to keep up with the active client.
+    """
 
     _rc_canvas_group = HttpCanvasGroup(loop)
 
@@ -418,7 +425,7 @@ class HttpRenderCanvas(BaseRenderCanvas):
             self._encode_frame(array, True)
 
     def _encode_frame(self, array, is_lossless_redraw=False):
-        """Actually send a frame over to the client."""
+        """Encode a frame and store it so we can send it to each client in the right time."""
         # For considerations about performance,
         # see https://github.com/vispy/jupyter_rfb/issues/3
         quality = 100 if is_lossless_redraw else self._quality
@@ -466,6 +473,7 @@ class HttpRenderCanvas(BaseRenderCanvas):
         self._send_last_frame_to_ready_clients()
 
     def _send_last_frame_to_ready_clients(self):
+        """Send the last frame to clients that are ready, and have not yet been sent it."""
         msg, buffers = self._last_frame
         max_buffered_frames = self._max_buffered_frames
         ref_index = self._ref_index
