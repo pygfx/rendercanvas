@@ -228,15 +228,14 @@ class Asgi:
         for ws in self._websockets.values():
             ws.send(msg)
 
-    def send_to(self, msg: dict, buffers: list[bytes], ids=list[int]):
+    def send_to(self, msg: dict, buffers: list[bytes], id=int):
         if len(buffers) > 0:
             assert msg["nbuffers"] == len(buffers)
-        for id in ids:
-            ws = self._websockets.get(id, None)
-            if ws is not None:
-                ws.send(msg)
-                for buffer in buffers:
-                    ws.send(buffer)
+        ws = self._websockets.get(id, None)
+        if ws is not None:
+            ws.send(msg)
+            for buffer in buffers:
+                ws.send(buffer)
 
     def close(self):
         """Disconnect all clients."""
@@ -486,7 +485,7 @@ class HttpRenderCanvas(BaseRenderCanvas):
                     info["sent"] += 1
                     this_msg["index"] = info["sent"]
                     self._stats["sent_frames"] += 1
-                    asgi.send_to(this_msg, buffers, [id])
+                    asgi.send_to(this_msg, buffers, id)
 
     # ----- related to stats
 
@@ -596,12 +595,9 @@ class HttpRenderCanvas(BaseRenderCanvas):
         asgi.send_all({"type": "css_height", "value": css_height})
 
     def _update_active_states(self):
-        active_ids = [self._active_client]
-        passive_ids = set(self._frame_info_per_client.keys())
-        passive_ids.discard(self._active_client)
-
-        asgi.send_to({"type": "active", "value": True}, [], active_ids)
-        asgi.send_to({"type": "active", "value": False}, [], passive_ids)
+        for id in self._frame_info_per_client.keys():
+            active = id == self._active_client
+            asgi.send_to({"type": "active", "value": active}, [], id)
 
 
 asgi = Asgi(resources)
