@@ -917,7 +917,7 @@ class BaseRenderView {
       }
       // Prevent the text box from growing
       if (!ev.isComposing) {
-        this.focus_el.value = ''
+        this._focusElement.value = ''
       }
 
       const event = {

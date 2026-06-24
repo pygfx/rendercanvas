@@ -571,8 +571,8 @@ class HttpRenderCanvas(BaseRenderCanvas):
         self._encode_frame(np.asarray(data))
 
     def _rc_set_logical_size(self, width, height):
-        asgi.send_all({"type": "comm-css-width", "value": f"{width}px"})
-        asgi.send_all({"type": "comm-css-height", "value": f"{height}px"})
+        asgi.send_all({"type": "css_width", "value": f"{width}px"})
+        asgi.send_all({"type": "css_height", "value": f"{height}px"})
 
     def _rc_close(self):
         asgi.close()
