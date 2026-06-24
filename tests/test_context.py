@@ -19,7 +19,7 @@ def get_test_bitmap(width, height):
         (0, 0, 255, 255),
         (0, 0, 0, 255),
         (50, 50, 50, 255),
-        (127, 127, 127, 255),
+        (128, 128, 128, 255),
         (205, 205, 205, 255),
         (255, 255, 255, 255),
     ]
@@ -266,6 +266,7 @@ def test_wgpu_context():
     result = canvas.draw()
 
     assert isinstance(result, np.ndarray)
+    assert result.dtype == np.uint8
     assert np.all(result == bitmap)
 
     # Now we change the size
@@ -277,6 +278,22 @@ def test_wgpu_context():
     assert result.shape != bitmap.shape
     assert result.shape[1] == canvas.get_physical_size()[0]
     assert result.shape[0] == canvas.get_physical_size()[1]
+
+
+@pytest.mark.skipif(not can_use_wgpu_lib, reason="Needs wgpu lib")
+def test_wgpu_context_hdr():
+    # Create canvas with float16 texture format
+    canvas = ManualOffscreenRenderCanvas(format="rgba-f16")
+    context = canvas.get_context(BitmapContextToWgpuAndBackToBitmap)
+
+    bitmap = get_test_bitmap(*canvas.get_physical_size())
+    context.set_bitmap(bitmap)
+    result = canvas.draw()
+
+    assert isinstance(result, np.ndarray)
+    assert result.dtype == np.float16
+    assert result.shape == bitmap.shape
+    assert np.all(result * 255 == bitmap)
 
 
 if __name__ == "__main__":
