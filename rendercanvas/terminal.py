@@ -39,6 +39,18 @@ def captured_stdout_and_stderr():
         original_stderr.write(buf_err.getvalue())
 
 
+@contextmanager
+def set_pointer_to_arrow():
+    does_pointer = term.does_kitty_pointer_shapes()
+    if does_pointer:
+        sys.stdout.write("\033]22;default\007")  # arrow pointer
+    try:
+        yield
+    finally:
+        if does_pointer:
+            sys.stdout.write("\033]22;\007")  # reset to terminal default
+
+
 KEY_MAP = {
     "KEY_DOWN": "ArrowDown",
     "KEY_UP": "ArrowUp",
@@ -88,6 +100,7 @@ class TerminalLoop(AsyncioLoop):
             term.hidden_cursor(),
             term.cbreak(),
             term.mouse_enabled(report_motion=True),
+            set_pointer_to_arrow(),
         ):
             super()._rc_run()
 
@@ -156,9 +169,9 @@ class TerminalRenderCanvas(BaseRenderCanvas):
         elif keystroke.name and keystroke.name.startswith("MOUSE_"):
             key_name = keystroke.name
             # Get pos
-            x, y = keystroke.mouse_xy
-            x = float(x) / self._pixel_ratio
-            y = float(y) * 2 / self._pixel_ratio
+            term_x, term_y = keystroke.mouse_xy
+            x = float(term_x) / self._pixel_ratio
+            y = float(term_y) * 2 / self._pixel_ratio
             self._pointer_pos = x, y
             # Get kind
             if "MOTION" in key_name:
@@ -181,6 +194,14 @@ class TerminalRenderCanvas(BaseRenderCanvas):
             modifiers = []
             if "SHIFT" in key_name:
                 modifiers.append("Shift")
+            # Exit when the cross in the top-right is clicked
+            if (
+                kind == "down"
+                and button == 1
+                and term_y == 0
+                and term_x == self._term_size[0] - 1
+            ):
+                loop.stop()
             # Submit!
             ev = {
                 "event_type": f"pointer_{kind}",
@@ -194,9 +215,9 @@ class TerminalRenderCanvas(BaseRenderCanvas):
             }
             self.submit_event(ev)
         else:
-            # TODO: Exit? Since there is no close button, allow exit with ESCAPE in addition to CTRL-C?
-            if keystroke.key_name == "KEY_ESCAPE":
-                loop.stop()
+            # The application exits on Control-C, we could also exit on escape, but escape may be an application event.
+            # if keystroke.key_name == "KEY_ESCAPE":
+            #     loop.stop()
             # Get key
             if keystroke.key_name:
                 key = KEY_MAP.get(keystroke.key_name, "")
@@ -255,8 +276,13 @@ class TerminalRenderCanvas(BaseRenderCanvas):
             term_stream.write(line)
 
         # Reset and flush. Moving to (0, 0) prevents flicker by avoiding the jump to the *next* line.
-        term_stream.write(term.move_xy(0, im.shape[1] - 1) + term.normal + "X")
-        term_stream.write(term.move_xy(0, 0) + "\n")
+        term_stream.write(
+            term.move_xy(img.shape[1] - 1, 0)
+            + term.on_color_rgb(0, 0, 0)
+            + term.color_rgb(255, 255, 255)
+            + "×"
+        )
+        term_stream.write(term.move_xy(0, 0) + term.normal + "\n")
         term_stream.flush()
 
     def _rc_set_logical_size(self, width, height):
