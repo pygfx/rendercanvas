@@ -295,7 +295,7 @@ class TerminalRenderCanvas(BaseRenderCanvas):
                 for rgb1, rgb2 in zip(top_row, bot_row, strict=True)
             )
             term_stream.write(term.move_xy(0, y // 2) + line)
-            # Show title and close button on the first line. Do here to avoid flicker.
+            # Show close button on the first line. Do here rather then at end to avoid flicker.
             if y == 0:
                 term_stream.write(term.normal + term.move_xy(img.shape[1] - 1, 0) + "×")  # noqa: RUF001
 
