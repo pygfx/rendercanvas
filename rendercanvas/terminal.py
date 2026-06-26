@@ -150,7 +150,6 @@ class TerminalRenderCanvas(BaseRenderCanvas):
         self._upscale_factor = max(1, int(upscale_factor))
 
         self._closed = False
-        self._title = ""
         self._term_size = 0, 0
         self._pointer_pos = (0, 0)
         self._pointer_buttons = ()
@@ -166,7 +165,6 @@ class TerminalRenderCanvas(BaseRenderCanvas):
         term_size = term.width, term.height
         if term_size != self._term_size:
             self._term_size = term_size
-            self._set_clipped_title()
             # Determine physical size. Each char is two vertical pixels. Have a margin to avoid jump artifacts.
             pwidth = term_size[0] * self._upscale_factor
             pheight = term_size[1] * 2 * self._upscale_factor
@@ -299,13 +297,7 @@ class TerminalRenderCanvas(BaseRenderCanvas):
             term_stream.write(term.move_xy(0, y // 2) + line)
             # Show title and close button on the first line. Do here to avoid flicker.
             if y == 0:
-                term_stream.write(
-                    term.normal
-                    + term.move_xy(0, 0)
-                    + self._clipped_title
-                    + term.move_xy(img.shape[1] - 1, 0)
-                    + "×"  # noqa: RUF001
-                )
+                term_stream.write(term.normal + term.move_xy(img.shape[1] - 1, 0) + "×")  # noqa: RUF001
 
         # Reset and flush. Moving to (0, 0) prevents jump-flicker by avoiding the jump to the *next* line.
         term_stream.write(term.normal + term.move_xy(0, 0) + "\n")
@@ -321,15 +313,7 @@ class TerminalRenderCanvas(BaseRenderCanvas):
         return self._closed
 
     def _rc_set_title(self, title):
-        self._title = title
-        self._set_clipped_title()
-
-    def _set_clipped_title(self):
-        w = max(2, self._term_size[0] - 3)
-        if len(self._title) > w:
-            self._clipped_title = self._title[: w - 1] + "…"
-        else:
-            self._clipped_title = self._title
+        term_stream.write(term.set_window_title(title) + "\n")
 
     def _rc_set_cursor(self, cursor):
         pass
