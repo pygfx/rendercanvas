@@ -324,5 +324,13 @@ def test_wx_module():
     assert loop_class.name == "WxLoop"
 
 
+def test_terminal_module():
+    m = Module("terminal")
+
+    canvas_class = m.get_canvas_class()
+    m.check_canvas(canvas_class)
+    assert canvas_class.name == "TerminalRenderCanvas"
+
+
 if __name__ == "__main__":
     run_tests(globals())
