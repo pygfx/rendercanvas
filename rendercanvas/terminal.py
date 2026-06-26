@@ -5,7 +5,9 @@ A stub backend for documentation purposes.
 __all__ = ["RenderCanvas", "TerminalRenderCanvas", "loop"]
 
 
+import io
 import sys
+from contextlib import contextmanager
 
 from .base import BaseCanvasGroup, BaseRenderCanvas
 from .asyncio import AsyncioLoop
@@ -15,13 +17,77 @@ import numpy as np
 # The terminal backend requires the blessed library, which is simple and has few dependencies
 import blessed
 
+term_stream = sys.__stdout__
+original_stdout = sys.stdout
+original_stderr = sys.stderr
 
-term = blessed.Terminal()
+term = blessed.Terminal(stream=term_stream)
+
+
+@contextmanager
+def captured_stdout_and_stderr():
+    buf_out = io.StringIO()
+    buf_err = io.StringIO()
+    sys.stdout = buf_out
+    sys.stderr = buf_err
+    try:
+        yield
+    finally:
+        sys.stdout = original_stdout
+        sys.stderr = original_stderr
+        original_stdout.write(buf_out.getvalue())
+        original_stderr.write(buf_err.getvalue())
+
+
+KEY_MAP = {
+    "KEY_DOWN": "ArrowDown",
+    "KEY_UP": "ArrowUp",
+    "KEY_LEFT": "ArrowLeft",
+    "KEY_RIGHT": "ArrowRight",
+    "KEY_BACKSPACE": "Backspace",
+    "KEY_": "CapsLock",
+    "KEY_DELETE": "Delete",
+    "KEY_END": "End",
+    "KEY_ENTER": "Enter",  # aka return
+    "KEY_ESCAPE": "Escape",
+    "KEY_F1": "F1",
+    "KEY_F2": "F2",
+    "KEY_F3": "F3",
+    "KEY_F4": "F4",
+    "KEY_F5": "F5",
+    "KEY_F6": "F6",
+    "KEY_F7": "F7",
+    "KEY_F8": "F8",
+    "KEY_F9": "F9",
+    "KEY_F10": "F10",
+    "KEY_F11": "F11",
+    "KEY_F12": "F12",
+    "KEY_HOME": "Home",
+    "KEY_INSERT": "Insert",
+    "KEY_ALT": "Alt",
+    # "KEY_CONTROL": "Control",
+    "KEY_COMMAND": "Control",
+    # "KEY_SHIFT": "Shift",
+    # "KEY_META": "Meta",
+    "KEY_NUM_LOCK": "NumLock",
+    "KEY_PGDOWN": "PageDown",
+    "KEY_PGUP": "PageUp",
+    "KEY_PAUSE": "Pause",
+    "KEY_PRINT_SCREEN": "PrintScreen",
+    # "KEY_ALT": "Alt",
+    "KEY_SCROLL_LOCK": "ScrollLock",
+    "KEY_TAB": "Tab",
+}
 
 
 class TerminalLoop(AsyncioLoop):
     def _rc_run(self):
-        with term.fullscreen(), term.hidden_cursor():
+        with (
+            captured_stdout_and_stderr(),
+            term.fullscreen(),
+            term.hidden_cursor(),
+            term.cbreak(),
+        ):
             super()._rc_run()
 
 
@@ -62,9 +128,24 @@ class TerminalRenderCanvas(BaseRenderCanvas):
             self.request_draw()
 
         # Check for key pressed
-        key = term.inkey(timeout=0)
-        if key:
-            sys.stderr.write(key + "\n")
+        keystroke = term.inkey(timeout=0)
+        if keystroke:
+            # TODO: Exit? Since there is no close button, allow exit with ESCAPE in addition to CTRL-C?
+            if keystroke.key_name == "KEY_ESCAPE":
+                loop.stop()
+            # Get key
+            if keystroke.key_name:
+                key = KEY_MAP.get(keystroke.key_name, "")
+            else:
+                key = keystroke.value
+            # Submit event. Modifiers are tricky, I guess we ignore them
+            if key:
+                ev = {
+                    "event_type": "key_down",
+                    "key": key,
+                    "modifiers": (),
+                }
+                self.submit_event(ev)
 
     def _rc_get_present_info(self, present_methods):
         if "bitmap" in present_methods:
@@ -106,12 +187,12 @@ class TerminalRenderCanvas(BaseRenderCanvas):
                 term.on_color_rgb(*rgb1) + term.color_rgb(*rgb2) + "▄"
                 for rgb1, rgb2 in zip(top_row, bot_row, strict=True)
             )
-            sys.stdout.write(term.move_xy(0, y // 2))
-            sys.stdout.write(line)
+            term_stream.write(term.move_xy(0, y // 2))
+            term_stream.write(line)
 
         # Reset and flush. Moving to (0, 0) prevents flicker by avoiding the jump to the *next* line.
-        sys.stdout.write(term.move_xy(0, 0) + term.normal + "\n")
-        sys.stdout.flush()
+        term_stream.write(term.move_xy(0, 0) + term.normal + "\n")
+        term_stream.flush()
 
     def _rc_set_logical_size(self, width, height):
         pass  # we ignore setting the size, we simply take the full size of the window
