@@ -87,6 +87,7 @@ class TerminalLoop(AsyncioLoop):
             term.fullscreen(),
             term.hidden_cursor(),
             term.cbreak(),
+            term.mouse_enabled(report_motion=True),
         ):
             super()._rc_run()
 
@@ -127,9 +128,49 @@ class TerminalRenderCanvas(BaseRenderCanvas):
             self._size_info.set_physical_size(pwidth, pheight, self._pixel_ratio)
             self.request_draw()
 
-        # Check for key pressed
+        # Check for key/mouse pressed
         keystroke = term.inkey(timeout=0)
-        if keystroke:
+        if not keystroke:
+            pass
+        elif keystroke.name and keystroke.name.startswith("MOUSE_"):
+            key_name = keystroke.name
+            # Get pos
+            x, y = keystroke.mouse_yx
+            x = float(x) * self._pixel_ratio
+            y = float(y) * 2 * self._pixel_ratio
+            # Get kind
+            if "MOTION" in key_name:
+                kind = "move"
+            elif "RELEASED" in key_name:
+                kind = "up"
+            else:
+                kind = "down"
+            # Get button and buttons. We ignore that buttons can be clicked when other buttons are down
+            button = 0
+            if "LEFT" in key_name:
+                button = 1
+            elif "RIGHT" in key_name:
+                button = 2
+            elif "MIDDLE" in key_name:
+                button = 3
+            buttons = () if kind == "up" else (button,)
+            # Modifiers
+            modifiers = []
+            if "SHIFT" in key_name:
+                modifiers.append("Shift")
+            # Submit!
+            ev = {
+                "event_type": f"pointer_{kind}",
+                "x": x,
+                "y": y,
+                "button": button,
+                "buttons": buttons,
+                "modifiers": tuple(modifiers),
+                "ntouches": 0,
+                "touches": {},
+            }
+            self.submit_event(ev)
+        else:
             # TODO: Exit? Since there is no close button, allow exit with ESCAPE in addition to CTRL-C?
             if keystroke.key_name == "KEY_ESCAPE":
                 loop.stop()
@@ -143,7 +184,7 @@ class TerminalRenderCanvas(BaseRenderCanvas):
                 ev = {
                     "event_type": "key_down",
                     "key": key,
-                    "modifiers": (),
+                    "modifiers": tuple(),
                 }
                 self.submit_event(ev)
 
