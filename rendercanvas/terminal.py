@@ -111,11 +111,16 @@ class TerminalRenderCanvas(BaseRenderCanvas):
 
         self._closed = False
         self._term_size = 0, 0
+        self._pointer_pos = (0, 0)
+        self._pointer_buttons = ()
 
         # TODO: force singleton
 
         self._rc_gui_poll()
         self._final_canvas_init()
+
+        # Start with a pointer enter event
+        self.submit_event({"event_type": "pointer_enter"})
 
     def _rc_gui_poll(self):
         # Check for resize
@@ -132,12 +137,29 @@ class TerminalRenderCanvas(BaseRenderCanvas):
         keystroke = term.inkey(timeout=0)
         if not keystroke:
             pass
+        elif keystroke.name and keystroke.name.startswith("MOUSE_SCROLL_"):
+            delta = 200  # empirically determined. Can adjust.
+            if keystroke.name.endswith("UP"):
+                delta = -delta
+            ev = {
+                "event_type": "wheel",
+                "dx": 0,
+                "dy": delta,
+                "x": self._pointer_pos[0],
+                "y": self._pointer_pos[1],
+                "buttons": tuple(self._pointer_buttons),
+                "modifiers": tuple(),
+            }
+            print(ev)
+            self.submit_event(ev)
+
         elif keystroke.name and keystroke.name.startswith("MOUSE_"):
             key_name = keystroke.name
             # Get pos
-            x, y = keystroke.mouse_yx
-            x = float(x) * self._pixel_ratio
-            y = float(y) * 2 * self._pixel_ratio
+            x, y = keystroke.mouse_xy
+            x = float(x) / self._pixel_ratio
+            y = float(y) * 2 / self._pixel_ratio
+            self._pointer_pos = x, y
             # Get kind
             if "MOTION" in key_name:
                 kind = "move"
@@ -154,6 +176,7 @@ class TerminalRenderCanvas(BaseRenderCanvas):
             elif "MIDDLE" in key_name:
                 button = 3
             buttons = () if kind == "up" else (button,)
+            self._pointer_buttons = buttons
             # Modifiers
             modifiers = []
             if "SHIFT" in key_name:
