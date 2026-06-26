@@ -255,7 +255,8 @@ class TerminalRenderCanvas(BaseRenderCanvas):
             term_stream.write(line)
 
         # Reset and flush. Moving to (0, 0) prevents flicker by avoiding the jump to the *next* line.
-        term_stream.write(term.move_xy(0, 0) + term.normal + "\n")
+        term_stream.write(term.move_xy(0, im.shape[1] - 1) + term.normal + "X")
+        term_stream.write(term.move_xy(0, 0) + "\n")
         term_stream.flush()
 
     def _rc_set_logical_size(self, width, height):
