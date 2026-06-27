@@ -129,7 +129,11 @@ class TerminalCanvasGroup(BaseCanvasGroup):
 class TerminalRenderCanvas(BaseRenderCanvas):
     """A canvas that enders in the terminal.
 
-    Restrictions:
+    Arguments:
+        pixel_ratio : float
+            The (initial) ratio that determines the logical size of the window. Default 0.25; the pixels are huge!
+
+    Restrictions of this backend:
 
     * Obviously the resolution is very low: 2 pixels (vertically) per character.
     * Only key_down events, no key_up.
@@ -141,13 +145,12 @@ class TerminalRenderCanvas(BaseRenderCanvas):
 
     _rc_canvas_group = TerminalCanvasGroup(loop)
 
-    def __init__(self, *args, pixel_ratio=0.25, upscale_factor=1, **kwargs):
+    def __init__(self, *args, pixel_ratio=0.25, **kwargs):
         super().__init__(*args, **kwargs)
 
         # NOTE: it is assumed that there is exactly one canvas. If this assumption is violated I guess they will alternately flicker.
 
-        self._pixel_ratio = max(1 / 32, float(pixel_ratio))
-        self._upscale_factor = max(1, int(upscale_factor))
+        self._pixel_ratio = pixel_ratio
 
         self._closed = False
         self._term_size = 0, 0
@@ -160,14 +163,33 @@ class TerminalRenderCanvas(BaseRenderCanvas):
         # Start with a pointer enter event
         self.submit_event({"event_type": "pointer_enter"})
 
+    def set_pixel_ratio(self, pixel_ratio: float):
+        """Set the pixel ratio, changing the logical size of the canvas.
+
+        Since each character represents only 2 (vertical) pixels, the total
+        number of pixels is very small. A pixel_ratio of 1/8 is likely most
+        realistic (since text chars are typically 8 pixels wide). However, to be
+        able to read any rendered text you'll want a pixel_ratio of about 1, but
+        then the visualization may appear very much zoomed in. In other words,
+        the optimal pixel ratio for the terminal backend depends on the
+        application.
+
+        Therefore, the pixel ratio can be changed using a button at the
+        top-right of the screen, or programmatically using this method.
+        """
+        self._pixel_ratio = float(pixel_ratio)
+        pwidth, pheight = self.get_physical_size()
+        self._size_info.set_physical_size(pwidth, pheight, self._pixel_ratio)
+        self.request_draw()
+
     def _rc_gui_poll(self):
         # Check for resize
         term_size = term.width, term.height
         if term_size != self._term_size:
             self._term_size = term_size
             # Determine physical size. Each char is two vertical pixels. Have a margin to avoid jump artifacts.
-            pwidth = term_size[0] * self._upscale_factor
-            pheight = term_size[1] * 2 * self._upscale_factor
+            pwidth = term_size[0]
+            pheight = term_size[1] * 2
             self._size_info.set_physical_size(pwidth, pheight, self._pixel_ratio)
             self.request_draw()
 
@@ -221,9 +243,16 @@ class TerminalRenderCanvas(BaseRenderCanvas):
                     kind == "down"
                     and button == 1
                     and term_y == 0
-                    and term_x == self._term_size[0] - 1
+                    and term_x >= self._term_size[0] - 4
                 ):
-                    loop.stop()
+                    if term_x == self._term_size[0] - 4:
+                        p = round(np.log2(self._pixel_ratio))
+                        self.set_pixel_ratio(2 ** (p - 1))
+                    elif term_x == self._term_size[0] - 3:
+                        p = round(np.log2(self._pixel_ratio))
+                        self.set_pixel_ratio(2 ** (p + 1))
+                    elif term_x == self._term_size[0] - 1:
+                        loop.stop()
                 # Submit!
                 ev = {
                     "event_type": f"pointer_{kind}",
@@ -274,17 +303,16 @@ class TerminalRenderCanvas(BaseRenderCanvas):
         self._time_to_paint()
 
     def _rc_present_bitmap(self, *, data, format, **kwargs):
-        # Get image from data, optionally downscale
-        factor = self._upscale_factor
-        if factor == 1:
+        # Get 8bit image
+        if format == "rgba-f16":
+            img = np.rint(data)
+            np.clip(img, 0, 255, out=img)
+            img = img.astype(np.uint8)
+        elif format == "rgba-u16":
+            img = data // 256
+            img = img.astype(np.uint8)
+        else:  # format == "rgba-u8":
             img = data
-        else:
-            h, w, c = data.shape
-            img = (
-                data.reshape(h // factor, factor, w // factor, factor, c)
-                .mean(axis=(1, 3))
-                .astype(np.uint8)
-            )
 
         # Push lines to stdout
         for y in range(0, img.shape[0], 2):
@@ -297,7 +325,10 @@ class TerminalRenderCanvas(BaseRenderCanvas):
             term_stream.write(term.move_xy(0, y // 2) + line)
             # Show close button on the first line. Do here rather then at end to avoid flicker.
             if y == 0:
-                term_stream.write(term.normal + term.move_xy(img.shape[1] - 1, 0) + "×")  # noqa: RUF001
+                s = f"ratio {self._pixel_ratio:0.4g} -+ ×"  # noqa: RUF001
+                term_stream.write(
+                    term.normal + term.move_xy(img.shape[1] - len(s), 0) + s
+                )
 
         # Reset and flush. Moving to (0, 0) prevents jump-flicker by avoiding the jump to the *next* line.
         term_stream.write(term.normal + term.move_xy(0, 0) + "\n")
