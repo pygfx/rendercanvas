@@ -127,7 +127,7 @@ class TerminalCanvasGroup(BaseCanvasGroup):
 
 
 class TerminalRenderCanvas(BaseRenderCanvas):
-    """A canvas that enders in the terminal.
+    """A canvas that renders in the terminal.
 
     Arguments:
         pixel_ratio : float
