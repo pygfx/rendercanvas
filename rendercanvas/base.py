@@ -676,10 +676,12 @@ class BaseRenderCanvas:
         except Exception:
             pass
         self._canvas_context = None
-        # Clean events. Should already have happened in loop, but the loop may not be running.
-        self._events.close()
         # Let the subclass clean up.
-        self._rc_close()
+        try:
+            self._rc_close()
+        finally:
+            # Clean events. Should already have happened in loop, but the loop may not be running.
+            self._events.close()
 
     def get_closed(self) -> bool:
         """Get whether the window is closed."""
