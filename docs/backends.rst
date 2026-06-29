@@ -64,6 +64,11 @@ The table below gives an overview of the names in the different ``rendercanvas``
           | ``loop`` (an ``AsyncioLoop``)
         - | Backend when Python is running in the
           | browser via Pyodide or PyScript.
+    *   - ``terminal``
+        - | ``TerminalRenderCanvas``
+          | ``RenderCanvas`` (alias)
+          | ``loop`` (an ``AsyncioLoop``)
+        - | Render in the terminal (using ``blessed``).
 
 There are also three loop-backends. These are mainly intended for use with the glfw backend:
 

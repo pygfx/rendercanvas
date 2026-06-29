@@ -25,6 +25,7 @@ dependencies = ["numpy"] # Numpy is the only hard dependency
 jupyter = ["jupyter_rfb>=0.4.2", "simplejpeg; implementation_name != 'pypy'"]
 notebook = ["anywidget", "simplejpeg; implementation_name != 'pypy'"]
 glfw = ["glfw>=1.9"]
+terminal = ["blessed"]
 # For devs / ci
 lint = ["ruff", "pre-commit"]
 examples = ["flit", "numpy", "wgpu", "glfw", "pyside6", "imageio", "pytest"]
