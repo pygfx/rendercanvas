@@ -292,7 +292,7 @@ class HttpRenderCanvas(BaseRenderCanvas):
     It is assumed that there is exactly one canvas per connected client.
     Multiple clients can simultaneously connect to the server. They will be served
     the same stream of images. There is one "active" client, which determines
-    the pase of rendering. Events from the passive clients are ignored.
+    the pace of rendering. Events from the passive clients are ignored.
     Passive clients drop frames if necessary to keep up with the active client.
     """
 
