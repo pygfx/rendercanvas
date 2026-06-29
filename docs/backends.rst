@@ -41,6 +41,12 @@ The table below gives an overview of the names in the different ``rendercanvas``
           | ``RenderCanvas`` (alias)
           | ``loop`` (a ``StubLoop``)
         - | For offscreen rendering.
+    *   - ``http``
+        - | ``HttpRenderCanvas``
+          | ``RenderCanvas`` (alias)
+          | ``loop`` (an ``AsyncioLoop``)
+        - | Run an http server that streams the images
+          | to a view in the browser.
     *   - ``anywidget``
         - | ``AnywidgetRenderCanvas``
           | ``RenderCanvas`` (alias)
@@ -50,13 +56,14 @@ The table below gives an overview of the names in the different ``rendercanvas``
         - | ``JupyterRenderCanvas``
           | ``RenderCanvas`` (alias)
           | ``loop`` (an ``AsyncioLoop``)
-        - | Integrate in notebooks via ``jupyter_rfb`` (deprecated).
+        - | Integrate in notebooks via ``jupyter_rfb``
+          | (deprecated).
     *   - ``pyodide``
         - | ``PyodideRenderCanvas`` (toplevel)
           | ``RenderCanvas`` (alias)
           | ``loop`` (an ``AsyncioLoop``)
-        - | Backend when Python is running in the browser,
-          | via Pyodide or PyScript.
+        - | Backend when Python is running in the
+          | browser via Pyodide or PyScript.
 
 There are also three loop-backends. These are mainly intended for use with the glfw backend:
 
@@ -270,6 +277,47 @@ object, but in some cases it's convenient to do so with a canvas-like API.
 
     # Perform a draw
     array = canvas.draw()  # numpy array with shape (400, 500, 4)
+
+
+Support for http / web (experimental)
+-------------------------------------
+
+The http backend can be used to open a canvas in a browser, streaming the images over a websocket.
+
+.. autoclass:: rendercanvas.http.HttpRenderCanvas
+    :members:
+
+It can be enabled simply by selecting the http backend:
+
+.. code-block:: py
+
+    from rendercanvas.http import RenderCanvas
+
+    ... your normal code as usual
+
+The only dependency is ``uvicorn``,  a low-level ASGI server.
+It is also possible to customize the server's resources, see the ``cube_http.py`` example for details:
+
+.. code-block:: py
+
+    from rendercanvas.http import RenderCanvas, loop, resources
+
+    resources["index.html"] = "text/html", your custom html
+    resources["logo.png"] = "image/png", encode_png(numpy_array)
+
+Finally, you can embed it in a larger ASGI application. This requires the framework to support mounting an ASGI application:
+
+.. code-block:: py
+
+    from fastapi import FastAPI
+    from rendercanvas.http import RenderCanvas, asgi
+
+    app = FastAPI()
+
+    ...
+
+    # Attach the rendercanvas part at a sub path
+    app.mount("/rendercanvas_path", asgi)
 
 
 Support for notebooks

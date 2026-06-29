@@ -596,7 +596,7 @@ class BaseRenderView {
     viewElement.addEventListener('pointerdown', (ev) => {
       // When pointer is down, set focus to the focus-element.
       if (!LOOKS_LIKE_MOBILE) {
-        this._focusElement.focus({ preventScroll: true, focusVisble: false })
+        this._focusElement.focus({ preventScroll: true, focusVisible: false })
       }
       // capture the pointing device.
       // Because we capture the event, there will be no other events when buttons are pressed down,
@@ -917,7 +917,7 @@ class BaseRenderView {
       }
       // Prevent the text box from growing
       if (!ev.isComposing) {
-        this.focus_el.value = ''
+        this._focusElement.value = ''
       }
 
       const event = {

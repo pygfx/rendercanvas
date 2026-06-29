@@ -38,6 +38,8 @@ def detect_current_async_lib():
             libname = "rendercanvas.utils.asyncadapter"
         elif libname == "pyodide":
             libname = "asyncio"
+        elif libname == "uvloop":
+            libname = "asyncio"
         return libname
 
 
