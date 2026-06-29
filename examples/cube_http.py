@@ -55,5 +55,6 @@ im = np.random.uniform(0, 255, (16, 16, 3)).astype(np.uint8)
 resources["logo.png"] = "image/png", encode_png(im)
 
 
-# the loop.run() of this backend uses uvicorn to start a webserver
-loop.run()
+# The loop.run() of this backend uses uvicorn to start a webserver.
+# The args are optional and default to "localhost" and port 60649
+loop.run("localhost", 8080)

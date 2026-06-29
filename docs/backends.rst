@@ -279,8 +279,8 @@ object, but in some cases it's convenient to do so with a canvas-like API.
     array = canvas.draw()  # numpy array with shape (400, 500, 4)
 
 
-Support for http / web
-----------------------
+Support for http / web (experimental)
+-------------------------------------
 
 The http backend can be used to open a canvas in a browser, streaming the images over a websocket.
 

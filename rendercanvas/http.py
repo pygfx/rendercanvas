@@ -287,13 +287,20 @@ class HttpCanvasGroup(BaseCanvasGroup):
 
 
 class HttpRenderCanvas(BaseRenderCanvas):
-    """A remote canvas that is served over http and viewed in a browser.
+    """An experimental remote canvas that is served over http and viewed in a browser.
 
-    It is assumed that there is exactly one canvas per connected client.
-    Multiple clients can simultaneously connect to the server. They will be served
-    the same stream of images. There is one "active" client, which determines
-    the pace of rendering. Events from the passive clients are ignored.
-    Passive clients drop frames if necessary to keep up with the active client.
+    It is assumed that there is exactly one canvas in the application.
+
+    Multiple clients can simultaneously connect to the server. They will be
+    served the same stream of images. There is one "active" client, which
+    determines the pace of rendering. When the tab for that client is hidden,
+    the animation stalls. Events from the passive clients are ignored. Passive
+    clients drop frames if necessary to keep up with the active client.
+    When the active client drops, the first passive client becomes active.
+
+    It is the responsibility of the user to handle authorization of remotely
+    connected clients. It is recommended to use an authentication system and/or
+    magic links. On localhost this is not an issue though.
     """
 
     _rc_canvas_group = HttpCanvasGroup(loop)
