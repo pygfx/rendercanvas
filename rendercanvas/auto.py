@@ -18,29 +18,11 @@ from .core.coreutils import (
 from .base import BaseRenderCanvas, BaseLoop
 
 
-# Note that wx is not in here, because it does not (yet) fully implement base.BaseRenderCanvas
-BACKEND_NAMES = ["glfw", "qt", "anywidget", "jupyter", "offscreen"]
-
-
 def _load_backend(backend_name):
     """Load a backend by name."""
-    if backend_name == "glfw":
-        from . import glfw as module
-    elif backend_name == "qt":
-        from . import qt as module
-    elif backend_name == "anywidget":
-        from . import anywidget as module
-    elif backend_name == "jupyter":
-        from . import jupyter as module
-    elif backend_name == "wx":
-        from . import wx as module
-    elif backend_name == "offscreen":
-        from . import offscreen as module
-    elif backend_name == "pyodide":
-        from . import pyodide as module
-    else:  # no-cover
-        raise ImportError("Unknown rendercanvas backend: '{backend_name}'")
-    return module
+    if not backend_name.isidentifier():
+        raise RuntimeError(f"Invalid backend name {backend_name!r}")
+    return importlib.import_module(f".{backend_name}", package=__package__)
 
 
 def select_backend():
@@ -121,14 +103,14 @@ def backends_by_env_vars():
 
     # Env var to force a backend for general use
     backend_name, varname = get_env_var("RENDERCANVAS_BACKEND", "WGPU_GUI_BACKEND")
-    if backend_name:
-        if backend_name not in BACKEND_NAMES:
-            logger.warning(
-                f"Ignoring invalid {varname} '{backend_name}', must be one of {BACKEND_NAMES}"
-            )
-            backend_name = None
-    if backend_name:
+    backend_name = backend_name.strip()
+    if backend_name and backend_name != "auto":
         yield backend_name, f"{varname} is set"
+
+    # SSH
+    ssh_value, ssh_env_name = get_env_var("SSH_CLIENT", "SSH_TTY")
+    if ssh_value:
+        yield "terminal", f"Looks like SSH session because {ssh_env_name} is set"
 
 
 def backends_by_notebook():
@@ -160,8 +142,8 @@ def backends_by_notebook():
         gui_module_name = app.__class__.__module__.split(".")[0]
         if gui_module_name in QT_MODULE_NAMES:
             yield "qt", "running on Jupyter with qt gui"
-        # elif "wx" in app.__class__.__name__.lower() == "wx":
-        #     yield "wx", "running on Jupyter with wx gui"
+        elif "wx" in app.__class__.__name__.lower() == "wx":
+            yield "wx", "running on Jupyter with wx gui"
 
     yield "anywidget", "running on Jupyter"
 
@@ -195,8 +177,8 @@ def backends_by_imported_modules():
     if qtlib:
         yield "qt", "qt is imported"
 
-    # if "wx" in sys.modules:
-    #     yield "wx", "wx is imported"
+    if "wx" in sys.modules:
+        yield "wx", "wx is imported"
 
 
 def backends_by_trying_in_order():
@@ -208,7 +190,7 @@ def backends_by_trying_in_order():
         "PyQt6": "qt",
         "PySide2": "qt",
         "PyQt5": "qt",
-        # "wx": "wx",
+        "wx": "wx",
     }
 
     for libname, backend_name in lib_to_backend.items():
