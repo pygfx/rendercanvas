@@ -151,7 +151,6 @@ jobs:
         include:
           - backendname: 'glfw'
             deps: 'glfw'
-            loopname: 'AsyncioLoop'
             os: windows-latest
           - backendname: 'pyside6'
             deps: 'PySide6'
@@ -170,7 +169,7 @@ jobs:
             os: windows-latest
           - backendname: 'wx'
             deps: 'wxPython'
-            loopname: 'WxLoop'
+            # loopname: 'WxLoop'  wx's event loop has limitations
             os: windows-latest
     steps:
     - uses: actions/checkout@v4
