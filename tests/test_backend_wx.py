@@ -13,12 +13,12 @@ from testutils import run_tests
 
 # Only run when running directly (through Python or pytest)
 if not (__name__ == "__main__" or any(__name__ in a for a in sys.argv)):
-    pytest.skip("Skipping tests that need wx", allow_module_level=True)
+    pytest.skip(f"Skipping backend specific tests {__name__}", allow_module_level=True)
 
 
 import wx
 from rendercanvas.base import BaseRenderCanvas, WrapperRenderCanvas
-from rendercanvas.wx import RenderCanvas, RenderWidget
+from rendercanvas.wx import RenderCanvas, RenderWidget, loop
 from rendercanvas.wx import WxRenderWidget, WxRenderCanvas
 
 
@@ -32,6 +32,29 @@ def test_is_canvas_classes():
 
     assert issubclass(RenderWidget, wx.Window)
     assert issubclass(RenderCanvas, wx.Frame)
+
+
+def test_canvas_close_by_canvas():
+    canvas1 = RenderCanvas()
+    canvas2 = RenderCanvas()
+
+    loop.call_later(0.5, canvas1.close)
+    loop.call_later(0.6, canvas2.close)
+    loop.run()
+
+    assert canvas1.get_closed()
+    assert canvas2.get_closed()
+
+
+def test_canvas_close_by_loop():
+    canvas1 = RenderCanvas()
+    canvas2 = RenderCanvas()
+
+    loop.call_later(0.5, loop.stop)
+    loop.run()
+
+    assert canvas1.get_closed()
+    assert canvas2.get_closed()
 
 
 def test_canvas_sizing():

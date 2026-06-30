@@ -141,38 +141,35 @@ jobs:
         "
         pytest -v tests
 
-  # Test for the few GUI frameworks that we support.
-  test-gui-frameworks:
-    name: 'Test gui ${{ matrix.backendname }}'
+  # Test specific for backends. Ran separately, since GUI frameworks don't like to be loaded in the same process.
+  test-backends:
+    name: 'Test backend ${{ matrix.backendname }}'
     runs-on:  ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - guilib: 'glfw'
-            backendname: 'glfw'
-            guitestname: 'glfw'
-            loopname: 'AsyncioLoop'
+          - backendname: 'glfw'
+            deps: 'glfw'
             os: windows-latest
-          - guilib: 'PySide6'
-            backendname: 'pyside6'
-            guitestname: 'qt'
+          - backendname: 'pyside6'
+            deps: 'PySide6'
+            testname: 'qt'
             loopname: 'PySide6Loop'
             os: windows-latest
-          - guilib: 'PyQt6'
-            backendname: 'pyqt6'
-            guitestname: 'qt'
+          - backendname: 'pyqt6'
+            deps: 'PyQt6'
+            testname: 'qt'
             loopname: 'PyQt6Loop'
             os: windows-latest
-          - guilib: 'PyQt5'
-            backendname: 'pyqt5'
-            guitestname: 'qt'
+          - backendname: 'pyqt5'
+            deps: 'PyQt5'
+            testname: 'qt'
             loopname: 'PyQt5Loop'
             os: windows-latest
-          - guilib: 'wxPython'
-            backendname: 'wx'
-            guitestname: 'wx'
-            loopname: 'WxLoop'
+          - backendname: 'wx'
+            deps: 'wxPython'
+            # loopname: 'WxLoop'  wx's event loop has limitations
             os: windows-latest
     steps:
     - uses: actions/checkout@v4
@@ -190,18 +187,18 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install .[tests]
-        pip install ${{ matrix.guilib }}
+        pip install ${{ matrix.deps }}
         rm -r rendercanvas
     - name: Test import
       run: |
         python -c 'import rendercanvas.${{ matrix.backendname }}'
     - name: Test loop
-      if: matrix.backendname != 'wx'
+      if: matrix.loopname
       run: |
         pytest -v tests/test_loop.py -k ${{ matrix.loopname }}
-    - name: Test GUI canvas
+    - name: Test backend canvas
       run: |
-        pytest -v tests/test_gui_${{ matrix.guitestname }}.py
+        pytest -v tests/test_backend_${{ matrix.testname || matrix.backendname }}.py
 
   # Test that the examples run without error, and screenshots match
   test-examples:

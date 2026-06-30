@@ -16,7 +16,7 @@ from testutils import run_tests
 
 # Only run when running directly (through Python or pytest)
 if not (__name__ == "__main__" or any(__name__ in a for a in sys.argv)):
-    pytest.skip("Skipping tests that need wx", allow_module_level=True)
+    pytest.skip(f"Skipping backend specific tests {__name__}", allow_module_level=True)
 
 
 for lib in ("PySide6", "PyQt6", "PySide2", "PyQt5"):
@@ -25,6 +25,8 @@ for lib in ("PySide6", "PyQt6", "PySide2", "PyQt5"):
         break
     except ModuleNotFoundError:
         pass
+    else:
+        raise RuntimeError("No Qt lib found!")
 
 
 from rendercanvas.base import BaseRenderCanvas, WrapperRenderCanvas
