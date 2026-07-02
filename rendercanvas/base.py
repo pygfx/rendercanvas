@@ -590,7 +590,8 @@ class BaseRenderCanvas:
                     self._draw_frame()
                 except Exception as err:
                     if type(err).__name__ == "DrawCancelled":
-                        scheduler.on_cancel_draw()
+                        if scheduler is not None:
+                            scheduler.on_cancel_draw()
                         return
                     raise
 
