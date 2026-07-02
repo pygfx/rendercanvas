@@ -586,7 +586,13 @@ class BaseRenderCanvas:
             # Perform the user-defined drawing code. When this errors,
             # we should report the error and then continue, otherwise we crash.
             with log_exception("Draw error"):
-                self._draw_frame()
+                try:
+                    self._draw_frame()
+                except Exception as err:
+                    if type(err).__name__ == "DrawCancelled":
+                        scheduler.on_cancel_draw()
+                        return
+                    raise
 
             # Perform the presentation process. Might be async
             with log_exception("Present init error"):
