@@ -112,6 +112,12 @@ class TerminalLoop(AsyncioLoop):
             term.fullscreen(),
             term.hidden_cursor(),
             captured_stdout_and_stderr(),
+            term.enable_kitty_keyboard(
+                report_events=True,
+                report_all_keys=True,
+                report_alternates=True,
+                report_text=True,
+            ),
             term.cbreak(),
             term.mouse_enabled(report_motion=True),
             set_pointer_to_arrow(),
@@ -136,9 +142,7 @@ class TerminalRenderCanvas(BaseRenderCanvas):
     Restrictions of this backend:
 
     * Obviously the resolution is very low: 2 pixels (vertically) per character.
-    * Only key_down events, no key_up.
-    * No support for modifiers with key events.
-    * Limited support for modifiers in pointer events (only Shift).
+    * Limited support for modifiers in pointer and key events (only Shift).
     * The experience may differ depending on the terminal you're at.
 
     """
@@ -156,6 +160,7 @@ class TerminalRenderCanvas(BaseRenderCanvas):
         self._term_size = 0, 0
         self._pointer_pos = (0, 0)
         self._pointer_buttons = ()
+        self._pressed_keys = {}
 
         self._rc_gui_poll()
         self._final_canvas_init()
@@ -194,10 +199,15 @@ class TerminalRenderCanvas(BaseRenderCanvas):
             self.request_draw()
 
         # Check for key/mouse pressed. Read buffered events until the buffer is empty.
-        while keystroke := term.inkey(timeout=0):
-            if keystroke.name and keystroke.name.startswith("MOUSE_SCROLL_"):
+        while True:
+            keystroke = term.inkey(timeout=0)
+            if not keystroke:
+                break
+            stroke_name = keystroke.name or ""
+
+            if stroke_name.startswith("MOUSE_SCROLL_"):
                 delta = 200  # empirically determined. Can adjust.
-                if keystroke.name.endswith("UP"):
+                if stroke_name.endswith("UP"):
                     delta = -delta
                 ev = {
                     "event_type": "wheel",
@@ -210,33 +220,32 @@ class TerminalRenderCanvas(BaseRenderCanvas):
                 }
                 self.submit_event(ev)
 
-            elif keystroke.name and keystroke.name.startswith("MOUSE_"):
-                key_name = keystroke.name
+            elif stroke_name.startswith("MOUSE_"):
                 # Get pos
                 term_x, term_y = keystroke.mouse_xy
                 x = float(term_x) / self._pixel_ratio
                 y = float(term_y) * 2 / self._pixel_ratio
                 self._pointer_pos = x, y
                 # Get kind
-                if "MOTION" in key_name:
+                if "MOTION" in stroke_name:
                     kind = "move"
-                elif "RELEASED" in key_name:
+                elif "RELEASED" in stroke_name:
                     kind = "up"
                 else:
                     kind = "down"
                 # Get button and buttons. We ignore that buttons can be clicked when other buttons are down
                 button = 0
-                if "LEFT" in key_name:
+                if "LEFT" in stroke_name:
                     button = 1
-                elif "RIGHT" in key_name:
+                elif "RIGHT" in stroke_name:
                     button = 2
-                elif "MIDDLE" in key_name:
+                elif "MIDDLE" in stroke_name:
                     button = 3
                 buttons = () if kind == "up" else (button,)
                 self._pointer_buttons = buttons
                 # Modifiers
                 modifiers = []
-                if "SHIFT" in key_name:
+                if "SHIFT" in stroke_name:
                     modifiers.append("Shift")
                 # Exit when the cross in the top-right is clicked
                 if (
@@ -266,20 +275,44 @@ class TerminalRenderCanvas(BaseRenderCanvas):
                 }
                 self.submit_event(ev)
             else:
+                key_name = keystroke.key_name
+                # self.set_title(
+                #     f"{stroke_name} | {key_name} | {keystroke.value!r}  repeated: {keystroke.repeated} pressed: {keystroke.pressed}"
+                # )
                 # The application exits on Control-C, we could also exit on escape, but escape may be an application event.
-                # if keystroke.key_name == "KEY_ESCAPE":
-                #     loop.stop()
+                if stroke_name == "KEY_CTRL_C":
+                    loop.stop()
                 # Get key
-                if keystroke.key_name:
-                    key = KEY_MAP.get(keystroke.key_name, "")
-                else:
+                if key_name:
+                    key = KEY_MAP.get(key_name, "")
+                if not key:
                     key = keystroke.value
-                # Submit event. Modifiers are tricky, I guess we ignore them
+                if not key:
+                    key = key_name.split("_")[-1].lower()
+                    if len(key) != 1:
+                        key = ""
+                # Modifiers
+                modifiers = []
+                if "SHIFT" in stroke_name:
+                    modifiers.append("Shift")
+                # Handle repeat and release
+                if keystroke.repeated:
+                    continue  # repeat for arrow keys etc.
+                elif keystroke.pressed and key:
+                    event_type = "key_down"
+                    if key_name in self._pressed_keys:
+                        continue  # repeat for character keys etc
+                    else:
+                        self._pressed_keys[key_name] = key
+                elif not keystroke.pressed:
+                    event_type = "key_up"
+                    key = self._pressed_keys.pop(key_name, None) or key
+                # Submit event
                 if key:
                     ev = {
-                        "event_type": "key_down",
+                        "event_type": event_type,
                         "key": key,
-                        "modifiers": tuple(),
+                        "modifiers": tuple(modifiers),
                     }
                     self.submit_event(ev)
 
