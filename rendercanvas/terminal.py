@@ -17,6 +17,7 @@ Support for rendering in a terminal session, using the blessed library.
 __all__ = ["RenderCanvas", "TerminalRenderCanvas", "loop"]
 
 
+import os
 import io
 import sys
 from contextlib import contextmanager
@@ -109,9 +110,9 @@ KEY_MAP = {
 class TerminalLoop(AsyncioLoop):
     def _rc_run(self):
         with (
+            captured_stdout_and_stderr(),  # must come first
             term.fullscreen(),
             term.hidden_cursor(),
-            captured_stdout_and_stderr(),
             term.enable_kitty_keyboard(
                 report_events=True,
                 report_all_keys=True,
@@ -137,7 +138,7 @@ class TerminalRenderCanvas(BaseRenderCanvas):
 
     Arguments:
         pixel_ratio : float
-            The (initial) ratio that determines the logical size of the window. Default 0.25; the pixels are huge!
+            The (initial) ratio that determines the logical size of the window. Default 1/8; the pixels are huge!
 
     Restrictions of this backend:
 
@@ -149,7 +150,7 @@ class TerminalRenderCanvas(BaseRenderCanvas):
 
     _rc_canvas_group = TerminalCanvasGroup(loop)
 
-    def __init__(self, *args, pixel_ratio=0.25, **kwargs):
+    def __init__(self, *args, pixel_ratio=0.125, **kwargs):
         super().__init__(*args, **kwargs)
 
         # NOTE: it is assumed that there is exactly one canvas. If this assumption is violated I guess they will alternately flicker.
@@ -157,10 +158,13 @@ class TerminalRenderCanvas(BaseRenderCanvas):
         self._pixel_ratio = pixel_ratio
 
         self._closed = False
+        self._title = ""
         self._term_size = 0, 0
         self._pointer_pos = (0, 0)
         self._pointer_buttons = ()
         self._pressed_keys = {}
+        self._overlay_builder = OverlayBuilder()  # reset on each draw
+        self._expanded_menu = False
 
         self._rc_gui_poll()
         self._final_canvas_init()
@@ -179,7 +183,7 @@ class TerminalRenderCanvas(BaseRenderCanvas):
         the optimal pixel ratio for the terminal backend depends on the
         application.
 
-        Therefore, the pixel ratio can be changed using a button at the
+        Therefore, the pixel ratio can be changed via the dropdown menu at the
         top-right of the screen, or programmatically using this method.
         """
         self._pixel_ratio = float(pixel_ratio)
@@ -247,21 +251,10 @@ class TerminalRenderCanvas(BaseRenderCanvas):
                 modifiers = []
                 if "SHIFT" in stroke_name:
                     modifiers.append("Shift")
-                # Exit when the cross in the top-right is clicked
-                if (
-                    kind == "down"
-                    and button == 1
-                    and term_y == 0
-                    and term_x >= self._term_size[0] - 4
-                ):
-                    if term_x == self._term_size[0] - 4:
-                        p = round(np.log2(self._pixel_ratio))
-                        self.set_pixel_ratio(2 ** (p - 1))
-                    elif term_x == self._term_size[0] - 3:
-                        p = round(np.log2(self._pixel_ratio))
-                        self.set_pixel_ratio(2 ** (p + 1))
-                    elif term_x == self._term_size[0] - 1:
-                        loop.stop()
+                # Detect clicking on buttons
+                if kind == "down" and button == 1:
+                    if self._check_overlay_action(term_x, term_y):
+                        continue
                 # Submit!
                 ev = {
                     "event_type": f"pointer_{kind}",
@@ -347,21 +340,23 @@ class TerminalRenderCanvas(BaseRenderCanvas):
         else:  # format == "rgba-u8":
             img = data
 
+        self._overlay_builder = overlay_builder = OverlayBuilder()
+
         # Push lines to stdout
         for y in range(0, img.shape[0], 2):
+            line_index = y // 2
             top_row = img[y][:, :3]
             bot_row = img[y + 1][:, :3]
             line = "".join(
                 term.on_color_rgb(*rgb1) + term.color_rgb(*rgb2) + "▄"
                 for rgb1, rgb2 in zip(top_row, bot_row, strict=True)
             )
-            term_stream.write(term.move_xy(0, y // 2) + line)
-            # Show close button on the first line. Do here rather then at end to avoid flicker.
-            if y == 0:
-                s = f"ratio {self._pixel_ratio:0.4g} -+ ×"  # noqa: RUF001
-                term_stream.write(
-                    term.normal + term.move_xy(img.shape[1] - len(s), 0) + s
-                )
+            term_stream.write(term.move_xy(0, line_index) + line)
+            # Apply overlay directly at each line (rather than at the end) to avoid flicker
+            res = self._get_overlay(overlay_builder, line_index, img.shape[1])
+            if res is not None:
+                offset, s = res
+                term_stream.write(term.normal + term.move_xy(offset, line_index) + s)
 
         # Reset and flush. Moving to (0, 0) prevents jump-flicker by avoiding the jump to the *next* line.
         term_stream.write(term.normal + term.move_xy(0, 0) + "\n")
@@ -377,10 +372,107 @@ class TerminalRenderCanvas(BaseRenderCanvas):
         return self._closed
 
     def _rc_set_title(self, title):
+        self._title = title
         term_stream.write(term.set_window_title(title) + "\n")
+        term_stream.flush()
 
     def _rc_set_cursor(self, cursor):
         pass
+
+    def _get_overlay(self, overlay_builder, y, width):
+        if y == 0:
+            overlay_builder.new_line(y)
+            if self._expanded_menu:
+                overlay_builder.add_button("collapse_menu", "▲")  # ▲▼
+            else:
+                overlay_builder.add_button("expand_menu", "▼")  # ▲▼
+            overlay_builder.add_button("close", "×")  # noqa: RUF001  - ×✕✖
+            return overlay_builder.get_line(align_right=width)
+        elif self._expanded_menu:
+            if y == 2:
+                overlay_builder.new_line(y)
+                overlay_builder.add_text(f"title: {self._title}")
+                return overlay_builder.get_line(align_right=width)
+            elif y == 3:
+                overlay_builder.new_line(y)
+                overlay_builder.add_text(
+                    f"physical_size: {self._term_size[0]}x{self._term_size[1] * 2} pixels"
+                )
+                return overlay_builder.get_line(align_right=width)
+            elif y == 4:
+                overlay_builder.new_line(y)
+                overlay_builder.add_text(f"pixel_ratio: {self._pixel_ratio:0.4g}")
+                overlay_builder.add_button("pixel_ratio_default", "default 1/8")
+                overlay_builder.add_button("pixel_ratio_minus", "-")
+                overlay_builder.add_button("pixel_ratio_plus", "+")
+                return overlay_builder.get_line(align_right=width)
+            elif y == 5:
+                overlay_builder.new_line(y)
+                overlay_builder.add_text(f"terminal: {os.environ.get('TERM_PROGRAM')}")
+                return overlay_builder.get_line(align_right=width)
+
+    def _check_overlay_action(self, x, y):
+        action = self._overlay_builder.get_action(x, y)
+        if action is None:
+            return False
+
+        elif action == "close":
+            loop.stop()
+        elif action == "expand_menu":
+            self._expanded_menu = True
+        elif action == "collapse_menu":
+            self._expanded_menu = False
+        elif action == "pixel_ratio_minus":
+            p = round(np.log2(self._pixel_ratio))
+            self.set_pixel_ratio(2 ** (p - 1))
+        elif action == "pixel_ratio_plus":
+            p = round(np.log2(self._pixel_ratio))
+            self.set_pixel_ratio(2 ** (p + 1))
+        elif action == "pixel_ratio_default":
+            self.set_pixel_ratio(1 / 8)
+
+        return True
+
+
+class OverlayBuilder:
+    def __init__(self):
+        self.buttons_per_line = {}
+
+    def new_line(self, y):
+        self.buttons_per_line[y] = []
+        self.y = y
+        self.len = 0
+        self.parts = []
+
+    def add_button(self, action, label):
+        text = f" [ {label} ]"
+        x1 = self.len + 1
+        x2 = self.len + len(text) - 1
+        self.buttons_per_line[self.y].append((x1, x2, action))
+        self.parts.append(text)
+        self.len += len(text)
+
+    def add_text(self, text):
+        self.parts.append(text)
+        self.len += len(text)
+
+    def get_line(self, *, align_right=None):
+        text = "".join(self.parts)
+        le = self.len
+        if align_right:
+            self.buttons_per_line[self.y] = [
+                (align_right - le + x1, align_right - le + x2, a)
+                for x1, x2, a in self.buttons_per_line[self.y]
+            ]
+        self.parts = []
+        self.y = None
+        return align_right - le, text
+
+    def get_action(self, x, y):
+        buttons = self.buttons_per_line.get(y, [])
+        for x1, x2, action in buttons:
+            if x1 <= x <= x2:
+                return action
 
 
 # Make available under a common name
