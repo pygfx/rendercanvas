@@ -110,6 +110,9 @@ KEY_MAP = {
 
 
 class TerminalLoop(AsyncioLoop):
+
+    kitty_keyboard = None
+
     def _rc_run(self):
         with (
             captured_stdout_and_stderr(),  # must come first
@@ -125,6 +128,8 @@ class TerminalLoop(AsyncioLoop):
             term.mouse_enabled(report_motion=True),
             set_pointer_to_arrow(),
         ):
+            self.kitty_keyboard = term.get_kitty_keyboard_state()
+
             super()._rc_run()
 
             # Flush events, to drain stdin, to prevent weird numbers on the prompt.
@@ -285,8 +290,7 @@ class TerminalRenderCanvas(BaseRenderCanvas):
                 if stroke_name == "KEY_CTRL_C":
                     loop.stop()
                 # Get key
-                if key_name:
-                    key = KEY_MAP.get(key_name, "")
+                key = KEY_MAP.get(key_name, "")
                 if not key:
                     key = keystroke.value
                 if not key:
@@ -302,10 +306,11 @@ class TerminalRenderCanvas(BaseRenderCanvas):
                     continue  # repeat for arrow keys etc.
                 elif keystroke.pressed and key:
                     event_type = "key_down"
-                    if key_name in self._pressed_keys:
-                        continue  # repeat for character keys etc
-                    else:
-                        self._pressed_keys[key_name] = key
+                    if loop.kitty_keyboard:
+                        if key_name in self._pressed_keys:
+                            continue  # repeat for character keys etc
+                        else:
+                            self._pressed_keys[key_name] = key
                 elif not keystroke.pressed:
                     event_type = "key_up"
                     key = self._pressed_keys.pop(key_name, None) or key
