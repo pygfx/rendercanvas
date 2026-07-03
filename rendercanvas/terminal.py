@@ -125,6 +125,11 @@ class TerminalLoop(AsyncioLoop):
         ):
             super()._rc_run()
 
+            # Flush events, to drain stdin, to prevent weird numbers on the prompt.
+            # This needs to happen *before* the finalizers of mouse_enabled and enable_kitty_keyboard.
+            while term.inkey(timeout=0):
+                pass
+
 
 loop = TerminalLoop()
 
