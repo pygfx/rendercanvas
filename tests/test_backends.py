@@ -256,6 +256,22 @@ def test_pyodide_module():
     assert canvas_class.name == "PyodideRenderCanvas"
 
 
+def test_http_module():
+    m = Module("http")
+
+    canvas_class = m.get_canvas_class()
+    m.check_canvas(canvas_class)
+    assert canvas_class.name == "HttpRenderCanvas"
+
+
+def test_anywidget_module():
+    m = Module("anywidget")
+
+    canvas_class = m.get_canvas_class()
+    m.check_canvas(canvas_class)
+    assert canvas_class.name == "AnywidgetRenderCanvas"
+
+
 def test_jupyter_module():
     m = Module("jupyter")
 
@@ -314,6 +330,14 @@ def test_wx_module():
     loop_class = m.get_loop_class()
     m.check_loop(loop_class)
     assert loop_class.name == "WxLoop"
+
+
+def test_terminal_module():
+    m = Module("terminal")
+
+    canvas_class = m.get_canvas_class()
+    m.check_canvas(canvas_class)
+    assert canvas_class.name == "TerminalRenderCanvas"
 
 
 if __name__ == "__main__":

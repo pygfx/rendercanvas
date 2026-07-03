@@ -20,16 +20,6 @@ The table below gives an overview of the names in the different ``rendercanvas``
           | ``RenderCanvas`` (alias)
           | ``loop`` (an ``AsyncioLoop``)
         - | A lightweight backend.
-    *   - ``jupyter``
-        - | ``JupyterRenderCanvas``
-          | ``RenderCanvas`` (alias)
-          | ``loop`` (an ``AsyncioLoop``)
-        - | Integrate in Jupyter notebook / lab.
-    *   - ``offscreen``
-        - | ``OffscreenRenderCanvas``
-          | ``RenderCanvas`` (alias)
-          | ``loop`` (a ``StubLoop``)
-        - | For offscreen rendering.
     *   - ``qt``
         - | ``QRenderCanvas`` (toplevel)
           | ``RenderCanvas`` (alias)
@@ -46,12 +36,39 @@ The table below gives an overview of the names in the different ``rendercanvas``
           | ``loop``
         - | Create a standalone canvas using wx, or
           | integrate a render canvas in a wx application.
+    *   - ``offscreen``
+        - | ``OffscreenRenderCanvas``
+          | ``RenderCanvas`` (alias)
+          | ``loop`` (a ``StubLoop``)
+        - | For offscreen rendering.
+    *   - ``terminal``
+        - | ``TerminalRenderCanvas``
+          | ``RenderCanvas`` (alias)
+          | ``loop`` (an ``AsyncioLoop``)
+        - | Render in the terminal.
+    *   - ``http``
+        - | ``HttpRenderCanvas``
+          | ``RenderCanvas`` (alias)
+          | ``loop`` (an ``AsyncioLoop``)
+        - | Run an http server that streams the images
+          | to a view in the browser.
+    *   - ``anywidget``
+        - | ``AnywidgetRenderCanvas``
+          | ``RenderCanvas`` (alias)
+          | ``loop`` (an ``AsyncioLoop``)
+        - | Integrate in notebooks using anywidget.
+    *   - ``jupyter``
+        - | ``JupyterRenderCanvas``
+          | ``RenderCanvas`` (alias)
+          | ``loop`` (an ``AsyncioLoop``)
+        - | Integrate in notebooks via ``jupyter_rfb``
+          | (deprecated).
     *   - ``pyodide``
         - | ``PyodideRenderCanvas`` (toplevel)
           | ``RenderCanvas`` (alias)
           | ``loop`` (an ``AsyncioLoop``)
-        - | Backend when Python is running in the browser,
-          | via Pyodide or PyScript.
+        - | Backend when Python is running in the
+          | browser via Pyodide or PyScript.
 
 
 There are also three loop-backends. These are mainly intended for use with the glfw backend:
@@ -129,6 +146,12 @@ By default, the ``glfw`` backend uses an event-loop based on asyncio. But you ca
         await loop.run_async()
 
     trio.run(main)
+
+
+For Linux users with Wayland: Glfw support on Wayland is ... complicated.
+Rendercanvas forces x11 mode by setting the env var ``PYGLFW_LIBRARY_VARIANT`` to 'x11'.
+To avoid this, e.g. when you want to use the system's ``libglfw3``, set ``PYGLFW_LIBRARY``
+or ``PYGLFW_LIBRARY_VARIANT``.
 
 
 Support for Qt
@@ -262,23 +285,84 @@ object, but in some cases it's convenient to do so with a canvas-like API.
     array = canvas.draw()  # numpy array with shape (400, 500, 4)
 
 
-Support for Jupyter lab and notebook
-------------------------------------
+Support for the terminal
+------------------------
 
-RenderCanvas can be used in Jupyter lab and the Jupyter notebook. This canvas
-is based on `jupyter_rfb <https://github.com/vispy/jupyter_rfb>`_, an ipywidget
-subclass implementing a remote frame-buffer. There are also some `wgpu examples <https://jupyter-rfb.readthedocs.io/en/stable/examples/>`_.
+You can also render directly to the terminal. There are some limitations, and the pixels are huge, but can be great for quick inspections or to impress people.
+
+It can be run with any render-canvas based application that uses the auto backend:
+
+.. code-block:: bash
+
+    $ RENDERCANVAS_BACKEND=terminal python my_app.py
+
+
+.. autoclass:: rendercanvas.terminal.TerminalRenderCanvas
+    :members:
+
+
+Support for http / web (experimental)
+-------------------------------------
+
+The http backend can be used to open a canvas in a browser, streaming the images over a websocket.
+
+.. autoclass:: rendercanvas.http.HttpRenderCanvas
+    :members:
+
+It can be enabled simply by selecting the http backend:
 
 .. code-block:: py
 
-    # from rendercanvas.jupyter import RenderCanvas  # Direct approach
-    from rendercanvas.auto import RenderCanvas  # also works, because rendercanvas detects Jupyter
+    from rendercanvas.http import RenderCanvas
+
+    ... your normal code as usual
+
+The only dependency is ``uvicorn``,  a low-level ASGI server.
+It is also possible to customize the server's resources, see the ``cube_http.py`` example for details:
+
+.. code-block:: py
+
+    from rendercanvas.http import RenderCanvas, loop, resources
+
+    resources["index.html"] = "text/html", your custom html
+    resources["logo.png"] = "image/png", encode_png(numpy_array)
+
+Finally, you can embed it in a larger ASGI application. This requires the framework to support mounting an ASGI application:
+
+.. code-block:: py
+
+    from fastapi import FastAPI
+    from rendercanvas.http import RenderCanvas, asgi
+
+    app = FastAPI()
+
+    ...
+
+    # Attach the rendercanvas part at a sub path
+    app.mount("/rendercanvas_path", asgi)
+
+
+Support for notebooks
+---------------------
+
+With the ``anywidget`` backend, RenderCanvas can be used in Jupyter lab, Jupyter notebook, VSCode, Google Colab, Marimo notebooks, and anywhere else where ``anywidget`` is supported.
+When the ``auto`` backend is used in a notebook, the ``anywidget`` is selected automatically.
+
+The ``jupyter`` backend is the previous backend to provide notebook support, which is based on ``jupyter_rfb``. It's kept for backwards compatibility.
+
+.. code-block:: py
+
+    from rendercanvas.auto import RenderCanvas  # uses anywidget when in a notebook
 
     canvas = RenderCanvas()
 
     # ... rendering code
 
     canvas  # Use as cell output
+
+
+.. autoclass:: rendercanvas.anywidget.AnywidgetRenderCanvas
+    :members:
 
 
 Support for Pyodide
@@ -290,9 +374,11 @@ additional dependencies. Currently only presenting a bitmap is supported, as
 shown in the examples :doc:`noise.py <gallery/noise>` and :doc:`snake.py<gallery/snake>`.
 Support for wgpu is underway.
 
-An HTMLCanvasElement is assumed to be present in the
-DOM. By default it connects to the canvas with id "canvas", but a
-different id or element can also be provided using ``RenderCanvas(canvas_element)``.
+The ``PyodideRenderCanvas`` has a few additional methods that are specific to the browser:
+``set_css_width``, ``set_css_height``, ``set_resizable``, and ``show_titlebar``.
+
+The backend will render to an HTML ``<canvas>``. This can be provided with ``RenderCanvas(canvas_element=...)``,
+either by providing the element as an object, or via it's id. By default, it connects with the element with id "canvas".
 
 An example using PyScript (which uses Pyodide):
 
@@ -312,8 +398,34 @@ An example using PyScript (which uses Pyodide):
     </body>
     </html>
 
+The 'canvas_element' can also be a ``<div>`` element with the class 'rendercanvas-wrapper'. In this
+case the canvas will be created inside that wrapper, plus additional things to support features like
+a title bar and manual resizing. These features can be enabled with the 'has-titlebar' and 'is-resizable' css classes.
+The wrapper can also contain placeholder elements that will be deleted once the canvas is loaded:
 
-An example using Pyodide directly:
+.. code-block:: html
+
+    <!doctype html>
+    <html>
+    <head>
+        <meta name="viewport" content="width=device-width,initial-scale=1.0">
+        <script type="module" src="https://pyscript.net/releases/2025.11.1/core.js"></script>
+    </head>
+    <body>
+        <div id="canvas" class='renderview-wrapper is-resizable has-titlebar' style="width: 80%; height: 480px;">
+            <p style='width:100%; height:100%; background:#aaa; display: flex; justify-content: center; align-items: center; font-size:150%'>
+                Loading ...
+            </p>
+        </div>
+        <br>
+        <script type="py" src="yourcode.py" config='{"packages": ["numpy", "rendercanvas"]}'>
+        </script>
+    </body>
+    </html>
+
+
+It is also possible to use Pyodide directly. It requires a bit more plumbing.
+Similar as with PyScript, you can chose between a ``<canvas>``  and a ``<div class='renderview-wrapper'>``:
 
 .. code-block:: html
 
@@ -357,6 +469,8 @@ An example using Pyodide directly:
 
 .. _env_vars:
 
+
+
 Selecting a backend with env vars
 ---------------------------------
 
@@ -389,9 +503,8 @@ Many interactive environments have some sort of GUI support, allowing the repl
 to stay active (i.e. you can run new code), while the GUI windows is also alive.
 In rendercanvas we try to select the GUI that matches the current environment.
 
-On ``jupyter notebook`` and ``jupyter lab`` the jupyter backend (i.e.
-``jupyter_rfb``) is normally selected. When you are using ``%gui qt``, rendercanvas will
-honor that and use Qt instead.
+In a notebook (e.g. jupyter) one of the notebook capable backends (``anywidget`` or ``jupyter``) is selected.
+When you are using ``%gui qt``, rendercanvas will honor that and use Qt instead.
 
 On ``jupyter console`` and ``qtconsole``, the kernel is the same as in ``jupyter notebook``,
 making it (about) impossible to tell that we cannot actually use

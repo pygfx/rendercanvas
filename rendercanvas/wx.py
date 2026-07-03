@@ -240,7 +240,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
 
     def _on_resize_done(self, *args):
         self._draw_lock = False
-        self.Refresh()
+        self.request_draw()
 
     def on_paint(self, event):
         dc = wx.PaintDC(self)
@@ -252,6 +252,10 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         else:
             event.Skip()
         del dc
+
+    def Refresh(self):  # noqa: N802
+        # Bypass wx mechanics and request a draw, which will eventually call the native Refresh()
+        self.request_draw()
 
     def _get_surface_ids(self):
         if sys.platform.startswith("win") or sys.platform.startswith("darwin"):
@@ -323,12 +327,12 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         if self._draw_lock:
             return
         try:
-            self.Refresh()
+            wx.Window.Refresh(self)
         except Exception:
             pass  # avoid errors when window no longer lives
 
     def _rc_force_paint(self):
-        self.Refresh()
+        wx.Window.Refresh(self)
         self.Update()
         if sys.platform == "darwin":
             wx.Yield()
@@ -489,17 +493,24 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
             )
 
         if event_type == "wheel":
-            delta = event.GetWheelDelta()
             axis = event.GetWheelAxis()
             rotation = event.GetWheelRotation()
+
+            # This is a little magic... it aims to match the scroll speed the Qt
+            # backend in a cross-platform way... It looks like just using the
+            # rotation produces a similar scroll experience, except it's rather
+            # slow/sluggish on MacOS for some reason, so we use a multiplier to
+            # correct that. Note that the non-linear scrolling on MacOS means
+            # that the exact gain does not even matter so much ...
+            gain = 2 if sys.platform == "darwin" else 1
 
             dx = 0
             dy = 0
 
             if axis == wx.MOUSE_WHEEL_HORIZONTAL:
-                dx = delta * rotation
+                dx = gain * rotation
             elif axis == wx.MOUSE_WHEEL_VERTICAL:
-                dy = delta * rotation
+                dy = gain * rotation
 
             ev.update({"dx": -dx, "dy": -dy})
 
@@ -574,6 +585,10 @@ class WxRenderCanvas(WrapperRenderCanvas, wx.Frame):
 
         self.Show()
         self._final_canvas_init()
+
+    def Refresh(self):  # noqa: N802
+        self._subwidget.request_draw()
+        super().Refresh()
 
 
 # Make available under a name that is the same for all gui backends

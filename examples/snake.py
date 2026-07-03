@@ -12,14 +12,28 @@ import numpy as np
 from rendercanvas.auto import RenderCanvas, loop
 
 
-canvas = RenderCanvas(present_method=None, size=(640, 480), update_mode="continuous")
+canvas = RenderCanvas(
+    title="Snake on $backend",
+    present_method=None,
+    size=(640, 480),
+    update_mode="continuous",
+)
 
 context = canvas.get_bitmap_context()
 
-world = np.zeros((120, 160), np.uint8)
+world = np.zeros((60, 80), np.uint8)
 pos = [100, 100]
 direction = [1, 0]
 q = deque()
+
+
+@canvas.add_event_handler("resize")
+def on_resize(event):
+    # Match the size of the canvas, with an 8-fold reduction to get massive pixels.
+    # Incidentally, this results in precise physical pixels for the terminal backend :)
+    global world
+    w, h = int(event["width"]) // 8, int(event["height"]) // 8
+    world = np.zeros((h, w, 4), np.uint8)
 
 
 @canvas.add_event_handler("key_down")

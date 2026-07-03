@@ -55,6 +55,7 @@ class Scheduler:
         self.set_update_mode(update_mode, min_fps=min_fps, max_fps=max_fps)
         self._draw_requested = True  # Start with a draw in ondemand mode
         self._ready_for_present = None
+        self._just_cancelled_a_frame = False
 
         # Keep track of fps
         self._draw_stats = 0, time.perf_counter()
@@ -114,7 +115,10 @@ class Scheduler:
 
         while True:
             # Determine delay
-            if not self._enabled:
+            if self._just_cancelled_a_frame:
+                self._just_cancelled_a_frame = False
+                delay = 0.1
+            elif not self._enabled:
                 delay = 0.1
             elif self._mode == "fastest" or self._max_fps <= 0:
                 delay = 0
@@ -208,6 +212,7 @@ class Scheduler:
 
     def on_cancel_draw(self):
         if self._ready_for_present is not None:
+            self._just_cancelled_a_frame = True  # wait longer for next frame
             self._ready_for_present.set()
             self._ready_for_present = None
 

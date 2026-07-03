@@ -1,0 +1,112 @@
+/*************************************************************************************************
+  renderview.css
+
+  This file is dedicated to the public domain under CC0 1.0.
+  This file is developed at https://github.com/pygfx/renderview, please contribute changes there.
+
+ *************************************************************************************************/
+
+div.renderview-wrapper {
+    --line-radius: 6px;
+    --line-thickness: 2px;
+    --line-color: rgba(127, 127, 127, 0.3);
+    --line-color-focus: rgba(127, 127, 127, 0.5);
+    --titlebar-height: 1.7em;
+    display: inline-block;
+    position: relative;
+    overflow: visible;
+    min-width: 32px;
+    min-height: 32px;
+    border: var(--line-thickness) solid var(--line-color);
+}
+
+div.renderview-wrapper .renderview-view {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: none;
+}
+
+div.renderview-wrapper .renderview-hidden {
+    display: none;
+}
+
+div.renderview-wrapper .renderview-top {
+    display: none;
+    position: absolute;
+    z-index: 2;
+    top: calc(0px - var(--titlebar-height) - 2 * var(--line-thickness));
+    height: var(--titlebar-height);
+    left: calc(0px - var(--line-thickness));
+    width: 100%;
+    border-radius: var(--line-radius) var(--line-radius) 0 0;
+    border: var(--line-thickness) solid var(--line-color);
+    border-bottom: 0;
+    align-items: center;
+}
+
+div.renderview-wrapper .renderview-title {
+    display: inline-block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-left: 0.5em;
+    flex: 1;
+}
+
+div.renderview-wrapper .renderview-button {
+    display: none;
+    flex: 0;
+    padding: 0 0.3em;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+div.renderview-wrapper .renderview-button:hover {
+    background: var(--line-color);
+}
+
+div.renderview-wrapper .renderview-resizer {
+    display: none;
+    position: absolute;
+    z-index: 3;
+    bottom: 0;
+    right: 0;
+    width: 14px;
+    height: 14px;
+    cursor: nwse-resize;
+}
+
+div.renderview-wrapper.has-focus,
+div.renderview-wrapper.has-focus .renderview-top {
+    border-color: var(--line-color-focus);
+}
+
+div.renderview-wrapper.has-titlebar {
+    margin-top: 2em !important;
+}
+
+div.renderview-wrapper.has-titlebar .renderview-top {
+    display: flex;
+}
+
+div.renderview-wrapper.is-resizable .renderview-resizer {
+    display: block;
+}
+
+div.renderview-wrapper.is-resizable.is-minimized .renderview-resizer {
+    display: none;
+}
+
+div.renderview-wrapper.is-minimizable .renderview-minimize-button {
+    display: inline-block;
+}
+
+div.renderview-wrapper.is-minimized {
+    height: 0 !important;
+    min-height: 0 !important;
+}
+
+div.renderview-wrapper.is-closable .renderview-close-button {
+    display: inline-block;
+}
