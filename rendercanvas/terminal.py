@@ -416,7 +416,7 @@ class TerminalRenderCanvas(BaseRenderCanvas):
                 overlay_builder.add_button("collapse_menu", "▴")  # ▲▴
             else:
                 overlay_builder.add_button("expand_menu", "▾")  # ▼▾
-            overlay_builder.add_button("close", "×")  # noqa: RUF001  - ×✕✖
+            overlay_builder.add_button("close", "×")  # noqa: RUF001
             return overlay_builder.get_line(align_right=width)
         elif self._expanded_menu:
             if y == 2:
