@@ -33,7 +33,7 @@ def on_resize(event):
     # Incidentally, this results in precise physical pixels for the terminal backend :)
     global world
     w, h = int(event["width"]) // 8, int(event["height"]) // 8
-    world = np.zeros((h, w, 4), np.uint8)
+    world = np.zeros((h, w), np.uint8)
 
 
 @canvas.add_event_handler("key_down")

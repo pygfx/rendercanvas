@@ -40,7 +40,12 @@ class BitmapContext(BaseContext):
 
         Call this in the draw event. The bitmap must be an object that can be
         converted to a numpy array. It must represent a 2D image in either
-        grayscale or rgba format, with uint8 values
+        grayscale or rgba format, with uint8 values.
+
+        The bitmap does not have to match the physical size of the canvas;
+        backends will stretch the bitmap to match, though it's not specified
+        what interpolation method is used.
+
         """
 
         arr = np.asarray(bitmap)
