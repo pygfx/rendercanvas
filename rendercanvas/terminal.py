@@ -9,10 +9,13 @@ Support for rendering in a terminal session, using the blessed library.
 # they are subject to a 256 color palette, which can look bad, but also incurs
 # additional CPU processing.
 #
-# The key events are not great. Looks like with kitty keystrokes it can be
-# improved but I had limited success, so I decided to just keep it simple. The
-# pointer events are much better, but e.g. RMB and most modifier keys except shift
-# are consumed by the terminal app for context menu etc.
+# Support for modifiers is not great, because the terminal application usually
+# does something with Ctrl/Cmd, so we only really support the Shift modifier.
+#
+# Sometimes when the app exits, escape sequences are shown in the stdout or on
+# the prompt. We take measures to prevent this, but I still sometimes see it.
+# Important is to flush term_stream before restoring from full-screen, and flush
+# empty the stdin stream before restoring cbreak (and maybe others).
 
 __all__ = ["RenderCanvas", "TerminalRenderCanvas", "loop"]
 
@@ -142,11 +145,13 @@ class TerminalRenderCanvas(BaseRenderCanvas):
 
     Arguments:
         pixel_ratio : float
-            The (initial) ratio that determines the logical size of the window. Default 1/8; the pixels are huge!
+            The (initial) ratio that determines the logical size of the window. Default is 1/8
+
+    This backend depends on the ``blessed`` library.
 
     Restrictions of this backend:
 
-    * Obviously the resolution is very low: 2 pixels (vertically) per character.
+    * Obviously the resolution is very low: each terminal represents just two pixels (vertically).
     * Limited support for modifiers in pointer and key events (only Shift).
     * The experience may differ depending on the terminal you're at.
 
