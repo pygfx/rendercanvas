@@ -374,19 +374,34 @@ class TerminalRenderCanvas(BaseRenderCanvas):
         # Push lines to stdout
         for y in range(0, term_h, 2):
             term_row = y // 2
-            top_row = img[y, :, :3]
-            bot_row = img[y + 1, :, :3]
-            line = "".join(
-                term.on_color_rgb(*rgb1) + term.color_rgb(*rgb2) + "▄"
-                for rgb1, rgb2 in zip(top_row, bot_row, strict=True)
-            )
-            term_stream.write(term.move_xy(0, term_row) + line)
+
+            # Build the stream for the pixels on these two rows in the image.
+            # We use a kind of RLE, only setting colors when they change, which helps performance *a lot*.
+            # Converting to Python primitives and comparing a list of tuples also does wonders for performance.
+            line = []
+            last_two_pixels = None
+            top = img[y, :term_w, :3].tolist()  # converts to list of list of ints
+            bot = img[y + 1, :term_w, :3].tolist()
+            for i in range(term_w):
+                two_pixels = (*top[i], *bot[i])
+                if last_two_pixels is not None and two_pixels == last_two_pixels:
+                    line.append("▄")
+                else:
+                    last_two_pixels = two_pixels
+                    line.append(
+                        term.on_color_rgb(*two_pixels[:3])
+                        + term.color_rgb(*two_pixels[3:])
+                        + "▄"
+                    )
 
             # Apply overlay directly at each line (rather than at the end) to avoid flicker
             res = self._get_overlay(overlay_builder, term_row, term_w)
             if res is not None:
                 offset, s = res
-                term_stream.write(term.normal + term.move_xy(offset, term_row) + s)
+                line[offset:] = [term.normal, s]
+
+            # Write this line
+            term_stream.write(term.move_xy(0, term_row) + "".join(line))
 
         # Reset and flush. Moving to (0, 0) prevents jump-flicker by avoiding the jump to the *next* line.
         term_stream.write(term.normal + term.move_xy(0, 0) + "\n")
