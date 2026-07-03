@@ -41,6 +41,11 @@ The table below gives an overview of the names in the different ``rendercanvas``
           | ``RenderCanvas`` (alias)
           | ``loop`` (a ``StubLoop``)
         - | For offscreen rendering.
+    *   - ``terminal``
+        - | ``TerminalRenderCanvas``
+          | ``RenderCanvas`` (alias)
+          | ``loop`` (an ``AsyncioLoop``)
+        - | Render in the terminal.
     *   - ``http``
         - | ``HttpRenderCanvas``
           | ``RenderCanvas`` (alias)
@@ -64,6 +69,7 @@ The table below gives an overview of the names in the different ``rendercanvas``
           | ``loop`` (an ``AsyncioLoop``)
         - | Backend when Python is running in the
           | browser via Pyodide or PyScript.
+
 
 There are also three loop-backends. These are mainly intended for use with the glfw backend:
 
@@ -279,6 +285,22 @@ object, but in some cases it's convenient to do so with a canvas-like API.
     array = canvas.draw()  # numpy array with shape (400, 500, 4)
 
 
+Support for the terminal
+------------------------
+
+You can also render directly to the terminal. There are some limitations, and the pixels are huge, but can be great for quick inspections or to impress people.
+
+It can be run with any render-canvas based application that uses the auto backend:
+
+.. code-block:: bash
+
+    $ RENDERCANVAS_BACKEND=terminal python my_app.py
+
+
+.. autoclass:: rendercanvas.terminal.TerminalRenderCanvas
+    :members:
+
+
 Support for http / web (experimental)
 -------------------------------------
 
@@ -446,6 +468,8 @@ Similar as with PyScript, you can chose between a ``<canvas>``  and a ``<div cla
 
 
 .. _env_vars:
+
+
 
 Selecting a backend with env vars
 ---------------------------------
