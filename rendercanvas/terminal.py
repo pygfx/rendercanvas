@@ -47,7 +47,6 @@ def captured_stdout_and_stderr():
     try:
         yield
     finally:
-        term_stream.flush()
         sys.stdout = original_stdout
         sys.stderr = original_stderr
         original_stdout.write(buf_out.getvalue())
@@ -334,34 +333,51 @@ class TerminalRenderCanvas(BaseRenderCanvas):
         self._time_to_paint()
 
     def _rc_present_bitmap(self, *, data, format, **kwargs):
+        # Note: y and h refer to physical pixels here, not term rows.
+        #
+        # Note: some terminals (seen on iterm) color their margin based on the
+        # bg of the edge chars, so pixels bleed into the margin. there is no
+        # clear solution except applying a margin of 1px on each side, so let it be.
+
+        term_w, term_h = self._term_size[0], self._term_size[1] * 2
+        data_h, data_w = data.shape[:2]
+
+        # Resize image if necessary
+        if term_w == data_w or term_h == data_h:
+            img = data
+        else:
+            img = resize_nearest(data, term_h, term_w)
+
         # Get 8bit image
         if format == "rgba-f16":
-            img = np.rint(data)
+            img = img * 255
+            np.rint(img, out=img)
             np.clip(img, 0, 255, out=img)
             img = img.astype(np.uint8)
         elif format == "rgba-u16":
-            img = data // 256
+            img = img // 256
             img = img.astype(np.uint8)
         else:  # format == "rgba-u8":
-            img = data
+            img = img
 
         self._overlay_builder = overlay_builder = OverlayBuilder()
 
         # Push lines to stdout
-        for y in range(0, img.shape[0], 2):
-            line_index = y // 2
-            top_row = img[y][:, :3]
-            bot_row = img[y + 1][:, :3]
+        for y in range(0, term_h, 2):
+            term_row = y // 2
+            top_row = img[y, :, :3]
+            bot_row = img[y + 1, :, :3]
             line = "".join(
                 term.on_color_rgb(*rgb1) + term.color_rgb(*rgb2) + "▄"
                 for rgb1, rgb2 in zip(top_row, bot_row, strict=True)
             )
-            term_stream.write(term.move_xy(0, line_index) + line)
+            term_stream.write(term.move_xy(0, term_row) + line)
+
             # Apply overlay directly at each line (rather than at the end) to avoid flicker
-            res = self._get_overlay(overlay_builder, line_index, img.shape[1])
+            res = self._get_overlay(overlay_builder, term_row, term_w)
             if res is not None:
                 offset, s = res
-                term_stream.write(term.normal + term.move_xy(offset, line_index) + s)
+                term_stream.write(term.normal + term.move_xy(offset, term_row) + s)
 
         # Reset and flush. Moving to (0, 0) prevents jump-flicker by avoiding the jump to the *next* line.
         term_stream.write(term.normal + term.move_xy(0, 0) + "\n")
@@ -478,6 +494,13 @@ class OverlayBuilder:
         for x1, x2, action in buttons:
             if x1 <= x <= x2:
                 return action
+
+
+def resize_nearest(img, new_h, new_w):
+    h, w = img.shape[:2]
+    y = (np.arange(new_h) * h / new_h).astype(int)
+    x = (np.arange(new_w) * w / new_w).astype(int)
+    return img[np.ix_(y, x)]
 
 
 # Make available under a common name
