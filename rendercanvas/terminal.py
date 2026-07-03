@@ -470,9 +470,9 @@ class OverlayBuilder:
         self.len = 0
         self.parts = []
 
-    def add_button(self, action, label):
-        text = f" [ {label} ]"
-        x1 = self.len + 1
+    def add_button(self, action, label, sep=" "):
+        text = f"{sep}[{label}]"
+        x1 = self.len + len(sep)
         x2 = self.len + len(text) - 1
         self.buttons_per_line[self.y].append((x1, x2, action))
         self.parts.append(text)
