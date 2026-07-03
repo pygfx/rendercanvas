@@ -20,7 +20,6 @@ Support for rendering in a terminal session, using the blessed library.
 __all__ = ["RenderCanvas", "TerminalRenderCanvas", "loop"]
 
 
-import os
 import io
 import sys
 from contextlib import contextmanager
@@ -110,7 +109,6 @@ KEY_MAP = {
 
 
 class TerminalLoop(AsyncioLoop):
-
     kitty_keyboard = None
 
     def _rc_run(self):
@@ -158,7 +156,8 @@ class TerminalRenderCanvas(BaseRenderCanvas):
 
     * Obviously the resolution is very low: each terminal represents just two pixels (vertically).
     * Limited support for modifiers in pointer and key events (only Shift).
-    * The experience may differ depending on the terminal you're at.
+    * The experience may differ depending on the terminal you're at. E.g. on terminals that don't
+      support the Kitty keyboard protocol the app does not receive key_up events.
 
     """
 
@@ -414,9 +413,9 @@ class TerminalRenderCanvas(BaseRenderCanvas):
         if y == 0:
             overlay_builder.new_line(y)
             if self._expanded_menu:
-                overlay_builder.add_button("collapse_menu", "▲")  # ▲▼
+                overlay_builder.add_button("collapse_menu", "▴")  # ▲▴
             else:
-                overlay_builder.add_button("expand_menu", "▼")  # ▲▼
+                overlay_builder.add_button("expand_menu", "▾")  # ▼▾
             overlay_builder.add_button("close", "×")  # noqa: RUF001  - ×✕✖
             return overlay_builder.get_line(align_right=width)
         elif self._expanded_menu:
@@ -436,10 +435,6 @@ class TerminalRenderCanvas(BaseRenderCanvas):
                 overlay_builder.add_button("pixel_ratio_default", "default 1/8")
                 overlay_builder.add_button("pixel_ratio_minus", "-")
                 overlay_builder.add_button("pixel_ratio_plus", "+")
-                return overlay_builder.get_line(align_right=width)
-            elif y == 5:
-                overlay_builder.new_line(y)
-                overlay_builder.add_text(f"terminal: {os.environ.get('TERM_PROGRAM')}")
                 return overlay_builder.get_line(align_right=width)
 
     def _check_overlay_action(self, x, y):

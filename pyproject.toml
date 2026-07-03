@@ -28,8 +28,24 @@ glfw = ["glfw>=1.9"]
 terminal = ["blessed"]
 # For devs / ci
 lint = ["ruff", "pre-commit"]
-examples = ["flit", "numpy", "wgpu", "glfw", "pyside6", "imageio", "pytest"]
-docs = ["flit", "sphinx>7.2", "sphinx_rtd_theme", "sphinx-gallery", "wgpu"]
+examples = [
+    "flit",
+    "numpy",
+    "wgpu",
+    "glfw",
+    "pyside6",
+    "imageio",
+    "pytest",
+    "blessed",
+]
+docs = [
+    "flit",
+    "sphinx>7.2",
+    "sphinx_rtd_theme",
+    "sphinx-gallery",
+    "wgpu",
+    "blessed",
+]
 tests = [
     "pytest",
     "wgpu",
