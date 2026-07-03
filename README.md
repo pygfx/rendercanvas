@@ -34,18 +34,23 @@ Providing a generic API for:
 * presenting rendered results as a bitmap ([`BitmapContext`](https://rendercanvas.readthedocs.io/stable/contexts.html#rendercanvas.contexts.BitmapContext)).
 * working with events that have standardized behavior.
 
-Implement that on top of a variety of backends:
+The following backends are currently available:
 
-* Running on desktop with a light backend (glfw).
-* Running in the browser (with Pyodide or PyScript).
-* Running from a (Jupyter) notebook.
-* Embedding as a widget in a GUI library.
-  * Qt
-  * wx
+* `auto` - automatically selects an appropriate backend.
+* `glfw` - a native desktop window.
+* `offscreen` - for offscreen rendering.
+* `terminal` - to render in the terminal (e.g. over SSH).
+* `qt` (`pyside6` / `pyside2` / `pyqt6` / `pyqt5`) - to embed a render canvas in a qt GUI.
+* `wx` - to embed a render canvas in a wx GUI.
+* `anywidget` - for notebooks like Jupyter, VSCode, and Marimo.
+* `jupyter` - previous backend for notebooks that uses jupyter_rfb.
+* `http` - for server side rendering, display in a browser connected via the internet.
+* `pyodide` - to run in the browser with Pyodide or PyScript.
+
 * In addition to the GUI libraries mentioned above, the following event loops are supported:
-  * asyncio
-  * trio
-  * raw
+  * `asyncio`
+  * `trio`
+  * `raw`
 
 
 ## Installation
