@@ -12,6 +12,7 @@ import importlib
 
 import pytest
 from testutils import run_tests
+from testutils_backends import BACKEND_TEST_FUNCS
 
 
 # Only run when running directly (through Python or pytest)
@@ -19,14 +20,23 @@ if not (__name__ == "__main__" or any(__name__ in a for a in sys.argv)):
     pytest.skip(f"Skipping backend specific tests {__name__}", allow_module_level=True)
 
 
+QtWidgets = None
+backend_name = "no-backend"
 for lib in ("PySide6", "PyQt6", "PySide2", "PyQt5"):
-    try:
+    if any(lib.lower() == a.lower() for a in sys.argv):
         QtWidgets = importlib.import_module(".QtWidgets", lib)
+        backend_name = lib.lower()
         break
-    except ModuleNotFoundError:
-        pass
-    else:
-        raise RuntimeError("No Qt lib found!")
+if QtWidgets is None:
+    for lib in ("PySide6", "PyQt6", "PySide2", "PyQt5"):
+        try:
+            QtWidgets = importlib.import_module(".QtWidgets", lib)
+            backend_name = lib.lower()
+            break
+        except ModuleNotFoundError:
+            pass
+if QtWidgets is None:
+    raise RuntimeError("No Qt lib found!")
 
 
 from rendercanvas.base import BaseRenderCanvas, WrapperRenderCanvas
@@ -46,31 +56,10 @@ def test_is_canvas_classes():
     assert issubclass(RenderCanvas, QtWidgets.QWidget)  # toplevel
 
 
-def test_canvas_sizing():
-    canvas = RenderCanvas(size=(640, 480))
-    canvas._rc_gui_poll()
-
-    lsize = canvas.get_logical_size()
-    assert isinstance(lsize, tuple) and len(lsize) == 2
-    assert isinstance(lsize[0], float) and isinstance(lsize[1], float)
-    assert lsize == (640, 480)
-
-    canvas.set_logical_size(700, 600)
-    canvas._rc_gui_poll()
-
-    lsize = canvas.get_logical_size()
-    assert isinstance(lsize, tuple) and len(lsize) == 2
-    assert isinstance(lsize[0], float) and isinstance(lsize[1], float)
-    assert lsize == (700, 600)
-
-    assert len(canvas.get_physical_size()) == 2
-    assert isinstance(canvas.get_pixel_ratio(), float)
-
-    # Close
-    assert not canvas.get_closed()
-    canvas.close()
-    canvas._rc_gui_poll()
-    assert canvas.get_closed()
+@pytest.mark.parametrize("backend", [backend_name])
+@pytest.mark.parametrize("func", BACKEND_TEST_FUNCS)
+def test_backend_generic(func, backend):
+    func(backend)
 
 
 if __name__ == "__main__":

@@ -47,6 +47,11 @@ def run_tests(scope):
                 for arg in params[0][1]:
                     print(f"Running {func.__name__} with {arg}...")
                     func(arg)
+            elif nargs == 2 and len(params) == 2:
+                for arg1 in params[0][1]:
+                    for arg2 in params[1][1]:
+                        print(f"Running {func.__name__} with {arg1}-{arg2}...")
+                        func(arg1, arg2)
             elif argnames == ["caplog"]:
                 print(f"Running {func.__name__} ...")
                 logging.root.addHandler(caplog)

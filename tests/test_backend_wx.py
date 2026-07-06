@@ -9,6 +9,7 @@ import sys
 
 import pytest
 from testutils import run_tests
+from testutils_backends import BACKEND_TEST_FUNCS
 
 
 # Only run when running directly (through Python or pytest)
@@ -18,7 +19,7 @@ if not (__name__ == "__main__" or any(__name__ in a for a in sys.argv)):
 
 import wx
 from rendercanvas.base import BaseRenderCanvas, WrapperRenderCanvas
-from rendercanvas.wx import RenderCanvas, RenderWidget, loop
+from rendercanvas.wx import RenderCanvas, RenderWidget
 from rendercanvas.wx import WxRenderWidget, WxRenderCanvas
 
 
@@ -34,54 +35,10 @@ def test_is_canvas_classes():
     assert issubclass(RenderCanvas, wx.Frame)
 
 
-def test_canvas_close_by_canvas():
-    canvas1 = RenderCanvas()
-    canvas2 = RenderCanvas()
-
-    loop.call_later(0.5, canvas1.close)
-    loop.call_later(0.6, canvas2.close)
-    loop.run()
-
-    assert canvas1.get_closed()
-    assert canvas2.get_closed()
-
-
-def test_canvas_close_by_loop():
-    canvas1 = RenderCanvas()
-    canvas2 = RenderCanvas()
-
-    loop.call_later(0.5, loop.stop)
-    loop.run()
-
-    assert canvas1.get_closed()
-    assert canvas2.get_closed()
-
-
-def test_canvas_sizing():
-    canvas = RenderCanvas(size=(640, 480))
-    canvas._rc_gui_poll()
-
-    lsize = canvas.get_logical_size()
-    assert isinstance(lsize, tuple) and len(lsize) == 2
-    assert isinstance(lsize[0], float) and isinstance(lsize[1], float)
-    assert lsize == (640, 480)
-
-    canvas.set_logical_size(700, 600)
-    canvas._rc_gui_poll()
-
-    lsize = canvas.get_logical_size()
-    assert isinstance(lsize, tuple) and len(lsize) == 2
-    assert isinstance(lsize[0], float) and isinstance(lsize[1], float)
-    assert lsize == (700, 600)
-
-    assert len(canvas.get_physical_size()) == 2
-    assert isinstance(canvas.get_pixel_ratio(), float)
-
-    # Close
-    assert not canvas.get_closed()
-    canvas.close()
-    canvas._rc_gui_poll()
-    assert canvas.get_closed()
+@pytest.mark.parametrize("backend", ["wx"])
+@pytest.mark.parametrize("func", BACKEND_TEST_FUNCS)
+def test_backend_generic(func, backend):
+    func(backend)
 
 
 if __name__ == "__main__":
