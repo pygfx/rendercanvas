@@ -1,3 +1,7 @@
+"""
+Some tests that can be run for different (GUI) backends.
+"""
+
 import gc
 import time
 import weakref
