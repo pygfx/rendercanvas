@@ -9,7 +9,10 @@ import numpy as np
 
 def get_random_im(*shape):
     """Get a random image."""
-    return np.random.randint(0, 100, shape).astype(np.uint8)
+    im = np.random.randint(0, 100, shape).astype(np.uint8)
+    im //= 4
+    im *= 4
+    return im
 
 
 def test_encode_array():
@@ -81,7 +84,6 @@ def test_encode_png():
 
 
 def _perform_checks(encode, c1, c2):
-
     # Works without compression/level param
     im = get_random_im(100, 100, 3)
     _bb0 = encode(im)
