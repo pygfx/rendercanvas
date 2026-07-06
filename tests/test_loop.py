@@ -84,9 +84,7 @@ elif "PySide2Loop" in sys.argv:
     loop_classes.append(PySide2Loop)
 elif "WxLoop" in sys.argv:
     # NOTE: because for wx we have to do a few things differently, the
-    # tests in this module do not pass for it. Also, installing wxPython
-    # on CI tries to build wx from scratch, so we don't run wx tests
-    # on CI anyway.
+    # tests in this module do not pass for it.
     from rendercanvas.wx import WxLoop
 
     loop_classes.append(WxLoop)

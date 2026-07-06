@@ -36,7 +36,7 @@ def test_offscreen_selection_using_env_var():
             os.environ["RENDERCANVAS_FORCE_OFFSCREEN"] = ori
 
 
-def test_offscreen_selection_using_legacyt_env_var():
+def test_offscreen_selection_using_legacy_env_var():
     from rendercanvas.offscreen import OffscreenRenderCanvas
 
     ori1 = os.getenv("RENDERCANVAS_FORCE_OFFSCREEN")

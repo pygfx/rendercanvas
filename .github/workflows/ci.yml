@@ -23,11 +23,11 @@ jobs:
     strategy:
       fail-fast: false
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
-        python-version: 3.12
+        python-version: 3.14
     - name: Install dependencies
       run: |
           python -m pip install --upgrade pip
@@ -45,7 +45,7 @@ jobs:
     strategy:
       fail-fast: false
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - uses: actions/setup-node@v6
     - name: Install JS dependencies
       run: npm install -g standard
@@ -59,11 +59,11 @@ jobs:
     strategy:
       fail-fast: false
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
-        python-version: 3.12
+        python-version: 3.14
     - name: Install dev dependencies
       run: |
         python -m pip install --upgrade pip
@@ -75,7 +75,7 @@ jobs:
 
   # Test majority of code for a variety of Python versions and os's
   test-unit:
-    name: 'Test Python ${{ matrix.pyversion }} on ${{ matrix.os }}'
+    name: 'Test py ${{ matrix.pyversion }} on ${{ matrix.os }}'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -89,14 +89,17 @@ jobs:
             pyversion: '3.12'
           - os: ubuntu-latest
             pyversion: '3.13'
+          - os: ubuntu-latest
+            pyversion: '3.14'
+          # platforms
           - os: windows-latest
-            pyversion: '3.13'
+            pyversion: '3.14'
           - os: macos-latest
-            pyversion: '3.13'
+            pyversion: '3.14'
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Set up Python ${{ matrix.pyversion }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.pyversion }}
     - name: Install package and dev dependencies
@@ -119,9 +122,9 @@ jobs:
           - os: ubuntu-latest
             pyversion: '3.13'
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Set up Python ${{ matrix.pyversion }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.pyversion }}
     - name: Install package and dev dependencies
@@ -141,45 +144,42 @@ jobs:
         "
         pytest -v tests
 
-  # Test for the few GUI frameworks that we support.
-  test-gui-frameworks:
-    name: 'Test gui ${{ matrix.backendname }}'
+  # Test for specific backends. Ran separately, since GUI frameworks don't like to be loaded in the same process.
+  test-backends:
+    name: 'Test backend ${{ matrix.backendname }}'
     runs-on:  ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - guilib: 'glfw'
-            backendname: 'glfw'
-            guitestname: 'glfw'
-            loopname: 'AsyncioLoop'
+          - backendname: 'glfw'
+            deps: 'glfw'
             os: windows-latest
-          - guilib: 'PySide6'
-            backendname: 'pyside6'
-            guitestname: 'qt'
+          - backendname: 'pyside6'
+            deps: 'PySide6'
+            testname: 'qt'
             loopname: 'PySide6Loop'
             os: windows-latest
-          - guilib: 'PyQt6'
-            backendname: 'pyqt6'
-            guitestname: 'qt'
+          - backendname: 'pyqt6'
+            deps: 'PyQt6'
+            testname: 'qt'
             loopname: 'PyQt6Loop'
             os: windows-latest
-          - guilib: 'PyQt5'
-            backendname: 'pyqt5'
-            guitestname: 'qt'
+          - backendname: 'pyqt5'
+            deps: 'PyQt5'
+            testname: 'qt'
             loopname: 'PyQt5Loop'
             os: windows-latest
-          - guilib: 'wxPython'
-            backendname: 'wx'
-            guitestname: 'wx'
-            loopname: 'WxLoop'
+          - backendname: 'wx'
+            deps: 'wxPython'
+            # loopname: 'WxLoop'  wx's event loop has limitations
             os: windows-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
-        python-version: '3.13'
+        python-version: '3.14'
     - name: Install xvfb and Vulkan drivers
       if: matrix.os == 'ubuntu-latest'
       run: |
@@ -190,18 +190,18 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install .[tests]
-        pip install ${{ matrix.guilib }}
+        pip install ${{ matrix.deps }}
         rm -r rendercanvas
     - name: Test import
       run: |
         python -c 'import rendercanvas.${{ matrix.backendname }}'
     - name: Test loop
-      if: matrix.backendname != 'wx'
+      if: matrix.loopname
       run: |
         pytest -v tests/test_loop.py -k ${{ matrix.loopname }}
-    - name: Test GUI canvas
+    - name: Test backend canvas
       run: |
-        pytest -v tests/test_gui_${{ matrix.guitestname }}.py
+        pytest -v tests/test_backend_${{ matrix.testname || matrix.backendname }}.py
 
   # Test that the examples run without error, and screenshots match
   test-examples:
@@ -212,15 +212,15 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            pyversion: '3.10'
-          - os: ubuntu-latest
             pyversion: '3.12'
+          - os: ubuntu-latest
+            pyversion: '3.14'
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
-        python-version: 3.12
+        python-version: ${{ matrix.pyversion }}
     - name: Install llvmpipe and lavapipe for offscreen canvas
       run: |
         sudo apt update -y -qq
@@ -248,11 +248,11 @@ jobs:
     name: Test pyinstaller
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
-        python-version: 3.12
+        python-version: 3.14
     - name: Install package and dev dependencies
       run: |
         python -m pip install --upgrade pip
@@ -270,11 +270,11 @@ jobs:
     strategy:
       fail-fast: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: 3.12
+          python-version: 3.14
       - name: Install dev dependencies
         run: |
           python -m pip install --upgrade pip
@@ -318,18 +318,18 @@ jobs:
       contents: write
       id-token: write
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
-        python-version: 3.12
+        python-version: 3.14
     - name: Download assets
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: dist
         path: dist
     - name: Release
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v3
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         files: |

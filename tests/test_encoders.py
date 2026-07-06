@@ -9,7 +9,8 @@ import numpy as np
 
 def get_random_im(*shape):
     """Get a random image."""
-    return np.random.randint(0, 100, shape).astype(np.uint8)
+    # With 2 possible values, you get enough entropy vs structure for png to scale compression
+    return np.random.randint(0, 2, shape).astype(np.uint8) * 100
 
 
 def test_encode_array():
@@ -76,12 +77,12 @@ def test_encode_jpeg():
 def test_encode_png():
     """Tests for encode_jpeg function."""
 
-    _perform_checks(encode_png, 3, 9)
+    # level 9 tends to try too hard and actually produce larger blobs
+    _perform_checks(encode_png, 3, 8)
     _perform_error_checks(encode_png)
 
 
 def _perform_checks(encode, c1, c2):
-
     # Works without compression/level param
     im = get_random_im(100, 100, 3)
     _bb0 = encode(im)
