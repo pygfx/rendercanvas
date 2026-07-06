@@ -35,10 +35,14 @@ def test_is_canvas_classes():
     assert issubclass(RenderCanvas, wx.Frame)
 
 
+def wx_close(canvas):
+    canvas.Close()
+
+
 @pytest.mark.parametrize("backend", ["wx"])
 @pytest.mark.parametrize("func", BACKEND_TEST_FUNCS)
 def test_backend_generic(func, backend):
-    func(backend)
+    func(backend, close_func=wx_close)
 
 
 if __name__ == "__main__":

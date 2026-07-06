@@ -22,7 +22,7 @@ def import_canvas_class_and_loop(backend) -> tuple[type, object]:
 
 
 @BACKEND_TEST_FUNCS.append
-def canvas_close_by_canvas(backend):
+def canvas_close_by_canvas(backend, *, close_func):
     RenderCanvas, loop = import_canvas_class_and_loop(backend)  # noqa: N806
 
     canvas1 = RenderCanvas()
@@ -47,7 +47,32 @@ def canvas_close_by_canvas(backend):
 
 
 @BACKEND_TEST_FUNCS.append
-def canvas_close_by_loop(backend):
+def canvas_close_by_pressing_cross(backend, *, close_func):
+    RenderCanvas, loop = import_canvas_class_and_loop(backend)  # noqa: N806
+
+    canvas1 = RenderCanvas()
+    canvas2 = RenderCanvas()
+
+    loop.call_later(0.5, lambda: close_func(canvas1))
+    loop.call_later(0.6, lambda: close_func(canvas2))
+    loop.run()
+
+    assert canvas1.get_closed()
+    assert canvas2.get_closed()
+
+    canvas_ref1 = weakref.ref(canvas1)
+    canvas_ref2 = weakref.ref(canvas2)
+    del canvas1, canvas2
+    gc.collect()
+    time.sleep(0.02)
+    gc.collect()
+
+    assert canvas_ref1() is None
+    assert canvas_ref2() is None
+
+
+@BACKEND_TEST_FUNCS.append
+def canvas_close_by_loop(backend, close_func):
     RenderCanvas, loop = import_canvas_class_and_loop(backend)  # noqa: N806
 
     canvas1 = RenderCanvas()
@@ -61,7 +86,7 @@ def canvas_close_by_loop(backend):
 
 
 @BACKEND_TEST_FUNCS.append
-def canvas_sizing(backend):
+def canvas_sizing(backend, close_func):
     RenderCanvas, _ = import_canvas_class_and_loop(backend)  # noqa: N806
 
     canvas = RenderCanvas(size=(640, 480))
@@ -91,7 +116,7 @@ def canvas_sizing(backend):
 
 
 @BACKEND_TEST_FUNCS.append
-def canvas_render_bitmap(backend):
+def canvas_render_bitmap(backend, close_func):
     RenderCanvas, loop = import_canvas_class_and_loop(backend)  # noqa: N806
 
     canvas = RenderCanvas(size=(640, 480))
@@ -124,7 +149,7 @@ def canvas_render_bitmap(backend):
 
 
 @BACKEND_TEST_FUNCS.append
-def canvas_render_wgpu(backend):
+def canvas_render_wgpu(backend, close_func):
     if not can_use_wgpu_lib:
         pytest.skip("Skipping tests that needs the wgpu lib")
 

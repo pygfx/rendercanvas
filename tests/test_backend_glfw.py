@@ -19,7 +19,7 @@ from testutils_backends import BACKEND_TEST_FUNCS, _get_draw_function
 if not can_use_glfw:
     pytest.skip("Skipping tests that needs glfw", allow_module_level=True)
 
-
+import glfw
 # def setup_module():
 #     import glfw
 #     glfw.init()
@@ -40,10 +40,14 @@ def test_is_canvas_classes():
     assert issubclass(RenderCanvas, BaseRenderCanvas)
 
 
+def glfw_close(canvas):
+    glfw.set_window_should_close(canvas._window, 1)
+
+
 @pytest.mark.parametrize("backend", ["glfw"])
 @pytest.mark.parametrize("func", BACKEND_TEST_FUNCS)
 def test_backend_generic(func, backend):
-    func(backend)
+    func(backend, close_func=glfw_close)
 
 
 def test_glfw_canvas_del():

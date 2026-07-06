@@ -162,21 +162,27 @@ class WxLoop(BaseLoop):
         # but we cannot do that when the wx app is started from the outside (which is likely), so we need
         # to make it work without it anyway.
         # self._app.SetExitOnFrameDelete(False)
-
         self._app.MainLoop()
+        self._app = None
 
     async def _rc_run_async(self):
         raise NotImplementedError()
 
     def _rc_stop(self):
-        self._app.ExitMainLoop()
+        if self._app is not None:
+            try:
+                self._app.ExitMainLoop()
+            except RuntimeError:
+                pass  # wrapped C/C++ object of type App has been deleted
 
     def _rc_add_task(self, async_func, name):
         # we use the async adapter with call_later
         return super()._rc_add_task(async_func, name)
 
     def _rc_call_later(self, delay, callback):
-        if delay <= 0:
+        if self._app is None:
+            pass
+        elif delay <= 0:
             wx.CallAfter(callback)
         else:
             wx.CallLater(int(max(delay * 1000, 1)), callback)
@@ -581,7 +587,7 @@ class WxRenderCanvas(WrapperRenderCanvas, wx.Frame):
 
         self._subwidget = WxRenderWidget(parent=self, **kwargs)
 
-        self.Bind(wx.EVT_CLOSE, lambda e: self.Destroy())
+        self.Bind(wx.EVT_CLOSE, lambda e: self.close())
 
         self.Show()
         self._final_canvas_init()

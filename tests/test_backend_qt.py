@@ -56,10 +56,14 @@ def test_is_canvas_classes():
     assert issubclass(RenderCanvas, QtWidgets.QWidget)  # toplevel
 
 
+def qt_close(canvas):
+    QtWidgets.QWidget.close(canvas)
+
+
 @pytest.mark.parametrize("backend", [backend_name])
 @pytest.mark.parametrize("func", BACKEND_TEST_FUNCS)
 def test_backend_generic(func, backend):
-    func(backend)
+    func(backend, close_func=qt_close)
 
 
 if __name__ == "__main__":
