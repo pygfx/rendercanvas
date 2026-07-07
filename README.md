@@ -47,7 +47,8 @@ The following backends are currently available:
 * `http` - for server side rendering, display in a browser connected via the internet.
 * `pyodide` - to run in the browser with Pyodide or PyScript.
 
-* In addition to the GUI libraries mentioned above, the following event loops are supported:
+In addition to the GUI libraries mentioned above, the following event loops are supported:
+
   * `asyncio`
   * `trio`
   * `raw`
