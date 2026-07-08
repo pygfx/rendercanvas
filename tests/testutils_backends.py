@@ -53,8 +53,8 @@ def canvas_close_by_pressing_cross(backend, *, close_func):
     canvas1 = RenderCanvas()
     canvas2 = RenderCanvas()
 
-    loop.call_later(0.5, lambda: close_func(canvas1))
-    loop.call_later(0.6, lambda: close_func(canvas2))
+    loop.call_later(0.5, lambda: close_func(canvas1))  # noqa: F821
+    loop.call_later(0.6, lambda: close_func(canvas2))  # noqa: F821
     loop.run()
 
     assert canvas1.get_closed()

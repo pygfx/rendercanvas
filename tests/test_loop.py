@@ -49,8 +49,10 @@ if "raw" in sys.argv:
 elif "asyncio" in sys.argv:
     loop_classes.append(AsyncioLoop)
 elif "glfw" in sys.argv:
+
     class GlfwLoop(AsyncioLoop):
         pass
+
     loop_classes.append(GlfwLoop)
 elif "trio" in sys.argv:
     loop_classes.append(TrioLoop)
@@ -93,10 +95,7 @@ elif "wx" in sys.argv:
 
     loop_classes.append(WxLoop)
 else:
-
     loop_classes[:] = default_loop_classes
-
-
 
 
 async def fake_task():
