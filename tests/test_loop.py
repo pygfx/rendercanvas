@@ -5,8 +5,8 @@ Testing the loop of GUI frameworks like Qt and wx is a bit tricky,
 because importing more than one in the same process always causes problems.
 
 Therefore, tests for these GUI framework need to be explicitly run:
-* Run "pytest -k PySide6Loop"  etc.
-* Run "python tests/test_loop.py WxLoop"  etc.
+* Run "pytest -k pyside6"  etc.
+* Run "python tests/test_loop.py wx"  etc.
 
 
 Note that in here we create *a lot* of different kind of loop objects.
@@ -44,60 +44,59 @@ loop_classes = []
 
 
 # Determine what loops to test
-if "RawLoop" in sys.argv:
+if "raw" in sys.argv:
     loop_classes.append(RawLoop)
-elif "AsyncioLoop" in sys.argv:
+elif "asyncio" in sys.argv:
     loop_classes.append(AsyncioLoop)
-elif "TrioLoop" in sys.argv:
+elif "glfw" in sys.argv:
+    class GlfwLoop(AsyncioLoop):
+        pass
+    loop_classes.append(GlfwLoop)
+elif "trio" in sys.argv:
     loop_classes.append(TrioLoop)
-elif "QtLoop" in sys.argv:
+elif "qt" in sys.argv:
     from rendercanvas.pyside6 import QtLoop
 
     loop_classes.append(QtLoop)
-elif "PySide6Loop" in sys.argv:
+elif "pyside6" in sys.argv:
     from rendercanvas.pyside6 import QtLoop
 
     class PySide6Loop(QtLoop):
         pass
 
     loop_classes.append(PySide6Loop)
-elif "PyQt6Loop" in sys.argv:
+elif "pyqt6" in sys.argv:
     from rendercanvas.pyqt6 import QtLoop
 
     class PyQt6Loop(QtLoop):
         pass
 
     loop_classes.append(PyQt6Loop)
-elif "PyQt5Loop" in sys.argv:
+elif "pyqt5" in sys.argv:
     from rendercanvas.pyqt5 import QtLoop
 
     class PyQt5Loop(QtLoop):
         pass
 
     loop_classes.append(PyQt5Loop)
-elif "PySide2Loop" in sys.argv:
+elif "pyside2" in sys.argv:
     from rendercanvas.pyside2 import QtLoop
 
     class PySide2Loop(QtLoop):
         pass
 
     loop_classes.append(PySide2Loop)
-elif "WxLoop" in sys.argv:
-    # NOTE: because for wx we have to do a few things differently, the
-    # tests in this module do not pass for it.
+elif "wx" in sys.argv:
+    # NOTE: because we cannot prevent wx from closing the loop
+    # once the last canvas closes, some tests are skipped.
     from rendercanvas.wx import WxLoop
 
     loop_classes.append(WxLoop)
 else:
+
     loop_classes[:] = default_loop_classes
 
-    # When Pyside6 is installed, run the tests with a QtLoop.
-    try:
-        from rendercanvas.pyside6 import QtLoop
-    except Exception:
-        pass
-    else:
-        loop_classes.append(QtLoop)
+
 
 
 async def fake_task():
@@ -204,6 +203,9 @@ def test_loop_deletion2(SomeLoop):
 def test_loop_deletion3(SomeLoop):
     # Loops get gc'd when closed after use
 
+    if SomeLoop.__name__.startswith("Wx"):
+        pytest.skip()
+
     flag = []
 
     async def foo():
@@ -229,6 +231,10 @@ def test_loop_deletion3(SomeLoop):
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
 def test_loop_detection(SomeLoop):
+
+    if SomeLoop.__name__.startswith("Wx"):
+        pytest.skip()
+
     from rendercanvas.utils.asyncs import (
         detect_current_async_lib,
         detect_current_call_soon_threadsafe,
@@ -375,6 +381,9 @@ def test_run_loop_without_canvases(SomeLoop):
 def test_run_loop_and_close_canvases(SomeLoop):
     # After all canvases are closed, it can take one tick before its detected.
 
+    if SomeLoop.__name__.startswith("Wx"):
+        pytest.skip()
+
     leeway = 0.20 if os.getenv("CI") else 0
 
     loop = SomeLoop()
@@ -403,6 +412,9 @@ def test_run_loop_and_close_canvases(SomeLoop):
 def test_run_loop_and_close_by_loop_stop(SomeLoop):
     # Close, then wait at most one tick to close canvases, and another to confirm close.
 
+    if SomeLoop.__name__.startswith("Wx"):
+        pytest.skip()
+
     leeway = 0.20 if os.getenv("CI") else 0
 
     loop = SomeLoop()
@@ -430,6 +442,9 @@ def test_run_loop_and_close_by_loop_stop(SomeLoop):
 @pytest.mark.parametrize("SomeLoop", loop_classes)
 def test_run_loop_and_close_by_loop_stop_via_async(SomeLoop):
     # Close using a coro
+
+    if SomeLoop.__name__.startswith("Wx"):
+        pytest.skip()
 
     leeway = 0.20 if os.getenv("CI") else 0
 
@@ -461,6 +476,9 @@ def test_run_loop_and_close_by_loop_stop_via_async(SomeLoop):
 @pytest.mark.parametrize("SomeLoop", loop_classes)
 def test_run_loop_and_close_by_deletion(SomeLoop):
     # Make the canvases be deleted by the gc.
+
+    if SomeLoop.__name__.startswith("Wx"):
+        pytest.skip()
 
     leeway = 0.20 if os.getenv("CI") else 0
 

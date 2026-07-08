@@ -162,6 +162,7 @@ class WxLoop(BaseLoop):
         # but we cannot do that when the wx app is started from the outside (which is likely), so we need
         # to make it work without it anyway.
         # self._app.SetExitOnFrameDelete(False)
+        self._rc_init()
         self._app.MainLoop()
         self._app = None
 
