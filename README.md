@@ -47,7 +47,8 @@ The following backends are currently available:
 * `http` - for server side rendering, display in a browser connected via the internet.
 * `pyodide` - to run in the browser with Pyodide or PyScript.
 
-* In addition to the GUI libraries mentioned above, the following event loops are supported:
+In addition to the GUI libraries mentioned above, the following event loops are supported:
+
   * `asyncio`
   * `trio`
   * `raw`
@@ -132,13 +133,23 @@ See the [docs on async](https://rendercanvas.readthedocs.io/stable/start.html#as
 This code is distributed under the 2-clause BSD license.
 
 
-## Developers
+## Contributing
+
+See the [contribution guide](CONTRIBUTING.md).
+
+### Development install
 
 * Clone the repo.
 * Install `rendercanvas` and developer deps using `pip install -e .[dev]`.
+
+### Quick tips
+
 * Use `ruff format` to apply autoformatting.
 * Use `ruff check` to check for linting errors.
-* Optionally, if you install [pre-commit](https://github.com/pre-commit/pre-commit/) hooks with `pre-commit install`, lint fixes and formatting will be automatically applied on `git commit`.
 * Use `pytest tests` to run the tests.
 * Use `pytest examples` to run a subset of the examples.
+
+### Code of Conduct
+
+This repository follows the [PyGfx Code of Conduct](https://github.com/pygfx/pygfx/blob/main/CODE_OF_CONDUCT.md)
 

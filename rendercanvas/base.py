@@ -599,17 +599,23 @@ class BaseRenderCanvas:
             with log_exception("Present init error"):
                 # Note: if vsync is used, this call may wait a little (happens down at the level of the driver or OS)
 
-                if force_sync:
-                    result = context._rc_present(force_sync=True)
-                    assert result["method"] != "async"
-                    self._finish_present(result)
-                else:
-                    result = context._rc_present()
-                    if result["method"] == "async":
-                        result["awaitable"].then(self._finish_present)
-                    else:
+                try:
+                    if force_sync:
+                        result = context._rc_present(force_sync=True)
+                        assert result["method"] != "async"
                         self._finish_present(result)
-
+                    else:
+                        result = context._rc_present()
+                        if result["method"] == "async":
+                            result["awaitable"].then(self._finish_present)
+                        else:
+                            self._finish_present(result)
+                except Exception as err:
+                    if type(err).__name__ == "DrawCancelled":
+                        if scheduler is not None:
+                            scheduler.on_cancel_draw()
+                        return
+                    raise
         finally:
             self.__is_drawing = False
 
