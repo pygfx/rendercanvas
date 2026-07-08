@@ -43,8 +43,9 @@ class BitmapContext(BaseContext):
         grayscale or rgba format, with uint8 values.
 
         The bitmap does not have to match the physical size of the canvas;
-        backends will stretch the bitmap to match, though it's not specified
-        what interpolation method is used.
+        backends will stretch the bitmap to match the window. The interpolation
+        method is currently not specified, but we recommend backends to use
+        nearest-neighbor interpolation.
 
         """
 
