@@ -22,6 +22,7 @@ __all__ = ["RenderCanvas", "TerminalRenderCanvas", "loop"]
 
 import io
 import sys
+import time
 from contextlib import contextmanager
 
 from .base import BaseCanvasGroup, BaseRenderCanvas
@@ -175,7 +176,7 @@ class TerminalRenderCanvas(BaseRenderCanvas):
         self._term_size = 0, 0
         self._pointer_pos = (0, 0)
         self._pointer_buttons = ()
-        self._pressed_keys = {}
+        self._pressed_keys = {}  # key_name -> (time, key)
         self._overlay_builder = OverlayBuilder()  # reset on each draw
         self._expanded_menu = False
 
@@ -310,9 +311,14 @@ class TerminalRenderCanvas(BaseRenderCanvas):
                             continue  # repeat for character keys etc
                         else:
                             self._pressed_keys[key_name] = key
-                elif not keystroke.pressed:
-                    event_type = "key_up"
-                    key = self._pressed_keys.pop(key_name, None) or key
+                    else:
+                        key_already_pressed = key_name in self._pressed_keys
+                        self._pressed_keys[key_name] =  time.perf_counter(), key
+                        if key_already_pressed:
+                            continue  # repeat for character keys etc
+                # elif not keystroke.pressed:
+                #     event_type = "key_up"
+                #     key = self._pressed_keys.pop(key_name, None) or key
                 # Submit event
                 if key:
                     ev = {
@@ -321,6 +327,25 @@ class TerminalRenderCanvas(BaseRenderCanvas):
                         "modifiers": tuple(modifiers),
                     }
                     self.submit_event(ev)
+                    self.set_title(str(ev))
+
+        # TODO: only release keys that have more than 1 repeat, bc the OS starts sending repeat events only after an initial delay that is (0.3-0.5 s)
+        # TODO: this means a keypress takes at least like 0.6 secs, but ppl can fake it by double-pressing ;)
+        released_keys = []
+        now = time.perf_counter()
+        for key_name, (last_press, key) in self._pressed_keys.items():
+            if now - last_press > 0.1:
+                released_keys.append(key_name)
+                ev = {
+                    "event_type": "key_up",
+                    "key": key,
+                    "modifiers": (), # TODO: also store modifiers
+                }
+                self.submit_event(ev)
+                self.set_title(str(ev))
+        for key_name in released_keys:
+            self._pressed_keys.pop(key_name, None)
+
 
     def _rc_get_present_info(self, present_methods):
         if "bitmap" in present_methods:
