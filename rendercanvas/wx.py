@@ -191,14 +191,10 @@ class WxLoop(BaseLoop):
         wx.CallAfter(callback)
 
     def process_wx_events(self):
-        old_loop = wx.GUIEventLoop.GetActive()
-        event_loop = wx.GUIEventLoop()
-        wx.EventLoop.SetActive(event_loop)
-        count = 0
-        while event_loop.Pending() and count < 3:
-            count += 1
-            event_loop.Dispatch()
-        wx.EventLoop.SetActive(old_loop)
+        if self._app:
+            # Not SafeYield, becaus then events would not get processed
+            # We have to be careful not to re-enter!
+            self._app.Yield()
 
 
 loop = WxLoop()
@@ -567,12 +563,8 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
                 self.submit_event(ev)
 
     def _on_close(self, _event):
-        if self._is_closed:
-            return
-        self._is_closed = True
-        loop = self._rc_canvas_group.get_loop()
-        if not loop.get_canvases():
-            loop.stop(force=True)
+        if not self._is_closed:
+            self.close()
 
 
 class WxRenderCanvas(WrapperRenderCanvas, wx.Frame):
