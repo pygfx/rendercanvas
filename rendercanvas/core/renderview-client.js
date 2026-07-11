@@ -28,6 +28,7 @@ class ClientRenderView extends BaseRenderView {
     const viewElement = document.createElement('img')
     viewElement.decoding = 'sync'
     viewElement.loading = 'eager'
+    viewElement.style.imageRendering = 'pixelated' // if image size does not match, use nearest-neighbor
     viewElement.style.touchAction = 'none' // prevent default pan/zoom behavior
     viewElement.ondragstart = () => false // prevent browser's built-in image drag
 

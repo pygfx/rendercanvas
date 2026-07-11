@@ -345,7 +345,7 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
             rect1 = QtCore.QRect(0, 0, image.width(), image.height())
             rect2 = self.rect()
 
-            # Paint the image. Nearest neighbor interpolation, like the other backends.
+            # Paint the image using nearest neighbor interpolation.
             painter = QtGui.QPainter(self)
             painter.setRenderHints(painter.RenderHint.Antialiasing, False)
             painter.setRenderHints(painter.RenderHint.SmoothPixmapTransform, False)

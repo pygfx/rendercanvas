@@ -351,7 +351,7 @@ class TerminalRenderCanvas(BaseRenderCanvas):
         term_w, term_h = self._term_size[0], self._term_size[1] * 2
         data_h, data_w = data.shape[:2]
 
-        # Resize image if necessary
+        # Resize image if necessary, using nearest neighbor interpolation.
         if term_w == data_w or term_h == data_h:
             img = data
         else:

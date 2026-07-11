@@ -94,7 +94,9 @@ class FullscreenTexture:
             sample_count=1,
         )
         self._texture_view = self._texture.create_view()
-        self._sampler = device.create_sampler()
+        # Use nearest neighbor interpolation when the bitmap is smaller than
+        # the physical size, and linear when it is larger.
+        self._sampler = device.create_sampler(min_filter="linear", mag_filter="nearest")
 
     def _update_texture(self, texture_data):
         device = self._device
