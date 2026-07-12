@@ -247,7 +247,11 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         if not self._draw_lock:
             self._time_to_paint()
         if self._last_image is not None:
-            dc.DrawBitmap(self._last_image, 0, 0, False)
+            # Paint the image using nearest neighbor interpolation.
+            gc = wx.GraphicsContext.Create(dc)
+            gc.SetInterpolationQuality(wx.INTERPOLATION_NONE)
+            lw, lh = self._size_info["logical_size"]
+            gc.DrawBitmap(self._last_image, 0, 0, lw, lh)
         else:
             event.Skip()
         del dc
@@ -341,7 +345,6 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         assert format == "rgba-u8"
         width, height = data.shape[1], data.shape[0]
         self._last_image = wx.Bitmap.FromBufferRGBA(width, height, data)
-        self._last_image.SetScaleFactor(self.get_pixel_ratio())
 
     def _rc_set_logical_size(self, width, height):
         width, height = int(width), int(height)
