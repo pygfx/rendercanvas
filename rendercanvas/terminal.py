@@ -22,6 +22,7 @@ __all__ = ["RenderCanvas", "TerminalRenderCanvas", "loop"]
 
 import io
 import sys
+import time
 from contextlib import contextmanager
 
 from .base import BaseCanvasGroup, BaseRenderCanvas
@@ -109,7 +110,7 @@ KEY_MAP = {
 
 
 class TerminalLoop(AsyncioLoop):
-    kitty_keyboard = None
+    is_kitty_keyboard = None
 
     def _rc_run(self):
         with (
@@ -126,7 +127,7 @@ class TerminalLoop(AsyncioLoop):
             term.mouse_enabled(report_motion=True),
             set_pointer_to_arrow(),
         ):
-            self.kitty_keyboard = term.get_kitty_keyboard_state()
+            self.is_kitty_keyboard = term.get_kitty_keyboard_state()
 
             super()._rc_run()
 
@@ -175,7 +176,7 @@ class TerminalRenderCanvas(BaseRenderCanvas):
         self._term_size = 0, 0
         self._pointer_pos = (0, 0)
         self._pointer_buttons = ()
-        self._pressed_keys = {}
+        self._pressed_keys = {}  # key_name -> (last_time, key)
         self._overlay_builder = OverlayBuilder()  # reset on each draw
         self._expanded_menu = False
 
@@ -305,14 +306,16 @@ class TerminalRenderCanvas(BaseRenderCanvas):
                     continue  # repeat for arrow keys etc.
                 elif keystroke.pressed and key:
                     event_type = "key_down"
-                    if loop.kitty_keyboard:
-                        if key_name in self._pressed_keys:
-                            continue  # repeat for character keys etc
-                        else:
-                            self._pressed_keys[key_name] = key
+                    key_already_pressed = key_name in self._pressed_keys
+                    self._pressed_keys[key_name] = time.perf_counter(), key
+                    if key_already_pressed:
+                        continue  # repeat for character keys etc
                 elif not keystroke.pressed:
                     event_type = "key_up"
-                    key = self._pressed_keys.pop(key_name, None) or key
+                    _, pressed_key = self._pressed_keys.pop(key_name, (None, None))
+                    key = pressed_key or key
+                else:
+                    continue  # ?
                 # Submit event
                 if key:
                     ev = {
@@ -321,6 +324,27 @@ class TerminalRenderCanvas(BaseRenderCanvas):
                         "modifiers": tuple(modifiers),
                     }
                     self.submit_event(ev)
+
+        if not loop.is_kitty_keyboard:
+            # The OS starts sending repeat events only after an initial delay, which is
+            # typically 0.2-0.5 s, but can be as high as 2 s. After that, it repeats
+            # typically every 0.02-0.05 s. Mimicking releases based on this is tricky
+            # and every approach has disadvantages. We chose to keep it simple; we
+            # release a key after 0.1 s. That way a user can still spam the keyboard or
+            # hold down the key to use repeat.
+            released_keys = []
+            now = time.perf_counter()
+            for key_name, (last_press, key) in self._pressed_keys.items():
+                if now - last_press > 0.1:
+                    released_keys.append(key_name)
+                    ev = {
+                        "event_type": "key_up",
+                        "key": key,
+                        "modifiers": (),  # TODO: also store modifiers
+                    }
+                    self.submit_event(ev)
+            for key_name in released_keys:
+                self._pressed_keys.pop(key_name, None)
 
     def _rc_get_present_info(self, present_methods):
         if "bitmap" in present_methods:
