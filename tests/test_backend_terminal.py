@@ -14,6 +14,11 @@ from testutils import run_tests
 from testutils_backends import BACKEND_TEST_FUNCS, NativeHelper
 
 
+# Only run when running directly (through Python or pytest)
+if not (__name__ == "__main__" or any(__name__ in a for a in sys.argv)):
+    pytest.skip(f"Skipping backend specific tests {__name__}", allow_module_level=True)
+
+
 def setup_module():
     rendercanvas.terminal.term_stream = io.StringIO()
 

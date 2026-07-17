@@ -155,20 +155,18 @@ jobs:
           # Loops
           # - backendname: 'asyncio' -> via glfw
           - backendname: 'raw'
-            deps: 'glfw'
+            deps: ''
+            os: windows-latest
+          - backendname: 'asyncio'
+            deps: 'rio'
             os: windows-latest
           - backendname: 'trio'
-            deps: 'glfw'
+            deps: 'trio'
             os: windows-latest
-          # Native
+          # GUI
           - backendname: 'glfw'
             deps: 'glfw'
             os: windows-latest
-          - backendname: 'terminal'
-            os: windows-latest
-          - backendname: 'offscreen'
-            os: windows-latest
-          # GUI
           - backendname: 'pyside6'
             deps: 'PySide6'
             testname: 'qt'
@@ -183,6 +181,12 @@ jobs:
             os: windows-latest
           - backendname: 'wx'
             deps: 'wxPython'
+            os: windows-latest
+          # Other
+          - backendname: 'terminal'
+            deps: 'blessed'
+            os: windows-latest
+          - backendname: 'offscreen'
             os: windows-latest
     steps:
     - uses: actions/checkout@v7
@@ -199,8 +203,7 @@ jobs:
     - name: Install package and dev dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install .[tests]
-        pip install ${{ matrix.deps }}
+        pip install .[tests] ${{ matrix.deps }}
         rm -r rendercanvas
     - name: Test import
       run: |
