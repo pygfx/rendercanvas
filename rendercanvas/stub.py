@@ -75,13 +75,22 @@ class StubRenderCanvas(BaseRenderCanvas):
     resize event. Setting the size implicitly requests a new draw.
 
     Backends must also call ``self.submit_event()``, if applicable, to produce
-    events for mouse and keyboard. Backends must *not* submit a "resize" event;
-    the base class takes care of that. See the event spec for details.
+    events for mouse and keyboard. Backends must *not* submit "resize" or
+    "close" events; the base class takes care of that. See the event spec for
+    more details.
+
+    Backends must make sure that all closing flows (e.g. a user pressing the cross)
+    lead to ``close()`` being called.
     """
 
     # Note that the methods below don't have docstrings, but Sphinx recovers the docstrings from the base class.
 
     _rc_canvas_group = StubCanvasGroup(loop)
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # backend-specific init
+        self._final_canvas_init()  # <-- Backends must call this near the end of their init
 
     def _rc_gui_poll(self):
         raise NotImplementedError()

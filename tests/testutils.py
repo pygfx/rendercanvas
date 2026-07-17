@@ -5,6 +5,8 @@ import logging
 import subprocess
 from io import StringIO
 
+import pytest
+
 
 class LogCaptureHandler(logging.StreamHandler):
     _ANSI_ESCAPE_SEQ = re.compile(r"\x1b\[[\d;]+m")
@@ -42,16 +44,25 @@ def run_tests(scope):
             argnames = [func.__code__.co_varnames[i] for i in range(nargs)]
             if not argnames:
                 print(f"Running {func.__name__} ...")
-                func()
+                try:
+                    func()
+                except pytest.skip.Exception:
+                    print(f"SKIPPING {func.__name__} by pytest skip")
             elif nargs == 1 and len(params) == 1:
                 for arg in params[0][1]:
                     print(f"Running {func.__name__} with {arg}...")
-                    func(arg)
+                    try:
+                        func(arg)
+                    except pytest.skip.Exception:
+                        print(f"SKIPPING {func.__name__} by pytest skip")
             elif nargs == 2 and len(params) == 2:
                 for arg1 in params[0][1]:
                     for arg2 in params[1][1]:
                         print(f"Running {func.__name__} with {arg1}-{arg2}...")
-                        func(arg1, arg2)
+                        try:
+                            func(arg1, arg2)
+                        except pytest.skip.Exception:
+                            print(f"SKIPPING {func.__name__} by pytest skip")
             elif argnames == ["caplog"]:
                 print(f"Running {func.__name__} ...")
                 logging.root.addHandler(caplog)
@@ -60,6 +71,7 @@ def run_tests(scope):
                 logging.root.removeHandler(caplog)
             else:
                 print(f"SKIPPING {func.__name__} because it needs args")
+
     print("Done")
 
 

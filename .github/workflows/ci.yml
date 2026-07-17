@@ -152,27 +152,40 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Loops
+          - backendname: 'raw'
+            deps: ''
+            os: windows-latest
+          - backendname: 'asyncio'
+            deps: ''
+            os: windows-latest
+          - backendname: 'trio'
+            deps: 'trio'
+            os: windows-latest
+          # GUI
           - backendname: 'glfw'
             deps: 'glfw'
             os: windows-latest
           - backendname: 'pyside6'
             deps: 'PySide6'
             testname: 'qt'
-            loopname: 'PySide6Loop'
             os: windows-latest
           - backendname: 'pyqt6'
             deps: 'PyQt6'
             testname: 'qt'
-            loopname: 'PyQt6Loop'
             os: windows-latest
           - backendname: 'pyqt5'
             deps: 'PyQt5'
             testname: 'qt'
-            loopname: 'PyQt5Loop'
             os: windows-latest
           - backendname: 'wx'
             deps: 'wxPython'
-            # loopname: 'WxLoop'  wx's event loop has limitations
+            os: windows-latest
+          # Other
+          - backendname: 'terminal'
+            deps: 'blessed'
+            os: windows-latest
+          - backendname: 'offscreen'
             os: windows-latest
     steps:
     - uses: actions/checkout@v7
@@ -189,16 +202,11 @@ jobs:
     - name: Install package and dev dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install .[tests]
-        pip install ${{ matrix.deps }}
+        pip install .[tests] ${{ matrix.deps }}
         rm -r rendercanvas
     - name: Test import
       run: |
         python -c 'import rendercanvas.${{ matrix.backendname }}'
-    - name: Test loop
-      if: matrix.loopname
-      run: |
-        pytest -v tests/test_loop.py -k ${{ matrix.loopname }}
     - name: Test backend canvas
       run: |
         pytest -v tests/test_backend_${{ matrix.testname || matrix.backendname }}.py

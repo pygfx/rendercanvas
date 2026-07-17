@@ -1,13 +1,7 @@
 """
-Some tests for the base loop and asyncio loop.
-
-Testing the loop of GUI frameworks like Qt and wx is a bit tricky,
-because importing more than one in the same process always causes problems.
-
-Therefore, tests for these GUI framework need to be explicitly run:
-* Run "pytest -k PySide6Loop"  etc.
-* Run "python tests/test_loop.py WxLoop"  etc.
-
+Some tests for the base loop. This is tested with our generic loops (raw, asyncio, trio).
+Of these tests we assume that they'd succeed for the GUI loops as well (qt, wx, ...).
+When in doubt of this assumption, better add a test to testutils_backends.py.
 
 Note that in here we create *a lot* of different kind of loop objects.
 In practice though, an application will use (and even import) a single
@@ -16,14 +10,9 @@ loop object and run it one time for the duration of the application.
 
 # ruff: noqa: N803
 
-import os
 import gc
-import sys
 import time
-import signal
-import weakref
 import asyncio
-import threading
 
 from rendercanvas.base import BaseCanvasGroup, BaseRenderCanvas
 from rendercanvas.asyncio import AsyncioLoop
@@ -38,251 +27,39 @@ import trio
 import pytest
 
 
-default_loop_classes = [RawLoop, AsyncioLoop, TrioLoop]
+loop_classes = [RawLoop, AsyncioLoop, TrioLoop]
 async_loop_classes = [AsyncioLoop, TrioLoop]
-loop_classes = []
 
 
-# Determine what loops to test
-if "RawLoop" in sys.argv:
-    loop_classes.append(RawLoop)
-elif "AsyncioLoop" in sys.argv:
-    loop_classes.append(AsyncioLoop)
-elif "TrioLoop" in sys.argv:
-    loop_classes.append(TrioLoop)
-elif "QtLoop" in sys.argv:
-    from rendercanvas.pyside6 import QtLoop
-
-    loop_classes.append(QtLoop)
-elif "PySide6Loop" in sys.argv:
-    from rendercanvas.pyside6 import QtLoop
-
-    class PySide6Loop(QtLoop):
-        pass
-
-    loop_classes.append(PySide6Loop)
-elif "PyQt6Loop" in sys.argv:
-    from rendercanvas.pyqt6 import QtLoop
-
-    class PyQt6Loop(QtLoop):
-        pass
-
-    loop_classes.append(PyQt6Loop)
-elif "PyQt5Loop" in sys.argv:
-    from rendercanvas.pyqt5 import QtLoop
-
-    class PyQt5Loop(QtLoop):
-        pass
-
-    loop_classes.append(PyQt5Loop)
-elif "PySide2Loop" in sys.argv:
-    from rendercanvas.pyside2 import QtLoop
-
-    class PySide2Loop(QtLoop):
-        pass
-
-    loop_classes.append(PySide2Loop)
-elif "WxLoop" in sys.argv:
-    # NOTE: because for wx we have to do a few things differently, the
-    # tests in this module do not pass for it.
-    from rendercanvas.wx import WxLoop
-
-    loop_classes.append(WxLoop)
-else:
-    loop_classes[:] = default_loop_classes
-
-    # When Pyside6 is installed, run the tests with a QtLoop.
-    try:
-        from rendercanvas.pyside6 import QtLoop
-    except Exception:
-        pass
-    else:
-        loop_classes.append(QtLoop)
-
-
-async def fake_task():
+class FooCanvasGroup(BaseCanvasGroup):
     pass
 
 
-class CanvasGroup(BaseCanvasGroup):
-    pass
+class FooCanvas(BaseRenderCanvas):
+    _rc_canvas_group = FooCanvasGroup(None)
 
-
-class FakeEventEmitter:
-    is_closed = False
-
-    def close(self):
-        self.is_closed = True
-
-
-class FakeCanvas:
-    def __init__(self, refuse_close=False):
-        self.refuse_close = refuse_close
-        self.is_closed = False
-        self._events = FakeEventEmitter()
+    def __init__(self):
+        super().__init__()
+        self._is_closed = False
+        self._final_canvas_init()
 
     def _rc_gui_poll(self):
         pass
 
-    def close(self):
-        # Called by the loop to close a canvas
-        self._events.close()  # Mimic BaseRenderCanvas
-        if not self.refuse_close:
-            self.is_closed = True
-
-    def get_closed(self):
-        return self.is_closed
-
-    def manually_close(self):
-        self.is_closed = True
-
-    def __del__(self):
-        # Mimic BaseRenderCanvas
-        try:
-            self.close()
-        except Exception:
-            pass
-
-
-real_loop = AsyncioLoop()
-
-
-class RealRenderCanvas(BaseRenderCanvas):
-    _rc_canvas_group = CanvasGroup(real_loop)
-    _is_closed = False
-
     def _rc_close(self):
+        # Note: in earlier rendercanvas versions, canvases could ignore
+        # the signal to close. Now, closing is not a request but a command,
+        # and the basse class and loop will consider the canvas as closed.
         self._is_closed = True
 
     def _rc_get_closed(self):
         return self._is_closed
 
-    def _rc_request_paint(self):
-        loop = self._rc_canvas_group.get_loop()
-        loop.call_soon(self._time_to_paint)
+    def manually_close(self):
+        self.close()
 
 
-# %%%%% deleting loops
-
-
-@pytest.mark.parametrize("SomeLoop", loop_classes)
-def test_loop_deletion1(SomeLoop):
-    # Loops get gc'd when instantiated but not used.
-
-    loop = SomeLoop()
-
-    loop_ref = weakref.ref(loop)
-    del loop
-    gc.collect()
-    gc.collect()
-
-    assert loop_ref() is None
-
-
-@pytest.mark.filterwarnings("ignore:.*was never awaited")
-@pytest.mark.parametrize("SomeLoop", loop_classes)
-def test_loop_deletion2(SomeLoop):
-    # Loops get gc'd when in ready state
-
-    async def foo():
-        pass
-
-    loop = SomeLoop()
-    loop.add_task(foo)
-    assert "ready" in repr(loop)
-
-    loop_ref = weakref.ref(loop)
-    del loop
-    for _ in range(4):
-        time.sleep(0.01)
-        gc.collect()
-
-    assert loop_ref() is None
-
-
-@pytest.mark.parametrize("SomeLoop", loop_classes)
-def test_loop_deletion3(SomeLoop):
-    # Loops get gc'd when closed after use
-
-    flag = []
-
-    async def foo():
-        flag.append(True)
-
-    loop = SomeLoop()
-    loop.add_task(foo)
-    assert "ready" in repr(loop)
-    loop.run()
-    assert flag == [True]
-
-    loop_ref = weakref.ref(loop)
-    del loop
-    for _ in range(4):
-        time.sleep(0.01)
-        gc.collect()
-
-    assert loop_ref() is None
-
-
-# %%%%% loop detection
-
-
-@pytest.mark.parametrize("SomeLoop", loop_classes)
-def test_loop_detection(SomeLoop):
-    from rendercanvas.utils.asyncs import (
-        detect_current_async_lib,
-        detect_current_call_soon_threadsafe,
-    )
-
-    loop = SomeLoop()
-
-    flag = []
-
-    async def task():
-        # Our methods
-        flag.append(detect_current_async_lib())
-        flag.append(detect_current_call_soon_threadsafe())
-        # Test that the fast-path works
-        if SomeLoop is not TrioLoop:
-            flag.append(sys.get_asyncgen_hooks()[0].__self__.call_soon_threadsafe)
-        loop.stop()
-
-    loop.add_task(task)
-    loop.run()
-
-    if SomeLoop is AsyncioLoop:
-        assert flag[0] == "asyncio"
-        assert callable(flag[1])
-        assert flag[1].__name__ == "call_soon_threadsafe"
-        assert flag[1].__func__ is flag[2].__func__
-        # !! here we double-check that the fast-path for loop detection works for asyncio
-    elif SomeLoop is TrioLoop:
-        assert flag[0] == "trio"
-        assert callable(flag[1])
-        assert flag[1].__name__ == "run_sync_soon"
-    else:
-        # RawLoop or QtLoop
-        assert flag[0] == "rendercanvas.utils.asyncadapter"
-        assert callable(flag[1])
-        assert flag[1].__name__ == "call_soon_threadsafe"
-        assert flag[1].__func__ is flag[2].__func__
-
-
-# %%%%% running and closing
-
-
-@pytest.mark.parametrize("SomeLoop", loop_classes)
-def test_run_loop_and_close_bc_no_canvases(SomeLoop):
-    # Run the loop without canvas; closes immediately
-
-    loop = SomeLoop()
-    loop.call_later(1.0, loop.stop)  # failsafe
-
-    t0 = time.perf_counter()
-    loop.run()
-    t1 = time.perf_counter()
-
-    assert (t1 - t0) < 0.3
+# ==================== Running and closing
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
@@ -290,305 +67,67 @@ def test_loop_detects_canvases(SomeLoop):
     # After all canvases are closed, it can take one tick before its detected.
 
     loop = SomeLoop()
-
-    group1 = CanvasGroup(loop)
-    group2 = CanvasGroup(loop)
+    FooCanvas.select_loop(loop)
 
     assert len(loop._BaseLoop__canvas_groups) == 0
 
-    canvas1 = FakeCanvas()
-    group1._register_canvas(canvas1, fake_task)
+    _canvas1 = FooCanvas()
 
     assert len(loop._BaseLoop__canvas_groups) == 1
     assert len(loop.get_canvases()) == 1
 
-    canvas2 = FakeCanvas()
-    group1._register_canvas(canvas2, fake_task)
+    _canvas2 = FooCanvas()
+    _canvas3 = FooCanvas()
 
-    canvas3 = FakeCanvas()
-    group2._register_canvas(canvas3, fake_task)
-
-    assert len(loop._BaseLoop__canvas_groups) == 2
+    assert len(loop._BaseLoop__canvas_groups) == 1
     assert len(loop.get_canvases()) == 3
 
-    # Call stop explicitly. Because we created some canvases, but never ran the
-    # loops, they are in a 'ready' state, ready to move to the running state
-    # when the loop-task starts running. For raw/asyncio/trio this is fine,
-    # because cleanup will cancel all tasks. But for the QtLoop, the QTimer has
-    # a reference to the callback, which refs asyncadapter.Task, which refs the
-    # coroutine which refs the loop object. So there will not be any cleanup and
-    # *this* loop will start running at the next test func.
+    # Call stop explicitly.
     loop.stop()
     loop.stop()
     assert loop._BaseLoop__state == "off"
 
 
-@pytest.mark.parametrize("SomeLoop", loop_classes)
-def test_run_loop_without_canvases(SomeLoop):
-    # After all canvases are closed, it can take one tick before its detected.
-
-    leeway = 0.20 if os.getenv("CI") else 0
-    if "Qt" in SomeLoop.__name__ or "PySide" in SomeLoop.__name__:
-        leeway = 0.10
-
-    loop = SomeLoop()
-    group = CanvasGroup(loop)
-
-    # The loop is in its stopped state, but it fires up briefly to do one tick
-
-    t0 = time.time()
-    loop.run()
-    et = time.time() - t0
-
-    print(et)
-    assert 0.0 <= et < 0.15 + leeway
-
-    # Create a canvas and close it right away
-
-    canvas1 = FakeCanvas()
-    group._register_canvas(canvas1, fake_task)
-    assert len(loop.get_canvases()) == 1
-    canvas1.manually_close()
-    assert len(loop.get_canvases()) == 0
-
-    # This time the loop is in its ready state, so it will actually
-    # run for one tick for it to notice that all canvases are gone.
-
-    t0 = time.time()
-    loop.run()
-    et = time.time() - t0
-
-    print(et)
-    assert 0.0 <= et < 0.15 + leeway
-
-    # Now its in its stopped state again
-
-    t0 = time.time()
-    loop.run()
-    et = time.time() - t0
-
-    print(et)
-    assert 0.0 <= et < 0.15 + leeway
+# ==================== Lifetime
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
-def test_run_loop_and_close_canvases(SomeLoop):
-    # After all canvases are closed, it can take one tick before its detected.
+def test_loop_lifetime_nocanvas(SomeLoop):
+    # No canvas; the loop flushes the queue and stops
 
-    leeway = 0.20 if os.getenv("CI") else 0
-
-    loop = SomeLoop()
-    group = CanvasGroup(loop)
-
-    canvas1 = FakeCanvas()
-    canvas2 = FakeCanvas()
-    group._register_canvas(canvas1, fake_task)
-    group._register_canvas(canvas2, fake_task)
-
-    loop.call_later(0.1, canvas1.manually_close)
-    loop.call_later(0.3, canvas2.manually_close)
-
-    t0 = time.time()
-    loop.run()
-    et = time.time() - t0
-
-    print(et)
-    assert 0.25 < et < 0.50 + leeway
-
-    assert canvas1._events.is_closed
-    assert canvas2._events.is_closed
-
-
-@pytest.mark.parametrize("SomeLoop", loop_classes)
-def test_run_loop_and_close_by_loop_stop(SomeLoop):
-    # Close, then wait at most one tick to close canvases, and another to confirm close.
-
-    leeway = 0.20 if os.getenv("CI") else 0
+    states = []
+    log_state = lambda loop: states.append(loop._BaseLoop__state)
 
     loop = SomeLoop()
-    group = CanvasGroup(loop)
 
-    canvas1 = FakeCanvas()
-    canvas2 = FakeCanvas()
-    group._register_canvas(canvas1, fake_task)
-    group._register_canvas(canvas2, fake_task)
-
-    loop.call_later(0.1, print, "hi from loop!")
-    loop.call_later(0.3, loop.stop)
-
-    t0 = time.time()
+    log_state(loop)
+    loop.call_later(0, log_state, loop)
     loop.run()
-    et = time.time() - t0
+    log_state(loop)
 
-    print(et)
-    assert 0.25 < et < 0.55 + leeway
+    assert states == ["off", "running", "off"]
 
-    assert canvas1._events.is_closed
-    assert canvas2._events.is_closed
+    states.clear()
 
-
-@pytest.mark.parametrize("SomeLoop", loop_classes)
-def test_run_loop_and_close_by_loop_stop_via_async(SomeLoop):
-    # Close using a coro
-
-    leeway = 0.20 if os.getenv("CI") else 0
-
-    loop = SomeLoop()
-    group = CanvasGroup(loop)
-
-    canvas1 = FakeCanvas()
-    canvas2 = FakeCanvas()
-    group._register_canvas(canvas1, fake_task)
-    group._register_canvas(canvas2, fake_task)
-
-    async def stopper():
-        await async_sleep(0.3)
-        loop.stop()
-
-    loop.add_task(stopper)
-
-    t0 = time.time()
+    log_state(loop)
+    loop.call_later(0, log_state, loop)
+    loop.call_later(0, log_state, loop)
+    loop.call_later(0, log_state, loop)
     loop.run()
-    et = time.time() - t0
+    log_state(loop)
 
-    print(et)
-    assert 0.25 < et < 0.55 + leeway
+    assert states == ["off", "running", "running", "running", "off"]
 
-    assert canvas1._events.is_closed
-    assert canvas2._events.is_closed
+    states.clear()
 
-
-@pytest.mark.parametrize("SomeLoop", loop_classes)
-def test_run_loop_and_close_by_deletion(SomeLoop):
-    # Make the canvases be deleted by the gc.
-
-    leeway = 0.20 if os.getenv("CI") else 0
-
-    loop = SomeLoop()
-    group = CanvasGroup(loop)
-
-    canvases = [FakeCanvas() for _ in range(2)]
-    events1 = canvases[0]._events
-    events2 = canvases[1]._events
-    for canvas in canvases:
-        group._register_canvas(canvas, fake_task)
-        del canvas
-
-    loop.call_later(0.3, canvases.clear)
-    loop.call_later(1.3, loop.stop)  # failsafe
-    t0 = time.time()
+    log_state(loop)
+    loop.call_later(0, log_state, loop)
+    loop.call_later(0.91, log_state, loop)
+    loop.call_later(0.92, log_state, loop)
     loop.run()
-    et = time.time() - t0
+    log_state(loop)
 
-    print(et)
-    assert 0.25 < et < 0.55 + leeway
-
-    assert events1.is_closed
-    assert events2.is_closed
-
-
-def test_run_loop_and_close_by_deletion_real():
-    # Stop by deleting canvases, with a real canvas.
-    # This tests that e.g. scheduler task does not hold onto the canvas.
-
-    leeway = 0.20 if os.getenv("CI") else 0
-
-    loop = real_loop
-
-    canvases = [RealRenderCanvas() for _ in range(2)]
-
-    loop.call_later(0.3, canvases.clear)
-    loop.call_later(1.3, loop.stop)  # failsafe
-
-    t0 = time.time()
-    loop.run()
-    et = time.time() - t0
-
-    print(et)
-    assert 0.25 < et < 0.55 + leeway
-
-
-@pytest.mark.parametrize("SomeLoop", loop_classes)
-def test_run_loop_and_interrupt(SomeLoop):
-    # Interrupt, calls close, can take one tick to close canvases, and anoter to conform close.
-
-    leeway = 0.50 if os.getenv("CI") else 0
-
-    loop = SomeLoop()
-    group = CanvasGroup(loop)
-
-    canvas1 = FakeCanvas()
-    canvas2 = FakeCanvas()
-    group._register_canvas(canvas1, fake_task)
-    group._register_canvas(canvas2, fake_task)
-
-    loop.call_later(0.1, print, "hi from loop!")
-
-    def interrupt_soon():
-        time.sleep(0.3)
-        signal.raise_signal(signal.SIGINT)
-
-    t = threading.Thread(target=interrupt_soon)
-    t.start()
-
-    t0 = time.time()
-    loop.run()
-    et = time.time() - t0
-    t.join()
-
-    print(et)
-    assert 0.25 < et < 0.55 + leeway
-
-    assert canvas1._events.is_closed
-    assert canvas2._events.is_closed
-
-
-@pytest.mark.parametrize("SomeLoop", loop_classes)
-def test_run_loop_and_interrupt_harder(SomeLoop):
-    # In the first tick it attempts to close the canvas, clearing some
-    # stuff of the BaseRenderCanvase, like the events, but the native canvas
-    # won't close, so in the second try, the loop is closed regardless.
-    # after the second interupt, it stops the loop and closes the canvases
-
-    leeway = 0.50 if os.getenv("CI") else 0
-
-    loop = SomeLoop()
-    group = CanvasGroup(loop)
-
-    canvas1 = FakeCanvas(refuse_close=True)
-    canvas2 = FakeCanvas(refuse_close=True)
-    group._register_canvas(canvas1, fake_task)
-    group._register_canvas(canvas2, fake_task)
-
-    loop.call_later(0.1, print, "hi from loop!")
-
-    def interrupt_soon():
-        time.sleep(0.3)
-        signal.raise_signal(signal.SIGINT)
-        time.sleep(0.3)
-        signal.raise_signal(signal.SIGINT)
-
-    t = threading.Thread(target=interrupt_soon)
-    t.start()
-
-    t0 = time.time()
-    loop.run()
-    et = time.time() - t0
-    t.join()
-
-    print(et)
-    assert 0.6 < et < 0.75 + leeway
-
-    # The events are closed
-    assert canvas1._events.is_closed
-    assert canvas2._events.is_closed
-
-    # But the canvases themselves are still marked not-closed
-    assert not canvas1.is_closed
-    assert not canvas2.is_closed
-
-
-# %%%%% lifetime
+    assert states == ["off", "running", "off"]
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
@@ -597,49 +136,15 @@ def test_loop_lifetime_normal(SomeLoop):
     log_state = lambda loop: states.append(loop._BaseLoop__state)
 
     loop = SomeLoop()
+    FooCanvas.select_loop(loop)
+
     log_state(loop)
+    _canvas1 = FooCanvas()
 
     loop.call_later(0.01, log_state, loop)
     loop.call_later(0.1, loop.stop)
 
-    loop.run()
     log_state(loop)
-
-    assert states == ["off", "running", "off"]
-
-    # Again
-
-    states.clear()
-    log_state(loop)
-
-    loop.call_later(0.01, log_state, loop)
-    loop.call_later(0.1, loop.stop)
-
-    loop.run()
-    log_state(loop)
-
-    assert states == ["off", "running", "off"]
-
-
-@pytest.mark.parametrize("SomeLoop", loop_classes)
-def test_loop_lifetime_with_ready(SomeLoop):
-    # Creating a canvas, or addding a task puts the loop in its ready state
-
-    states = []
-    log_state = lambda loop: states.append(loop._BaseLoop__state)
-
-    async def noop():
-        pass
-
-    loop = SomeLoop()
-    log_state(loop)
-
-    loop.add_task(noop)
-    log_state(loop)
-
-    loop.call_later(0.01, log_state, loop)
-    loop.call_later(0.1, loop.stop)
-
     loop.run()
     log_state(loop)
 
@@ -648,10 +153,37 @@ def test_loop_lifetime_with_ready(SomeLoop):
     # Again
 
     states.clear()
+
+    log_state(loop)
+    _canvas1 = FooCanvas()
+
+    loop.call_later(0.01, log_state, loop)
+    loop.call_later(0.1, loop.stop)
+
+    log_state(loop)
+    loop.run()
     log_state(loop)
 
+    assert states == ["off", "ready", "running", "off"]
+
+
+@pytest.mark.parametrize("SomeLoop", loop_classes)
+def test_loop_lifetime_with_ready(SomeLoop):
+    # Creating a canvas, or adding a task puts the loop in its ready state
+
+    states = []
+    log_state = lambda loop: states.append(loop._BaseLoop__state)
+
+    async def noop():
+        pass
+
+    loop = SomeLoop()
+    FooCanvas.select_loop(loop)
+
+    log_state(loop)
     loop.add_task(noop)
     log_state(loop)
+    _canvas1 = FooCanvas()
 
     loop.call_later(0.01, log_state, loop)
     loop.call_later(0.1, loop.stop)
@@ -663,16 +195,45 @@ def test_loop_lifetime_with_ready(SomeLoop):
 
 
 @pytest.mark.parametrize("SomeLoop", async_loop_classes)
-def test_loop_lifetime_async(SomeLoop):
-    # Run using loop.run_async
+def test_loop_lifetime_async1(SomeLoop):
+    # Run using loop.run_async, without canvases
 
     states = []
     log_state = lambda loop: states.append(loop._BaseLoop__state)
 
     loop = SomeLoop()
+
     log_state(loop)
 
+    loop.call_later(0, log_state, loop)
+
+    if SomeLoop is AsyncioLoop:
+        asyncio.run(loop.run_async())
+    elif SomeLoop is TrioLoop:
+        trio.run(loop.run_async)
+    else:
+        raise NotImplementedError()
+
+    log_state(loop)
+
+    assert states == ["off", "active", "off"]
+
+
+@pytest.mark.parametrize("SomeLoop", async_loop_classes)
+def test_loop_lifetime_async2(SomeLoop):
+    # Run using loop.run_async, with a canvas
+
+    states = []
+    log_state = lambda loop: states.append(loop._BaseLoop__state)
+
+    loop = SomeLoop()
+    FooCanvas.select_loop(loop)
+
+    log_state(loop)
+
+    _canvas1 = FooCanvas()
     loop.call_later(0.01, log_state, loop)
+    loop.call_later(0.1, loop.stop)
 
     if SomeLoop is AsyncioLoop:
         asyncio.run(loop.run_async())
@@ -687,34 +248,31 @@ def test_loop_lifetime_async(SomeLoop):
 
 
 def test_loop_lifetime_running_outside():
-    # Run using asyncio.run.
-    # Note how the rendercanvas loop is stopped earlier than the asyncio loop.
-    # Note that we use asyncio.run() here which has the logic to
-    # clean up tasks. When using asyncio.new_event_loop().run_xx() then
-    # it does *not* work, the user is expected to cancel tasks then.
-    # Or ... just exit Python when done *shrug*.
+    # Run using asyncio.run, make sure the rc loop detects the stop
 
     states = []
     log_state = lambda loop: states.append(loop._BaseLoop__state)
 
     loop = AsyncioLoop()
+    FooCanvas.select_loop(loop)
+
     log_state(loop)
 
+    _canvas1 = FooCanvas()
     loop.call_later(0.01, log_state, loop)
-    loop.call_later(0.1, loop.stop)
 
     async def main():
         lop = asyncio.get_running_loop()
         task = lop.create_task(loop.run_async())
-        lop.call_later(0.15, log_state, loop)  # by this time rc has stopped
-        await asyncio.sleep(0.25)
+        lop.call_later(0.1, log_state, loop)
+        await asyncio.sleep(0.2)
         del task  # for ruff and good practice, we kept a ref to task
 
     asyncio.run(main())
 
     log_state(loop)
 
-    assert states == ["off", "active", "off", "off"]
+    assert states == ["off", "active", "active", "off"]
 
 
 def test_loop_lifetime_interactive():
@@ -747,7 +305,7 @@ def test_loop_lifetime_interactive():
     assert (times[2] - times[1]) > 0.20
 
 
-# %%%%% tasks
+# ==================== Tasks
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
@@ -758,9 +316,9 @@ def test_loop_task_order(SomeLoop):
     flag = []
 
     class MyLoop(SomeLoop):
-        async def _loop_task(self):
-            flag.append("loop-task")
-            return await super()._loop_task()
+        async def _loop_start_detection_task(self):
+            flag.append("loop-start-detect-task")
+            return await super()._loop_start_detection_task()
 
     async def user_task(id):
         flag.append(f"user-task{id}")
@@ -772,7 +330,7 @@ def test_loop_task_order(SomeLoop):
     loop.call_later(0.2, loop.stop)
     loop.run()
 
-    assert flag == ["loop-task", "user-task1", "user-task2"], flag
+    assert flag == ["loop-start-detect-task", "user-task1", "user-task2"], flag
 
     # Again
 
@@ -783,7 +341,7 @@ def test_loop_task_order(SomeLoop):
     loop.call_later(0.2, loop.stop)
     loop.run()
 
-    assert flag == ["loop-task", "user-task1", "user-task2"], flag
+    assert flag == ["loop-start-detect-task", "user-task1", "user-task2"], flag
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
@@ -816,7 +374,7 @@ def test_loop_task_cancellation(SomeLoop):
     assert flag == ["start", "stop"], flag
 
 
-# %%%%% Misc
+# ==================== Misc
 
 
 def test_not_using_loop_debug_thread():
@@ -838,34 +396,13 @@ def test_not_using_loop_debug_thread():
     assert not thread.is_alive()
 
 
-@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop, TrioLoop])
-def test_loop_threaded(SomeLoop):
-    # Does not work for QtLoop
-
-    error = None
-
-    def wrapper():
-        nonlocal error
-        try:
-            test_run_loop_and_close_by_loop_stop(SomeLoop)
-        except Exception as err:
-            error = err
-
-    t = threading.Thread(target=wrapper)
-    t.start()
-    t.join()
-
-    if error is not None:
-        raise error
-
-
 def test_async_loops_check_lib():
     # Cannot run asyncio loop on trio
 
     asyncio_loop = AsyncioLoop()
-    group = CanvasGroup(asyncio_loop)
-    canvas1 = FakeCanvas()
-    group._register_canvas(canvas1, fake_task)
+    FooCanvas.select_loop(asyncio_loop)
+
+    canvas1 = FooCanvas()
     canvas1.manually_close()
 
     with pytest.raises(TypeError):
@@ -876,9 +413,9 @@ def test_async_loops_check_lib():
     # Cannot run trio loop on asyncio
 
     trio_loop = TrioLoop()
-    group = CanvasGroup(trio_loop)
-    canvas1 = FakeCanvas()
-    group._register_canvas(canvas1, fake_task)
+    FooCanvas.select_loop(asyncio_loop)
+
+    canvas1 = FooCanvas()
     canvas1.manually_close()
 
     with pytest.raises(TypeError):
@@ -887,7 +424,7 @@ def test_async_loops_check_lib():
     trio.run(trio_loop.run_async)
 
 
-# %%%%% async generator cleanup
+# ==================== async generator cleanup
 
 
 async def a_generator(flag, *, await_in_finalizer=False):
@@ -917,15 +454,41 @@ def test_async_gens_cleanup0(SomeLoop):
 
     flag = []
     loop = SomeLoop()
+    FooCanvas.select_loop(loop)
+
     loop.add_task(tester_coroutine)
-    loop.call_later(0.2, loop.stop)
+    _canvas1 = FooCanvas()
+    loop.call_later(0.1, loop.stop)
     loop.run()
 
     assert flag == [], flag
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
-def test_async_gens_cleanup1(SomeLoop):
+def test_async_gens_cleanup1a(SomeLoop):
+    # Run the generator, but stop too soon
+
+    async def tester_coroutine():
+        g = a_generator(flag)
+        async for i in g:
+            pass
+
+    flag = []
+
+    loop = SomeLoop()
+
+    loop.add_task(tester_coroutine)
+
+    loop.call_later(0.1, loop.stop)  # just a failsafe
+    loop.run()
+
+    flags1 = ["started", "except Cancelled", "closed"]
+    flags2 = ["started", "except CancelledError", "closed"]
+    assert flag == flags1 or flag == flags2, flag
+
+
+@pytest.mark.parametrize("SomeLoop", loop_classes)
+def test_async_gens_cleanup1b(SomeLoop):
     # Run the generator to completion.
     # Just works, because code of generator is done.
 
@@ -935,9 +498,14 @@ def test_async_gens_cleanup1(SomeLoop):
             pass
 
     flag = []
+
     loop = SomeLoop()
+    FooCanvas.select_loop(loop)
+
     loop.add_task(tester_coroutine)
-    loop.call_later(0.2, loop.stop)
+    _canvas1 = FooCanvas()
+
+    loop.call_later(0.1, loop.stop)
     loop.run()
 
     assert flag == ["started", "finished", "closed"], flag
@@ -957,9 +525,14 @@ def test_async_gens_cleanup2(SomeLoop):
                 break
 
     flag = []
+
     loop = SomeLoop()
+    FooCanvas.select_loop(loop)
+
     loop.add_task(tester_coroutine)
-    loop.call_later(0.2, loop.stop)
+    _canvas1 = FooCanvas()
+
+    loop.call_later(0.1, loop.stop)
     loop.run()
 
     assert flag == ["started", "except GeneratorExit", "closed"], flag
@@ -981,9 +554,14 @@ def test_async_gens_cleanup3(SomeLoop):
                 break
 
     flag = []
+
     loop = SomeLoop()
+    FooCanvas.select_loop(loop)
+
     loop.add_task(tester_coroutine)
-    loop.call_later(0.2, loop.stop)
+    _canvas1 = FooCanvas()
+
+    loop.call_later(0.1, loop.stop)
     loop.run()
 
     assert flag == ["started", "except GeneratorExit", "closed"], flag
@@ -1004,9 +582,14 @@ def test_async_gens_cleanup_bad_agen(SomeLoop):
                 break
 
     flag = []
+
     loop = SomeLoop()
+    FooCanvas.select_loop(loop)
+
     loop.add_task(tester_coroutine)
-    loop.call_later(0.2, loop.stop)
+    _canvas1 = FooCanvas()
+
+    loop.call_later(0.1, loop.stop)
     loop.run()
 
     if SomeLoop is AsyncioLoop:
@@ -1026,6 +609,4 @@ def test_async_gens_cleanup_bad_agen(SomeLoop):
 
 
 if __name__ == "__main__":
-    # from rendercanvas.wx import WxLoop
-    # loop_classes[:] = [WxLoop]
     run_tests(globals())
