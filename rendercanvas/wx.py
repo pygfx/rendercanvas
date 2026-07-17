@@ -250,6 +250,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         if not self._draw_lock:
             self._time_to_paint()
         if self._last_image is not None:
+            # Paint the image using nearest neighbor interpolation.
             gc = wx.GraphicsContext.Create(dc)
             gc.SetInterpolationQuality(wx.INTERPOLATION_NONE)
             lw, lh = self._size_info["logical_size"]

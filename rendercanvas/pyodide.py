@@ -194,8 +194,7 @@ class PyodideRenderCanvas(BaseRenderCanvas):
             # This effectively uploads the image to a GPU texture (represented by the offscreen canvas).
             self._offscreen_canvas.getContext("2d").putImageData(image_data, 0, 0)
             # Then we draw the offscreen texture into the real texture, scaling is applied.
-            # Do we want a smooth image or nearest-neighbour? Depends on the situation.
-            # We should decide what we want backends to do, and maybe have a way for users to chose.
+            # Use nearest neighbor interpolation, since it allows for pixelated graphics.
             ctx = self._canvas_element.getContext("2d")
             ctx.imageSmoothingEnabled = False
             ctx.drawImage(self._offscreen_canvas, 0, 0, cw, ch)

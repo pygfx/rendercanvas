@@ -44,9 +44,10 @@ class BitmapContext(BaseContext):
 
         The bitmap does not have to match the physical size of the canvas;
         backends will stretch the bitmap to match the window. The interpolation
-        method is currently not specified, but we recommend backends to use
-        nearest-neighbor interpolation.
-
+        method is currently not specified, but all builtin backends use
+        nearest-neighbor interpolation (when the bitmap is smaller than the
+        physical size), so that applications can provide N times smaller bitmaps
+        to produce a pixelated visualization.
         """
 
         arr = np.asarray(bitmap)
