@@ -148,6 +148,7 @@ See the [contribution guide](CONTRIBUTING.md).
 * Use `ruff check` to check for linting errors.
 * Use `pytest tests` to run the tests.
 * Use `pytest examples` to run a subset of the examples.
+* Use `pytest tests/test_backend_xx.py` to run backend-specific tests, e.g. for `glfw`, `qt`, `wx`.
 
 ### Code of Conduct
 
