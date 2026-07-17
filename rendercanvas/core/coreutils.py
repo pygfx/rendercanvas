@@ -362,8 +362,11 @@ if sys.platform.startswith("linux") and SYSTEM_IS_WAYLAND:
 
     # ----- Tweak Qt
 
-    # Force Qt to use X11. Qt is more flexible - it ok if e.g. PySide6 is already imported.
-    os.environ["QT_QPA_PLATFORM"] = "xcb"
+    # Qt is not forced to X11: it runs on Wayland natively. The default
+    # present-method ('bitmap') needs no native handles, and for 'screen'
+    # present we ask Qt for the wl_display that it is itself connected to
+    # (see qt.py), which is the only display that its surface is valid on.
+
     # Force wx to use X11, probably.
     os.environ["GDK_BACKEND"] = "x11"
 
