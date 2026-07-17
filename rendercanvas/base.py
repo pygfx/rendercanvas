@@ -59,6 +59,10 @@ class BaseCanvasGroup:
             loop._register_canvas_group(self)
             loop.add_task(task, name="scheduler-task")
 
+    def _unregister_canvas(self, canvas):
+        """Used by the canvas to unregister itself when closed."""
+        self._canvases.discard(canvas)
+
     def select_loop(self, loop: BaseLoop) -> None:
         """Select the loop to use for this group of canvases."""
         if not (loop is None or isinstance(loop, BaseLoop)):
@@ -76,17 +80,8 @@ class BaseCanvasGroup:
         """Get the currently associated loop (can be None for canvases that don't run a scheduler)."""
         return self._loop
 
-    def get_canvases(self, *, close_closed=False) -> list[BaseRenderCanvas]:
-        if close_closed:
-            closed_canvases = [
-                canvas for canvas in self._canvases if canvas.get_closed()
-            ]
-            for canvas in closed_canvases:
-                canvas.close()
-                self._canvases.discard(canvas)
-            return self._canvases
-        else:
-            return [canvas for canvas in self._canvases if not canvas.get_closed()]
+    def get_canvases(self) -> list[BaseRenderCanvas]:
+        return [canvas for canvas in self._canvases]
 
 
 class BaseRenderCanvas:
@@ -681,19 +676,34 @@ class BaseRenderCanvas:
 
     def close(self) -> None:
         """Close the canvas."""
+        errors = []
+        # Close the canvas natively, the canvas may only be marked as closed once this is done
+        try:
+            self._rc_close()
+        except Exception as err:
+            errors.append(err)
+        # Unregister
+        self._rc_canvas_group._unregister_canvas(self)
         # Clear the draw-function, to avoid it holding onto e.g. wgpu objects.
         self._draw_frame = None  # type: ignore
         # Clear the canvas context too.
         try:
-            self._canvas_context._rc_close()  # type: ignore
-        except Exception:
-            pass
+            if self._canvas_context is not None:
+                self._canvas_context._rc_close()  # type: ignore
+        except Exception as err:
+            errors.append(err)
         self._canvas_context = None
-        # Close the canvas and then the event emitter. In that order, so that the canvas is actually closed when the close event is emitted.
-        try:
-            self._rc_close()
-        finally:
-            self._events.close()
+        # Close the event at least after get_closed() would return True
+        self._events.close()
+        # Stop the loop if this was the last canvas. It's important to do now,
+        # because the native loop may stop right after, giving us no flow to properly close.
+        loop = self._rc_canvas_group.get_loop()
+        if loop is not None:
+            if not loop.get_canvases():
+                loop.stop()
+        # Errors
+        if errors:
+            raise errors[0]
 
     def get_closed(self) -> bool:
         """Get whether the window is closed."""
@@ -854,21 +864,21 @@ class BaseRenderCanvas:
     def _rc_close(self):
         """Close the canvas.
 
-        Note that ``BaseRenderCanvas`` implements the ``close()`` method, which is a
-        rather common name; it may be necessary to re-implement that too.
+        This is the place to delete the native widget, and to maybe set a flag
+        that ``_rc_get_closed()`` uses. It is not necessary to emit a close event,
+        because the base class handles that.
 
-        Backends should probably not mark the canvas as closed yet, but wait until the
-        underlying system really closes the canvas. Otherwise the loop may end before a
-        canvas gets properly cleaned up.
+        In a backend, all flows that lead to a close must call ``.close()``, so
+        that ``BaseRenderCanvas`` has a clear place to handle closing. It calls
+        ``_rc_close()``  from there.
 
-        Backends can emit a closed event, either in this method, or when the real close
-        happens, but this is optional, since the loop detects canvases getting closed
-        and sends the close event if this has not happened yet.
+        Note that backends may also have a ``close()`` method, which is
+        overridden by the base class.
         """
         pass
 
     def _rc_get_closed(self) -> bool:
-        """Get whether the canvas is closed."""
+        """Get whether the canvas is closed. A typical implementation uses a flag that is set in ``_rc_close()``."""
         return False
 
     def _rc_set_title(self, title: str):

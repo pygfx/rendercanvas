@@ -14,6 +14,7 @@ import wx
 
 from .core.coreutils import (
     logger,
+    weakbind,
     get_alt_x11_display,
     get_alt_wayland_display,
 )
@@ -157,12 +158,15 @@ class WxLoop(BaseLoop):
                 wx.App.SetInstance(self._app)
 
     def _rc_run(self):
-        # In wx we can, it seems, reliably detect widget destruction, so we don't rely on detecting the
-        # app from quitting (which we cannot reliably detect in wx). We could prevent the app from exiting,
-        # but we cannot do that when the wx app is started from the outside (which is likely), so we need
-        # to make it work without it anyway.
-        # self._app.SetExitOnFrameDelete(False)
         self._rc_init()
+
+        # If no canvases, we only do a flush
+        if not self.get_canvases():
+            self.process_wx_events()
+            self.stop()
+            self._app = None
+            return
+
         self._app.MainLoop()
         self._app = None
 
@@ -220,23 +224,23 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
 
         # We keep a timer to prevent draws during a resize. This prevents
         # issues with mismatching present sizes during resizing (on Linux).
-        self._resize_timer = TimerWithCallback(self._on_resize_done)
+        self._resize_timer = TimerWithCallback(weakbind(self._on_resize_done))
         self._draw_lock = False
 
-        self.Bind(wx.EVT_PAINT, self.on_paint)
+        self.Bind(wx.EVT_PAINT, weakbind(self.on_paint))
         self.Bind(wx.EVT_ERASE_BACKGROUND, lambda x: None)
-        self.Bind(wx.EVT_SIZE, self._on_resize)
+        self.Bind(wx.EVT_SIZE, weakbind(self._on_resize))
 
-        self.Bind(wx.EVT_KEY_DOWN, self._on_key_down)
-        self.Bind(wx.EVT_KEY_UP, self._on_key_up)
+        self.Bind(wx.EVT_KEY_DOWN, weakbind(self._on_key_down))
+        self.Bind(wx.EVT_KEY_UP, weakbind(self._on_key_up))
 
-        self.Bind(wx.EVT_MOUSE_EVENTS, self._on_mouse_events)
-        self.Bind(wx.EVT_MOTION, self._on_mouse_move)
-        self.Bind(wx.EVT_ENTER_WINDOW, self._on_window_enter)
-        self.Bind(wx.EVT_LEAVE_WINDOW, self._on_window_enter)
-        self.Bind(wx.EVT_SET_FOCUS, self._on_focus)
-        self.Bind(wx.EVT_KILL_FOCUS, self._on_focus)
-        self.Bind(wx.EVT_WINDOW_DESTROY, self._on_close)
+        self.Bind(wx.EVT_MOUSE_EVENTS, weakbind(self._on_mouse_events))
+        self.Bind(wx.EVT_MOTION, weakbind(self._on_mouse_move))
+        self.Bind(wx.EVT_ENTER_WINDOW, weakbind(self._on_window_enter))
+        self.Bind(wx.EVT_LEAVE_WINDOW, weakbind(self._on_window_enter))
+        self.Bind(wx.EVT_SET_FOCUS, weakbind(self._on_focus))
+        self.Bind(wx.EVT_KILL_FOCUS, weakbind(self._on_focus))
+        self.Bind(wx.EVT_WINDOW_DESTROY, weakbind(self._on_close))
 
         self.Show()
         self._final_canvas_init()
@@ -352,7 +356,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
     def _rc_set_logical_size(self, width, height):
         width, height = int(width), int(height)
         parent = self.Parent
-        if isinstance(parent, WxRenderCanvas):
+        if isinstance(parent, WxRenderFrame):
             parent.SetClientSize(width, height)
         elif parent is not None:
             self.SetSize(width, height)
@@ -369,10 +373,14 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         except RuntimeError:
             return  # native C++ object is already deleted
         self._resize_timer.Stop()
-        if isinstance(parent, WxRenderCanvas):
+        if isinstance(parent, WxRenderFrame):
             parent.Destroy()
         else:
             self.Destroy()
+        if not self._rc_canvas_group.get_canvases():
+            end_time = time.perf_counter() + 0.1
+            while time.perf_counter() < end_time:
+                wx.Yield()
 
     def _rc_get_closed(self):
         return self._is_closed
@@ -380,7 +388,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
     def _rc_set_title(self, title):
         # Set title only on frame
         parent = self.Parent
-        if isinstance(parent, WxRenderCanvas):
+        if isinstance(parent, WxRenderFrame):
             parent.SetTitle(title)
 
     def _rc_set_cursor(self, cursor):
@@ -569,28 +577,37 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
             self.close()
 
 
-class WxRenderCanvas(WrapperRenderCanvas, wx.Frame):
-    """A toplevel wx Frame providing a render canvas."""
+class WxRenderFrame(wx.Frame):
+    pass
+
+
+class WxRenderCanvas(WrapperRenderCanvas):
+    """A toplevel canvas (wrapping a wx.Frame that contains a WxRenderWidget)."""
 
     # Most of this is proxying stuff to the inner widget.
 
     def __init__(self, parent=None, **kwargs):
-        # There needs to be an application before any widget is created.
-        loop._rc_init()
         # Any kwargs that we want to pass to *this* class, must be explicitly
         # specified in the signature. The rest goes to the subwidget.
-        super().__init__(parent)
 
-        self._subwidget = WxRenderWidget(parent=self, **kwargs)
+        # There needs to be an application before any widget is created.
+        loop._rc_init()
 
-        self.Bind(wx.EVT_CLOSE, lambda e: self.close())
+        self._frame = WxRenderFrame(parent)
+        self._subwidget = WxRenderWidget(parent=self._frame, **kwargs)
 
-        self.Show()
+        self._frame.Bind(wx.EVT_CLOSE, weakbind(self._on_close))
+        self._frame.Show()
+
         self._final_canvas_init()
 
-    def Refresh(self):  # noqa: N802
-        self._subwidget.request_draw()
-        super().Refresh()
+    def _on_close(self, _event):
+        self.close()
+
+    @property
+    def frame(self):
+        """The wx.Frame that this class wraps."""
+        return self._frame
 
 
 # Make available under a name that is the same for all gui backends

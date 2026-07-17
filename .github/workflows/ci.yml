@@ -152,9 +152,23 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Loops
+          # - backendname: 'asyncio' -> via glfw
+          - backendname: 'raw'
+            deps: 'glfw'
+            os: windows-latest
+          - backendname: 'trio'
+            deps: 'glfw'
+            os: windows-latest
+          # Native
           - backendname: 'glfw'
             deps: 'glfw'
             os: windows-latest
+          - backendname: 'terminal'
+            os: windows-latest
+          - backendname: 'offscreen'
+            os: windows-latest
+          # GUI
           - backendname: 'pyside6'
             deps: 'PySide6'
             testname: 'qt'

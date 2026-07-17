@@ -42,29 +42,36 @@ def run_tests(scope):
             ]
             nargs = func.__code__.co_argcount
             argnames = [func.__code__.co_varnames[i] for i in range(nargs)]
-            try:
-                if not argnames:
-                    print(f"Running {func.__name__} ...")
+            if not argnames:
+                print(f"Running {func.__name__} ...")
+                try:
                     func()
-                elif nargs == 1 and len(params) == 1:
-                    for arg in params[0][1]:
-                        print(f"Running {func.__name__} with {arg}...")
+                except pytest.skip.Exception:
+                    print(f"SKIPPING {func.__name__} by pytest skip")
+            elif nargs == 1 and len(params) == 1:
+                for arg in params[0][1]:
+                    print(f"Running {func.__name__} with {arg}...")
+                    try:
                         func(arg)
-                elif nargs == 2 and len(params) == 2:
-                    for arg1 in params[0][1]:
-                        for arg2 in params[1][1]:
-                            print(f"Running {func.__name__} with {arg1}-{arg2}...")
+                    except pytest.skip.Exception:
+                        print(f"SKIPPING {func.__name__} by pytest skip")
+            elif nargs == 2 and len(params) == 2:
+                for arg1 in params[0][1]:
+                    for arg2 in params[1][1]:
+                        print(f"Running {func.__name__} with {arg1}-{arg2}...")
+                        try:
                             func(arg1, arg2)
-                elif argnames == ["caplog"]:
-                    print(f"Running {func.__name__} ...")
-                    logging.root.addHandler(caplog)
-                    caplog.reset()
-                    func(caplog)
-                    logging.root.removeHandler(caplog)
-                else:
-                    print(f"SKIPPING {func.__name__} because it needs args")
-            except pytest.skip.Exception:
-                print(f"SKIPPING {func.__name__} by pytest skip")
+                        except pytest.skip.Exception:
+                            print(f"SKIPPING {func.__name__} by pytest skip")
+            elif argnames == ["caplog"]:
+                print(f"Running {func.__name__} ...")
+                logging.root.addHandler(caplog)
+                caplog.reset()
+                func(caplog)
+                logging.root.removeHandler(caplog)
+            else:
+                print(f"SKIPPING {func.__name__} because it needs args")
+
     print("Done")
 
 

@@ -7,7 +7,6 @@ __all__ = ["QRenderCanvas", "QRenderWidget", "QtLoop", "RenderCanvas", "loop"]
 
 import sys
 import ctypes
-import weakref
 import importlib
 
 
@@ -208,15 +207,7 @@ class QtLoop(BaseLoop):
             self._app = QtWidgets.QApplication.instance()
             if self._app is None:
                 self._app = QtWidgets.QApplication([])
-        # We do detect when the canvas-widget is closed, and also when *our* toplevel wrapper is closed,
-        # but when embedded in an application, it seems hard/impossible to detect the canvas being closed
-        # when the app closes. So we explicitly detect the app-closing instead.
-        # Note that we should not use app.setQuitOnLastWindowClosed(False), because we (may) rely on the
-        # application's closing mechanic.
-        loop_ref = weakref.ref(self)
-        self._app.aboutToQuit.connect(
-            lambda: (loop := loop_ref()) and loop.stop(force=True)
-        )
+
         if already_had_app_on_import:
             self._mark_as_interactive()
         self._caller = CallerHelper()
@@ -233,6 +224,10 @@ class QtLoop(BaseLoop):
 
         if already_had_app_on_import:
             return
+
+        # If no canvases, we only do a flush
+        if not self.get_canvases():
+            self._rc_call_later(0, self.stop)
 
         self._we_run_the_loop = True
         try:

@@ -12,7 +12,7 @@ import importlib
 
 import pytest
 from testutils import run_tests
-from testutils_backends import BACKEND_TEST_FUNCS
+from testutils_backends import BACKEND_TEST_FUNCS, NativeHelper
 
 
 # Only run when running directly (through Python or pytest)
@@ -40,7 +40,7 @@ if QtWidgets is None:
 
 
 from rendercanvas.base import BaseRenderCanvas, WrapperRenderCanvas
-from rendercanvas.qt import RenderCanvas, RenderWidget
+from rendercanvas.qt import RenderCanvas, RenderWidget, loop
 from rendercanvas.qt import QRenderWidget, QRenderCanvas
 
 
@@ -56,14 +56,14 @@ def test_is_canvas_classes():
     assert issubclass(RenderCanvas, QtWidgets.QWidget)  # toplevel
 
 
-def qt_close(canvas):
-    QtWidgets.QWidget.close(canvas)
+class QtHelper(NativeHelper):
+    def close_canvas(self, canvas):
+        QtWidgets.QWidget.close(canvas)
 
 
-@pytest.mark.parametrize("backend", [backend_name])
 @pytest.mark.parametrize("func", BACKEND_TEST_FUNCS)
-def test_backend_generic(func, backend):
-    func(backend, close_func=qt_close)
+def test_backend_qt(func):
+    func(RenderCanvas, loop, QtHelper())
 
 
 if __name__ == "__main__":

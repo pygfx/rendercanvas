@@ -13,7 +13,7 @@ import gc
 
 import pytest
 from testutils import run_tests, can_use_glfw, can_use_wgpu_lib, is_pypy
-from testutils_backends import BACKEND_TEST_FUNCS, _get_draw_function
+from testutils_backends import BACKEND_TEST_FUNCS, NativeHelper, _get_draw_function
 
 
 if not can_use_glfw:
@@ -32,22 +32,23 @@ import glfw
 #     glfw.terminate()
 
 
-def test_is_canvas_classes():
-    from rendercanvas.base import BaseRenderCanvas
-    from rendercanvas.glfw import RenderCanvas, GlfwRenderCanvas
+from rendercanvas.base import BaseRenderCanvas
+from rendercanvas.glfw import RenderCanvas, GlfwRenderCanvas, loop
 
+
+def test_is_canvas_classes():
     assert GlfwRenderCanvas is RenderCanvas
     assert issubclass(RenderCanvas, BaseRenderCanvas)
 
 
-def glfw_close(canvas):
-    glfw.set_window_should_close(canvas._window, 1)
+class GlfwHelper(NativeHelper):
+    def close_canvas(self, canvas):
+        glfw.set_window_should_close(canvas._window, 1)
 
 
-@pytest.mark.parametrize("backend", ["glfw"])
 @pytest.mark.parametrize("func", BACKEND_TEST_FUNCS)
-def test_backend_generic(func, backend):
-    func(backend, close_func=glfw_close)
+def test_backend_glfw(func):
+    func(RenderCanvas, loop, GlfwHelper())
 
 
 def test_glfw_canvas_del():
