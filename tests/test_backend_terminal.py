@@ -7,7 +7,6 @@ import sys
 
 import rendercanvas
 from rendercanvas.base import BaseCanvasGroup
-from rendercanvas.terminal import RenderCanvas, loop
 
 import pytest
 from testutils import run_tests
@@ -17,6 +16,8 @@ from testutils_backends import BACKEND_TEST_FUNCS, NativeHelper
 # Only run when running directly (through Python or pytest)
 if not (__name__ == "__main__" or any(__name__ in a for a in sys.argv)):
     pytest.skip(f"Skipping backend specific tests {__name__}", allow_module_level=True)
+
+from rendercanvas.terminal import RenderCanvas, loop
 
 
 def setup_module():

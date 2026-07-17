@@ -16,20 +16,19 @@ import pytest
 from testutils import run_tests, can_use_glfw, can_use_wgpu_lib, is_pypy
 from testutils_backends import BACKEND_TEST_FUNCS, NativeHelper, _get_draw_function
 
+# Only run when running directly (through Python or pytest)
+if not (__name__ == "__main__" or any(__name__ in a for a in sys.argv)):
+    pytest.skip(f"Skipping backend specific tests {__name__}", allow_module_level=True)
 
 if not can_use_glfw:
     pytest.skip("Skipping tests that needs glfw", allow_module_level=True)
+
 
 import glfw
 
 
 from rendercanvas.base import BaseRenderCanvas, BaseCanvasGroup
 from rendercanvas.glfw import RenderCanvas, GlfwRenderCanvas, loop
-
-
-# Only run when running directly (through Python or pytest)
-if not (__name__ == "__main__" or any(__name__ in a for a in sys.argv)):
-    pytest.skip(f"Skipping backend specific tests {__name__}", allow_module_level=True)
 
 
 # ----- A fresh canvas class and loop, for use in these tests
