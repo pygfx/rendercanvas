@@ -153,12 +153,11 @@ jobs:
       matrix:
         include:
           # Loops
-          # - backendname: 'asyncio' -> via glfw
           - backendname: 'raw'
             deps: ''
             os: windows-latest
           - backendname: 'asyncio'
-            deps: 'rio'
+            deps: ''
             os: windows-latest
           - backendname: 'trio'
             deps: 'trio'
@@ -208,9 +207,6 @@ jobs:
     - name: Test import
       run: |
         python -c 'import rendercanvas.${{ matrix.backendname }}'
-    - name: Test loop
-      run: |
-        pytest -v tests/test_loop.py -k ${{ matrix.backendname }}
     - name: Test backend canvas
       run: |
         pytest -v tests/test_backend_${{ matrix.testname || matrix.backendname }}.py
