@@ -6,10 +6,11 @@ In contrast to the other test_backend_xx.py tests, this test is run when glfw is
 available.
 """
 
+import gc
 import os
+import sys
 import weakref
 import asyncio
-import gc
 
 import pytest
 from testutils import run_tests, can_use_glfw, can_use_wgpu_lib, is_pypy
@@ -20,20 +21,36 @@ if not can_use_glfw:
     pytest.skip("Skipping tests that needs glfw", allow_module_level=True)
 
 import glfw
-# def setup_module():
-#     import glfw
-#     glfw.init()
-#
-# def teardown_module():
-#     import glfw
-#     from rendercanvas.glfw import poll_glfw_briefly
-#     poll_glfw_briefly()
-#     # Terminate; otherwise it gets in the way of tests for the Qt or wx loop.
-#     glfw.terminate()
 
 
-from rendercanvas.base import BaseRenderCanvas
+from rendercanvas.base import BaseRenderCanvas, BaseCanvasGroup
 from rendercanvas.glfw import RenderCanvas, GlfwRenderCanvas, loop
+
+
+# Only run when running directly (through Python or pytest)
+if not (__name__ == "__main__" or any(__name__ in a for a in sys.argv)):
+    pytest.skip(f"Skipping backend specific tests {__name__}", allow_module_level=True)
+
+
+# ----- A fresh canvas class and loop, for use in these tests
+
+
+class GlfwLoop(loop.__class__):
+    pass
+
+
+loop = GlfwLoop()
+
+
+class CanvasGroup(BaseCanvasGroup):
+    pass
+
+
+class GlfwCanvas(RenderCanvas):
+    _rc_canvas_group = CanvasGroup(loop)
+
+
+# -----
 
 
 def test_is_canvas_classes():
@@ -48,11 +65,10 @@ class GlfwHelper(NativeHelper):
 
 @pytest.mark.parametrize("func", BACKEND_TEST_FUNCS)
 def test_backend_glfw(func):
-    func(RenderCanvas, loop, GlfwHelper())
+    func(GlfwCanvas, loop, GlfwHelper())
 
 
 def test_glfw_canvas_del():
-    from rendercanvas.glfw import RenderCanvas, loop
 
     aio_loop = asyncio.new_event_loop()
     loop_task = aio_loop.create_task(loop.run_async())
@@ -60,7 +76,7 @@ def test_glfw_canvas_del():
     def run_briefly():
         aio_loop.run_until_complete(asyncio.sleep(0.5))
 
-    canvas = RenderCanvas()
+    canvas = GlfwCanvas()
     ref = weakref.ref(canvas)
 
     assert ref() is not None
@@ -86,8 +102,6 @@ def test_glfw_canvas_render():
         pytest.skip("Skipping tests that needs the wgpu lib")
 
     import wgpu
-    from rendercanvas.glfw import RenderCanvas
-    from rendercanvas.asyncio import loop
 
     aio_loop = asyncio.new_event_loop()
     loop_task = aio_loop.create_task(loop.run_async())
@@ -95,7 +109,7 @@ def test_glfw_canvas_render():
     def run_briefly():
         aio_loop.run_until_complete(asyncio.sleep(0.5))
 
-    canvas = RenderCanvas(max_fps=9999, update_mode="ondemand")
+    canvas = GlfwCanvas(max_fps=9999, update_mode="ondemand")
 
     device = wgpu.gpu.request_adapter_sync().request_device_sync()
     draw_frame1 = _get_draw_function(device, canvas)

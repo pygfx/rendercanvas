@@ -7,6 +7,7 @@ Test basics of rendercanvas.utils.asyncs.
 import os
 import time
 
+from rendercanvas.base import BaseCanvasGroup, BaseRenderCanvas
 from rendercanvas.asyncio import AsyncioLoop
 from rendercanvas.trio import TrioLoop
 from rendercanvas.raw import RawLoop
@@ -18,6 +19,28 @@ import pytest
 
 
 loop_classes = [RawLoop, AsyncioLoop, TrioLoop]
+
+
+class FooCanvasGroup(BaseCanvasGroup):
+    pass
+
+
+class FooCanvas(BaseRenderCanvas):
+    _rc_canvas_group = FooCanvasGroup(None)
+
+    def __init__(self):
+        super().__init__()
+        self._is_closed = False
+        self._final_canvas_init()
+
+    def _rc_gui_poll(self):
+        pass
+
+    def _rc_close(self):
+        self._is_closed = True
+
+    def _rc_get_closed(self):
+        return self._is_closed
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
@@ -35,7 +58,8 @@ def test_sleep(SomeLoop):
         loop.stop()
 
     loop = SomeLoop()
-    loop._stop_when_no_canvases = False
+    FooCanvas.select_loop(loop)
+    _canvas = FooCanvas()
     loop.add_task(coro)
     loop.run()
 
@@ -65,7 +89,8 @@ def test_precise_sleep(SomeLoop):
             loop.stop()
 
         loop = SomeLoop()
-        loop._stop_when_no_canvases = False
+        FooCanvas.select_loop(loop)
+        _canvas = FooCanvas()
         loop.add_task(coro)
         loop.run()
 
@@ -105,7 +130,8 @@ def test_event(SomeLoop):
         loop.stop()
 
     loop = SomeLoop()
-    loop._stop_when_no_canvases = False
+    FooCanvas.select_loop(loop)
+    _canvas = FooCanvas()
     loop.add_task(coro1)
     loop.add_task(coro2)
     loop.run()

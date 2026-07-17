@@ -1,37 +1,45 @@
 """
-Tests for the raw loop. We use the glfw canvas to test it with.
+Tests for the raw loop. We use the offscreen canvas to test it with.
 """
 
+from rendercanvas.base import BaseCanvasGroup
 from rendercanvas.raw import loop
-from rendercanvas.glfw import GlfwRenderCanvas
+from rendercanvas.offscreen import RenderCanvas
 
 import pytest
-from testutils import run_tests, can_use_glfw
+from testutils import run_tests
 from testutils_backends import BACKEND_TEST_FUNCS, NativeHelper
 
 
-if not can_use_glfw:
-    pytest.skip("Skipping tests that needs glfw", allow_module_level=True)
+# ----- A fresh canvas class and loop, for use in these tests
 
 
-import glfw
-
-
-class RawRenderCanvas(GlfwRenderCanvas):
+class RawLoop(loop.__class__):
     pass
 
 
-RawRenderCanvas.select_loop(loop)
+loop = RawLoop()
+
+
+class CanvasGroup(BaseCanvasGroup):
+    pass
+
+
+class RawCanvas(RenderCanvas):
+    _rc_canvas_group = CanvasGroup(loop)
+
+
+# -----
 
 
 class RawHelper(NativeHelper):
     def close_canvas(self, canvas):
-        glfw.set_window_should_close(canvas._window, 1)
+        canvas.close()
 
 
 @pytest.mark.parametrize("func", BACKEND_TEST_FUNCS)
 def test_backend_raw(func):
-    func(RawRenderCanvas, loop, RawHelper())
+    func(RawCanvas, loop, RawHelper())
 
 
 if __name__ == "__main__":

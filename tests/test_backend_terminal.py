@@ -6,6 +6,7 @@ import io
 import sys
 
 import rendercanvas
+from rendercanvas.base import BaseCanvasGroup
 from rendercanvas.terminal import RenderCanvas, loop
 
 import pytest
@@ -21,6 +22,27 @@ def teardown_module():
     rendercanvas.terminal.term_stream = sys.__stdout__
 
 
+# ----- A fresh canvas class and loop, for use in these tests
+
+
+class TerminalLoop(loop.__class__):
+    pass
+
+
+loop = TerminalLoop()
+
+
+class CanvasGroup(BaseCanvasGroup):
+    pass
+
+
+class TerminalCanvas(RenderCanvas):
+    _rc_canvas_group = CanvasGroup(loop)
+
+
+# -----
+
+
 class TerminalHelper(NativeHelper):
     def close_canvas(self, canvas):
         canvas.close()
@@ -33,7 +55,7 @@ EXCLUDES = ["backend_sizing"]
 def test_backend_terminal(func):
     if func.__name__ in EXCLUDES:
         pytest.skip()
-    func(RenderCanvas, loop, TerminalHelper())
+    func(TerminalCanvas, loop, TerminalHelper())
 
 
 if __name__ == "__main__":

@@ -83,8 +83,6 @@ class BaseLoop:
 
     """
 
-    _stop_when_no_canvases = True
-
     def __init__(self):
         self.__tasks = set()  # only used by the async adapter
         self.__canvas_groups = set()
