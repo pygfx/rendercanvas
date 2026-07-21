@@ -595,8 +595,10 @@ class BaseRenderView {
 
     viewElement.addEventListener('pointerdown', (ev) => {
       // When pointer is down, set focus to the focus-element.
+      // Focus after a short delay, otherwise VSCode takes focus away immediately.
       if (!LOOKS_LIKE_MOBILE) {
-        this._focusElement.focus({ preventScroll: true, focusVisible: false })
+        const fe = this._focusElement
+        window.setTimeout(function () { fe.focus({ preventScroll: true, focusVisible: false }) }, 50)
       }
       // capture the pointing device.
       // Because we capture the event, there will be no other events when buttons are pressed down,
