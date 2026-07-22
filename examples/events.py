@@ -2,7 +2,7 @@
 Events
 ------
 
-A simple example to demonstrate events. Events are printed in the canvas.
+A simple example to demonstrate events. Events are printed to stdout and shown in the canvas.
 """
 
 import json
@@ -24,7 +24,9 @@ def process_event(event):
     global event_count
     if event["event_type"] not in ["before_draw"]:
         event_count += 1
-        events_list.insert(0, event)
+        event_str = event_to_string(event)
+        print(event_str)
+        events_list.insert(0, event_str)
         events_list[32:] = []
         canvas.request_draw()
 
@@ -50,7 +52,7 @@ def draw():
     y += 10 * ratio
 
     a = 1
-    for event in events_list:
+    for event_str in events_list:
         y += 20 * ratio
         if y > h:
             break
@@ -58,7 +60,7 @@ def draw():
         fill = round(160 * (1 - a)), round(170 * (1 - a)), round(180 * (1 - a))
         draw.text(
             (x, y),
-            text=event_to_string(event),
+            text=event_str,
             fill=fill,
             font=font,
         )
