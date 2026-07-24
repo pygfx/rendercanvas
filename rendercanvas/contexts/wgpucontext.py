@@ -159,18 +159,31 @@ class WgpuContextToScreen(WgpuContext):
         self._wgpu_context.configure(**config)
 
     def _unconfigure(self) -> None:
-        self._wgpu_context.unconfigure()
+        if self._wgpu_context is not None:
+            self._wgpu_context.unconfigure()
 
     def _get_current_texture(self) -> object:
         return self._wgpu_context.get_current_texture()
 
     def _rc_present(self, *, force_sync: bool = False) -> dict:
+        if self._wgpu_context is None:
+            return {"method": "skip"}  # the canvas is closed
         self._wgpu_context.present()
         return {"method": "screen"}
 
     def _rc_close(self):
         if self._wgpu_context is not None:
-            self._wgpu_context.unconfigure()
+            wgpu_context, self._wgpu_context = self._wgpu_context, None
+            wgpu_context.unconfigure()
+            # Release the surface now, instead of leaving it to the garbage
+            # collector. The surface only makes sense as long as the window
+            # exists, and on Wayland it is owned by the display-connection of
+            # the toolkit, so releasing it after the toolkit has torn that
+            # connection down is a use-after-free. Dropping our reference (above)
+            # already does this, but only if no other references are left.
+            release = getattr(wgpu_context, "_release", None)  # private method
+            if release is not None:
+                release()
 
 
 class WgpuContextToBitmap(WgpuContext):

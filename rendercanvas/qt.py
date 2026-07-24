@@ -5,6 +5,7 @@ can be used as a standalone window or in a larger GUI.
 
 __all__ = ["QRenderCanvas", "QRenderWidget", "QtLoop", "RenderCanvas", "loop"]
 
+import os
 import sys
 import ctypes
 import weakref
@@ -15,8 +16,8 @@ from .base import WrapperRenderCanvas, BaseCanvasGroup, BaseRenderCanvas, BaseLo
 from .core.coreutils import (
     logger,
     get_alt_x11_display,
-    get_alt_wayland_display,
     select_qt_lib,
+    SYSTEM_IS_WAYLAND,
 )
 
 
@@ -159,6 +160,86 @@ BITMAP_FORMAT_MAP = {
     "i-u8": QtGui.QImage.Format.Format_Grayscale8,
     "i-u16": QtGui.QImage.Format.Format_Grayscale16,
 }
+
+
+def qt_lib_can_get_wayland_display():
+    """Get whether this Qt lib can tell us what wl_display it is connected to."""
+    # Qt6 exposes the native handles via QNativeInterface.
+    native_interface = getattr(QtGui, "QNativeInterface", None)
+    if hasattr(native_interface, "QWaylandApplication"):
+        return True
+    # Qt5 exposes the native handles via the (semi-private) platform native interface.
+    if hasattr(QtGui.QGuiApplication, "platformNativeInterface"):
+        return True
+    return False
+
+
+def get_qt_platform_name():
+    """Get the name of the qpa platform plugin that Qt is running on.
+
+    This is e.g. 'wayland', 'xcb', 'windows' or 'cocoa'. Returns an empty
+    string if there is no application object (yet).
+    """
+    app = QtWidgets.QApplication.instance()
+    if app is None:
+        return ""
+    return app.platformName().lower()
+
+
+def get_qt_wayland_display():
+    """Get (the pointer to) the wl_display that Qt is connected to.
+
+    Returns None if it cannot be obtained. Note that a wl_surface can only be
+    used with the display that created it, so a fresh wl_display_connect() is
+    not a valid substitute (see coreutils.py).
+    """
+    app = QtWidgets.QApplication.instance()
+    if app is None or get_qt_platform_name() != "wayland":
+        return None
+
+    # Qt6 exposes the handles via QNativeInterface. In PySide6, nativeInterface()
+    # resolves to the interface matching the current platform (QWaylandApplication).
+    try:
+        display = app.nativeInterface().display()
+        if display:
+            return int(display)
+    except (AttributeError, TypeError):
+        pass
+
+    # Qt5 exposes the handles via the (semi-private) platform native interface.
+    try:
+        pni = app.platformNativeInterface()
+        display = pni.nativeResourceForIntegration("wl_display")
+        if display:
+            return int(display)
+    except (AttributeError, TypeError):
+        pass
+
+    return None
+
+
+def fall_back_to_xwayland_if_needed():
+    """Put Qt on XWayland if it cannot present to a native Wayland surface.
+
+    A Wayland surface can only be used with the display-connection that created
+    it, so if this Qt lib cannot tell us its wl_display, we cannot present to
+    screen (see ``_get_surface_ids``). We then use XWayland, so that the x11
+    code-path can be used instead. Note that Qt selects the platform when the
+    application is instantiated, so this must happen before that.
+    """
+    if not (sys.platform.startswith("linux") and SYSTEM_IS_WAYLAND):
+        return
+    if already_had_app_on_import:
+        return  # too late, Qt has already selected a platform
+    if os.environ.get("QT_QPA_PLATFORM"):
+        return  # the user made an explicit choice
+    if not qt_lib_can_get_wayland_display():
+        os.environ["QT_QPA_PLATFORM"] = "xcb"
+
+
+# Qt selects its platform when the application is instantiated, so we must make
+# this decision at import-time.
+fall_back_to_xwayland_if_needed()
 
 
 def enable_hidpi():
@@ -310,12 +391,24 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
                 "window": int(self.winId()),
             }
         elif sys.platform.startswith("linux"):
-            if False:
-                # We fall back to XWayland, see coreutils.py
+            # Note that the platform to target is decided by Qt (the qpa
+            # plugin), not by the session: under a Wayland session Qt may well
+            # be running on XWayland, in which case winId() is an X11 window.
+            if get_qt_platform_name() == "wayland":
+                wayland_display = get_qt_wayland_display()
+                if wayland_display is None:
+                    # Without the display that Qt itself is connected to, the
+                    # wl_surface from winId() is unusable. Let the caller fall
+                    # back to bitmap present rather than crash.
+                    logger.warning(
+                        "Cannot get the Wayland display from Qt, "
+                        "so cannot present to screen."
+                    )
+                    return None
                 return {
                     "platform": "wayland",
                     "window": int(self.winId()),
-                    "display": int(get_alt_wayland_display()),
+                    "display": wayland_display,
                 }
             else:
                 return {
