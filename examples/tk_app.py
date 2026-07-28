@@ -109,10 +109,11 @@ def setup_cube(canvas, mode, speed):
 
     return draw, reset
 
+dimensions = (1000,650)
 
 root = tk.Tk()
 root.title("rendercanvas + Tkinter widgets")
-root.geometry("1000x650")
+root.geometry("{0}x{1}".format(*dimensions))
 
 mode = tk.StringVar(value="xy")
 speed = tk.DoubleVar(value=1.0)
