@@ -51,11 +51,11 @@ class Scheduler:
         # ... = canvas.get_context() -> No, context creation should be lazy!
 
         # Scheduling variables
-        self.set_enabled(True)
-        self.set_update_mode(update_mode, min_fps=min_fps, max_fps=max_fps)
+        self._enabled = True
         self._draw_requested = True  # Start with a draw in ondemand mode
         self._ready_for_present = None
         self._just_cancelled_a_frame = False
+        self.set_update_mode(update_mode, min_fps=min_fps, max_fps=max_fps)
 
         # Keep track of fps
         self._draw_stats = 0, time.perf_counter()
@@ -95,8 +95,8 @@ class Scheduler:
             self._max_fps = max(1, float(max_fps))
 
     def set_enabled(self, enabled: bool):
-        self._enabled = bool(enabled)
-        if self._enabled:
+        if not self._enabled:
+            self._enabled = bool(enabled)
             self._draw_requested = True
 
     def request_draw(self):
@@ -195,6 +195,7 @@ class Scheduler:
                 # terms of user-experience, the cost of this delay is probably
                 # larger than the benefit of the potential fps increase.
 
+                last_draw_time = time.perf_counter()
                 self._ready_for_present = Event()
                 canvas._rc_request_draw()
                 del canvas
