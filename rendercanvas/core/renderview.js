@@ -595,8 +595,11 @@ class BaseRenderView {
 
     viewElement.addEventListener('pointerdown', (ev) => {
       // When pointer is down, set focus to the focus-element.
+      // Focus after a short delay, otherwise VSCode takes focus away immediately.
       if (!LOOKS_LIKE_MOBILE) {
-        this._focusElement.focus({ preventScroll: true, focusVisible: false })
+        const focusFunc = () => this._focusElement.focus({ preventScroll: true, focusVisible: false })
+        window.setTimeout(focusFunc, 25)
+        window.setTimeout(focusFunc, 250)
       }
       // capture the pointing device.
       // Because we capture the event, there will be no other events when buttons are pressed down,
@@ -873,11 +876,12 @@ class BaseRenderView {
       if (this.sizeElement.offsetParent === null) {
         return
       }
+      // Prevent envs like VSCode from capturing and using e.g. up/down
+      ev.stopPropagation()
       // Ignore repeated events (key being held down)
       if (ev.repeat) {
         return
       }
-      // No need for stopPropagation or preventDefault because we are in a text-input.
 
       const modifiers = getModifiers(ev)
 
@@ -896,6 +900,7 @@ class BaseRenderView {
       if (this.sizeElement.offsetParent === null) {
         return
       }
+      ev.stopPropagation()
 
       const modifiers = getModifiers(ev)
 

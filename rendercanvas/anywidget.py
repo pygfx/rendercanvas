@@ -127,7 +127,8 @@ class AnywidgetRenderCanvas(BaseRenderCanvas, anywidget.AnyWidget):
             ),
             display_id=True,
         )
-        self.request_draw()
+
+        self._rfb_schedule_maybe_draw()
 
     def _replace_snapshot(self, array):
         pending_display = self._rfb_pending_snapshot_display
@@ -187,8 +188,9 @@ class AnywidgetRenderCanvas(BaseRenderCanvas, anywidget.AnyWidget):
         should_draw = (
             self._rfb_draw_requested
             and frames_in_flight < self._max_buffered_frames
-            and (self._has_visible_views or self._rfb_pending_snapshot_display)
-        )
+            and self._has_visible_views
+        ) or self._rfb_pending_snapshot_display is not None
+
         # Do the draw if we should.
         if should_draw:
             self._rfb_draw_requested = False
