@@ -32,18 +32,11 @@ class MyCanvas(BaseRenderCanvas):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._closed = False
         self.draw_count = 0
         self.events_count = 0
         self._gui_draw_requested = False
         self._present_to_screen = False
         self._canvas_context = StubContext()
-
-    def _rc_close(self):
-        self._closed = True
-
-    def _rc_get_closed(self):
-        return self._closed
 
     def _process_events(self):
         self.events_count += 1

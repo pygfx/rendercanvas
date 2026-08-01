@@ -30,7 +30,6 @@ class OffscreenRenderCanvas(BaseRenderCanvas):
     def __init__(self, *args, pixel_ratio=1.0, format="rgba-u8", **kwargs):
         super().__init__(*args, **kwargs)
         self._pixel_ratio = float(pixel_ratio)
-        self._closed = False
         self._last_image = None
 
         self._present_formats = ["rgba-u8", "rgba-f16", "rgba-f32", "rgba-u16"]
@@ -84,10 +83,7 @@ class OffscreenRenderCanvas(BaseRenderCanvas):
         self._size_info.set_physical_size(pwidth, pheight, pixel_ratio)
 
     def _rc_close(self):
-        self._closed = True
-
-    def _rc_get_closed(self):
-        return self._closed
+        pass
 
     def _rc_set_title(self, title):
         pass

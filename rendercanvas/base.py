@@ -19,7 +19,7 @@ from .core.size import SizeInfo
 from .core.events import EventEmitter
 from .core.loop import BaseLoop
 from .core.scheduler import Scheduler
-from .core.coreutils import logger, log_exception
+from .core.coreutils import log_exception
 
 
 if TYPE_CHECKING:
@@ -46,7 +46,7 @@ __all__ = ["BaseLoop", "BaseRenderCanvas", "WrapperRenderCanvas"]
 class BaseCanvasGroup:
     """Represents a group of canvas objects from the same class, that share a loop."""
 
-    def __init__(self, default_loop: BaseLoop):
+    def __init__(self, default_loop: BaseLoop | None):
         self._canvases = weakref.WeakSet()
         self._loop = None
         self.select_loop(default_loop)
@@ -63,7 +63,7 @@ class BaseCanvasGroup:
         """Used by the canvas to unregister itself when closed."""
         self._canvases.discard(canvas)
 
-    def select_loop(self, loop: BaseLoop) -> None:
+    def select_loop(self, loop: BaseLoop | None) -> None:
         """Select the loop to use for this group of canvases."""
         if not (loop is None or isinstance(loop, BaseLoop)):
             raise TypeError("select_loop() requires a loop instance or None.")
@@ -108,7 +108,7 @@ class BaseRenderCanvas:
 
     """
 
-    _rc_canvas_group = None
+    _rc_canvas_group: BaseCanvasGroup = None  # type: ignore - type applies to subtypes
     """Class attribute that refers to the ``CanvasGroup`` instance to use for canvases of this class.
     It specifies what loop is used, and enables users to changing the used loop.
     """
@@ -171,7 +171,13 @@ class BaseRenderCanvas:
         self._present_method = present_method
         self._present_to_screen: bool | None = None  # set in .get_context()
 
+        # Runtime check
+        assert self._rc_canvas_group is not None, (
+            "_rc_canvas_group must be set on classes that subclass BaseRenderCanvas"
+        )
+
         # Variables and flags used internally
+        self.__is_closed = False
         self.__is_drawing = False
         self.__title_info = {
             "raw": "",
@@ -566,7 +572,7 @@ class BaseRenderCanvas:
                 size_is_nill
                 or context is None
                 or self._draw_frame is None
-                or self._rc_get_closed()
+                or self.__is_closed
             ):
                 if scheduler is not None:
                     scheduler.on_cancel_draw()
@@ -676,8 +682,12 @@ class BaseRenderCanvas:
 
     def close(self) -> None:
         """Close the canvas."""
+        # Note that this function may be called multiple times, and may even be re-entered.
+        if self.__is_closed:
+            return
+        self.__is_closed = True
         errors = []
-        # Close the canvas natively, the canvas may only be marked as closed once this is done
+        # Close the native canvas
         try:
             self._rc_close()
         except Exception as err:
@@ -707,13 +717,7 @@ class BaseRenderCanvas:
 
     def get_closed(self) -> bool:
         """Get whether the window is closed."""
-        return self._rc_get_closed()
-
-    def is_closed(self):
-        logger.warning(
-            "canvas.is_closed() is deprecated, use canvas.get_closed() instead."
-        )
-        return self._rc_get_closed()
+        return self.__is_closed
 
     # %% Secondary canvas management methods
 
@@ -864,22 +868,17 @@ class BaseRenderCanvas:
     def _rc_close(self):
         """Close the canvas.
 
-        This is the place to delete the native widget, and to maybe set a flag
-        that ``_rc_get_closed()`` uses. It is not necessary to emit a close event,
-        because the base class handles that.
+        This is the place to delete the native widget. It is not necessary to
+        emit a close event, because the base class handles that.
 
         In a backend, all flows that lead to a close must call ``.close()``, so
         that ``BaseRenderCanvas`` has a clear place to handle closing. It calls
-        ``_rc_close()``  from there.
+        ``_rc_close()``  from there. The base class will call this method exactly once.
 
         Note that backends may also have a ``close()`` method, which is
         overridden by the base class.
         """
         pass
-
-    def _rc_get_closed(self) -> bool:
-        """Get whether the canvas is closed. A typical implementation uses a flag that is set in ``_rc_close()``."""
-        return False
 
     def _rc_set_title(self, title: str):
         """Set the canvas title. May be ignored when it makes no sense.
@@ -964,6 +963,3 @@ class WrapperRenderCanvas(BaseRenderCanvas):
 
     def get_closed(self) -> bool:
         return self._subwidget.get_closed()
-
-    def is_closed(self):
-        return self._subwidget.is_closed()

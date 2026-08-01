@@ -219,9 +219,6 @@ class PyodideRenderCanvas(BaseRenderCanvas):
         # Removing the element from the page. One can argue whether you want this or not.
         canvas_element.remove()
 
-    def _rc_get_closed(self):
-        return self._canvas_element is None
-
     def _rc_set_title(self, title: str):
         # A canvas element doesn't have a title directly.
         # We assume that when the canvas sets a title it's the only one, and we set the title of the document.

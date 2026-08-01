@@ -30,17 +30,7 @@ class FooCanvas(BaseRenderCanvas):
 
     def __init__(self):
         super().__init__()
-        self._is_closed = False
         self._final_canvas_init()
-
-    def _rc_gui_poll(self):
-        pass
-
-    def _rc_close(self):
-        self._is_closed = True
-
-    def _rc_get_closed(self):
-        return self._is_closed
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)

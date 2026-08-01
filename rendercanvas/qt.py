@@ -278,7 +278,6 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
         # Determine present method
         self._last_image = None
         self._last_winid = None
-        self._is_closed = False
         self._pending_present_params = None
 
         self.setAutoFillBackground(False)
@@ -473,16 +472,11 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
             self.resize(width, height)  # See comment on pixel ratio
 
     def _rc_close(self):
-        if self._is_closed:
-            return
         parent = self.parent()
         if isinstance(parent, QRenderCanvas):
             QtWidgets.QWidget.close(parent)
         else:
             QtWidgets.QWidget.close(self)
-
-    def _rc_get_closed(self):
-        return self._is_closed
 
     def _rc_set_title(self, title):
         # A QWidgets title can actually be shown when the widget is shown in a dock.
@@ -636,7 +630,7 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
     def closeEvent(self, event):  # noqa: N802
         # Happens e.g. when closing the widget from within an app that dynamically created and closes canvases.
         super().closeEvent(event)
-        self._is_closed = True
+        self.close()
 
 
 class QRenderCanvas(WrapperRenderCanvas, QtWidgets.QWidget):

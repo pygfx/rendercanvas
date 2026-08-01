@@ -3,7 +3,14 @@ Support for rendering in a wxPython window. Provides a widget that
 can be used as a standalone window or in a larger GUI.
 """
 
-__all__ = ["RenderCanvas", "WxLoop", "WxRenderCanvas", "WxRenderWidget", "loop"]
+__all__ = [
+    "RenderCanvas",
+    "RenderWidget",
+    "WxLoop",
+    "WxRenderCanvas",
+    "WxRenderWidget",
+    "loop",
+]
 
 import sys
 import time
@@ -218,7 +225,6 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
         super().__init__(*args, **kwargs)
 
         self._last_image = None
-        self._is_closed = False
         self._pointer_inside = None
         self._is_pointer_inside_according_to_wx = False
 
@@ -367,7 +373,6 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
             pass
 
     def _rc_close(self):
-        self._is_closed = True
         try:
             parent = self.Parent
         except RuntimeError:
@@ -381,9 +386,6 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
             end_time = time.perf_counter() + 0.1
             while time.perf_counter() < end_time:
                 wx.Yield()
-
-    def _rc_get_closed(self):
-        return self._is_closed
 
     def _rc_set_title(self, title):
         # Set title only on frame
@@ -573,11 +575,12 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
                 self.submit_event(ev)
 
     def _on_close(self, _event):
-        if not self._is_closed:
-            self.close()
+        self.close()
 
 
 class WxRenderFrame(wx.Frame):
+    """Stub class to identify that the frame is from rendercanvas."""
+
     pass
 
 
@@ -606,7 +609,7 @@ class WxRenderCanvas(WrapperRenderCanvas):
 
     @property
     def frame(self):
-        """The wx.Frame that this class wraps."""
+        """The wx.Frame object that this class wraps."""
         return self._frame
 
 

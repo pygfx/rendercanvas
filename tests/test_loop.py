@@ -40,20 +40,7 @@ class FooCanvas(BaseRenderCanvas):
 
     def __init__(self):
         super().__init__()
-        self._is_closed = False
         self._final_canvas_init()
-
-    def _rc_gui_poll(self):
-        pass
-
-    def _rc_close(self):
-        # Note: in earlier rendercanvas versions, canvases could ignore
-        # the signal to close. Now, closing is not a request but a command,
-        # and the basse class and loop will consider the canvas as closed.
-        self._is_closed = True
-
-    def _rc_get_closed(self):
-        return self._is_closed
 
     def manually_close(self):
         self.close()

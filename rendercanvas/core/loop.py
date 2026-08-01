@@ -54,7 +54,7 @@ class BaseLoop:
         * Entered when the first canvas is created that is associated with this loop, or when a task is added.
         * It is assumed that the loop will become active soon.
         * This is when ``_rc_init()`` is called to get the backend ready for running.
-        * A co-routine is created that will detect when the loop starts running, so some things can be initialized at the right moment.
+        * A co-routine is created that will detect when the loop starts running, so things can be initialized at the right moment.
     * running:
         * Entered when ``loop.run()`` is called.
         * The loop is now running.
@@ -154,7 +154,6 @@ class BaseLoop:
         self.__is_initialized = True
         self._rc_init()
 
-        # self._rc_add_task(wrapper, "loop-task")
         self._rc_add_task(self._loop_start_detection_task, "loop-start-detection-task")
         self.__using_adapter = len(self.__tasks) > 0
 

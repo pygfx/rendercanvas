@@ -365,9 +365,6 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         if not self._rc_canvas_group.get_canvases():
             poll_glfw_briefly(0.05)
 
-    def _rc_get_closed(self):
-        return self._window is None
-
     def _rc_set_title(self, title):
         if self._window is not None:
             glfw.set_window_title(self._window, title)
