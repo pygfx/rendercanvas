@@ -19,7 +19,7 @@ from .core.size import SizeInfo
 from .core.events import EventEmitter
 from .core.loop import BaseLoop
 from .core.scheduler import Scheduler
-from .core.coreutils import log_exception
+from .core.coreutils import logger, log_exception  # noqa: F401
 
 
 if TYPE_CHECKING:
