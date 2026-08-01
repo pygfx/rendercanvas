@@ -382,6 +382,7 @@ class WxRenderWidget(BaseRenderCanvas, wx.Window):
             parent.Destroy()
         else:
             self.Destroy()
+        # wx needs some loop iters to close a canvas, so if this is the last canvas, poll it for a short while.
         if not self._rc_canvas_group.get_canvases():
             end_time = time.perf_counter() + 0.1
             while time.perf_counter() < end_time:

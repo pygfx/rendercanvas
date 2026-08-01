@@ -683,16 +683,16 @@ class BaseRenderCanvas:
             return
         self.__is_closed = True
         errors = []
-        # Close the native canvas
-        try:
-            self._rc_close()
-        except Exception as err:
-            errors.append(err)
         # Unregister
         loop = None
         if self._rc_canvas_group is not None:
             loop = self._rc_canvas_group.get_loop()
             self._rc_canvas_group._unregister_canvas(self)
+        # Close the native canvas
+        try:
+            self._rc_close()
+        except Exception as err:
+            errors.append(err)
         # Clear the draw-function, to avoid it holding onto e.g. wgpu objects.
         self._draw_frame = None  # type: ignore
         # Clear the canvas context too.
