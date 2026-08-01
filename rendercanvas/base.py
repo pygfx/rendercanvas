@@ -108,7 +108,7 @@ class BaseRenderCanvas:
 
     """
 
-    _rc_canvas_group: BaseCanvasGroup = None  # type: ignore - type applies to subtypes
+    _rc_canvas_group: BaseCanvasGroup | None = None
     """Class attribute that refers to the ``CanvasGroup`` instance to use for canvases of this class.
     It specifies what loop is used, and enables users to changing the used loop.
     """
@@ -171,11 +171,6 @@ class BaseRenderCanvas:
         self._present_method = present_method
         self._present_to_screen: bool | None = None  # set in .get_context()
 
-        # Runtime check
-        assert self._rc_canvas_group is not None, (
-            "_rc_canvas_group must be set on classes that subclass BaseRenderCanvas"
-        )
-
         # Variables and flags used internally
         self.__is_closed = False
         self.__is_drawing = False
@@ -184,9 +179,7 @@ class BaseRenderCanvas:
             "fps": "?",
             "ms": "?",
             "backend": self.__class__.__name__,
-            "loop": self._rc_canvas_group.get_loop().__class__.__name__
-            if (self._rc_canvas_group and self._rc_canvas_group.get_loop())
-            else "no-loop",
+            "loop": "no-loop",  # set below in most cases
         }
         self._size_info = SizeInfo()
 
@@ -199,6 +192,9 @@ class BaseRenderCanvas:
             # Group, but no loop: no scheduling
             self._rc_canvas_group._register_canvas(self, None)
         else:
+            self.__title_info["loop"] = (
+                self._rc_canvas_group.get_loop().__class__.__name__
+            )
             self.__scheduler = Scheduler(
                 self,
                 self._events,
@@ -693,7 +689,10 @@ class BaseRenderCanvas:
         except Exception as err:
             errors.append(err)
         # Unregister
-        self._rc_canvas_group._unregister_canvas(self)
+        loop = None
+        if self._rc_canvas_group is not None:
+            loop = self._rc_canvas_group.get_loop()
+            self._rc_canvas_group._unregister_canvas(self)
         # Clear the draw-function, to avoid it holding onto e.g. wgpu objects.
         self._draw_frame = None  # type: ignore
         # Clear the canvas context too.
@@ -707,7 +706,6 @@ class BaseRenderCanvas:
         self._events.close()
         # Stop the loop if this was the last canvas. It's important to do now,
         # because the native loop may stop right after, giving us no flow to properly close.
-        loop = self._rc_canvas_group.get_loop()
         if loop is not None:
             if not loop.get_canvases():
                 loop.stop()
