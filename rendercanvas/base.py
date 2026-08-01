@@ -770,7 +770,18 @@ class BaseRenderCanvas:
     # %% Methods for the subclass to implement
 
     def _rc_gui_poll(self):
-        """Process native events."""
+        """Process native events.
+
+        This method is called by the base class before each draw to move
+        events into the rendercanvas event system.
+
+        In some cases one can naturally assume that the 'native' backend is running
+        and events are already processed. E.g. when in a notebook-like env.
+
+        In cases where the backend comes with its own event loop that already processes
+        events, ``_rc_gui_poll``  only need to do a poll if the current loop is
+        *not* the backend's own loop. E.g. qt and wx.
+        """
         pass
 
     def _rc_get_present_info(self, present_methods: list[str]) -> dict | None:
@@ -871,7 +882,10 @@ class BaseRenderCanvas:
 
         In a backend, all flows that lead to a close must call ``.close()``, so
         that ``BaseRenderCanvas`` has a clear place to handle closing. It calls
-        ``_rc_close()``  from there. The base class will call this method exactly once.
+        ``_rc_close()`` from there. The base class will call this method exactly once.
+
+        Note that if this is the last canvas to close, the loop is stopped immediately,
+        and some backends need some explicit polling in this case. Also see wx and glfw backends.
 
         Note that backends may also have a ``close()`` method, which is
         overridden by the base class.
