@@ -74,8 +74,6 @@ class AnywidgetRenderCanvas(BaseRenderCanvas, anywidget.AnyWidget):
 
         super().__init__(*args, **kwargs)
 
-        self._is_closed = False
-
         self._rfb_draw_requested = False
         self._rfb_frame_index = 0
         self._rfb_last_confirmed_index = 0
@@ -370,10 +368,6 @@ class AnywidgetRenderCanvas(BaseRenderCanvas, anywidget.AnyWidget):
     def _rc_close(self):
         anywidget.AnyWidget.close(self)
         self._rfb_handle_msg(self, {"type": "close"}, [])
-        self._is_closed = True
-
-    def _rc_get_closed(self):
-        return self._is_closed
 
     def _rc_set_title(self, title):
         self._title = str(title)

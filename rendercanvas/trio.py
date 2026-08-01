@@ -28,6 +28,10 @@ class TrioLoop(BaseLoop):
         if libname != "trio":
             raise TypeError(f"Attempt to run TrioLoop with {libname}.")
 
+        # Only do one cycle of processing tasks if there are no canvases.
+        if not self.get_canvases():
+            self.call_soon(self.stop)
+
         self._token = trio.lowlevel.current_trio_token()
 
         with trio.CancelScope() as self._cancel_scope:

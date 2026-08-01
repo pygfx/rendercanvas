@@ -29,6 +29,7 @@ def detect_current_async_lib():
         return "asyncio"
 
     ob = sys.get_asyncgen_hooks()[0]
+
     if ob is not None:
         try:
             libname = ob.__module__.partition(".")[0]

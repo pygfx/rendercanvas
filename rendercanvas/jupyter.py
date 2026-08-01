@@ -37,7 +37,6 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
 
         # Internal variables
         self._last_image = None
-        self._is_closed = False
         self._draw_request_time = 0
 
         # The send_frame() method was added in jupyter_rfb 1.0, but it was always there as a private method,
@@ -102,9 +101,6 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
     def _rc_close(self):
         RemoteFrameBuffer.close(self)
 
-    def _rc_get_closed(self):
-        return self._is_closed
-
     def _rc_set_title(self, title):
         self.title = title
         self.has_titlebar = bool(title)  # show titlebar when a title is set
@@ -117,7 +113,7 @@ class JupyterRenderCanvas(BaseRenderCanvas, RemoteFrameBuffer):
     def handle_event(self, event):
         event_type = event.get("event_type")
         if event_type == "close":
-            self._is_closed = True
+            self.close()
         elif event_type == "resize":
             logical_size = event["width"], event["height"]
             pixel_ratio = event["pixel_ratio"]
