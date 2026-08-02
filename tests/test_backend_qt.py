@@ -10,9 +10,13 @@ frameworks in the same process never works.
 import sys
 import importlib
 
+import gc
+import time
+import weakref
+
 import pytest
-from testutils import run_tests
-from testutils_backends import BACKEND_TEST_FUNCS, NativeHelper
+from testutils import run_tests, can_use_wgpu_lib
+from testutils_backends import BACKEND_TEST_FUNCS, NativeHelper, _get_draw_function
 
 
 # Only run when running directly (through Python or pytest)
@@ -40,6 +44,7 @@ if QtWidgets is None:
 
 
 from rendercanvas.base import BaseRenderCanvas, WrapperRenderCanvas
+from rendercanvas.contexts.wgpucontext import WgpuContextToScreen
 from rendercanvas.qt import RenderCanvas, RenderWidget, loop
 from rendercanvas.qt import QRenderWidget, QRenderCanvas
 
@@ -64,6 +69,40 @@ class QtHelper(NativeHelper):
 @pytest.mark.parametrize("func", BACKEND_TEST_FUNCS)
 def test_backend_qt(func):
     func(RenderCanvas, loop, QtHelper())
+
+
+def test_backend_qt_present_to_screen():
+    # Render with present_method 'screen'. Unlike the default ('bitmap'), this
+    # exercises the code to obtain a native surface, and on Wayland the code to
+    # get the wl_display that Qt is connected to. See rendercanvas.qt.
+    if not can_use_wgpu_lib:
+        pytest.skip("Skipping tests that needs the wgpu lib")
+
+    import wgpu
+
+    canvas = RenderCanvas(size=(640, 480), present_method="screen")
+
+    # Confirm that we really present to screen. Otherwise this would silently
+    # test the same thing as the bitmap present (i.e. not the screen code path).
+    context = canvas.get_context("wgpu")
+    assert isinstance(context, WgpuContextToScreen)
+
+    device = wgpu.gpu.request_adapter_sync().request_device_sync()
+    canvas.request_draw(_get_draw_function(device, canvas))
+
+    loop.call_later(0.5, canvas.close)
+    loop.run()
+
+    assert canvas.get_closed()
+
+    canvas_ref = weakref.ref(canvas)
+    del canvas
+    gc.collect()
+    time.sleep(0.02)
+    gc.collect()
+
+    assert canvas_ref() is None
+    assert loop._BaseLoop__state == "off"
 
 
 if __name__ == "__main__":
