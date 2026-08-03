@@ -21,9 +21,10 @@ __all__ = [
 import queue
 import sys
 import tkinter as tk
+import weakref
 
 from .base import BaseCanvasGroup, BaseLoop, BaseRenderCanvas, WrapperRenderCanvas
-from .core.coreutils import get_alt_x11_display
+from .core.coreutils import get_alt_x11_display, weakbind
 
 
 # mouse buttons
@@ -105,68 +106,50 @@ class TkLoop(BaseLoop):
     def __init__(self):
         super().__init__()
         self._root = None
-        self._thread_callbacks = queue.SimpleQueue()
-        self._polling_callbacks = False
-        self._running = False
 
     def _rc_init(self):
         root = tk._default_root
         if root is None:
             root = tk.Tk()
             root.withdraw()
-        if root is not self._root:
-            self._root = root
-            self._polling_callbacks = False
-
-        if not self._polling_callbacks:
-            self._polling_callbacks = True
-            root.after(10, self._drain_thread_callbacks)
+        self._root = root
 
     def _rc_run(self):
-        self._running = True
-        try:
-            self._root.mainloop()
-        finally:
-            self._running = False
+        self._rc_init()
+
+        if self._root is None: return
+        
+        # BaseLoop expects one iteration even without canvases, so pending
+        # tasks can run before the loop transitions back to "off".
+        if not self.get_canvases():
+            self._root.update()
+            self.stop()
+            self._root = None
+            return
+        
+        self._root.mainloop()
+        self._root = None
 
     async def _rc_run_async(self):
         raise NotImplementedError()
 
     def _rc_stop(self):
-        if self._running and self._root is not None:
-            try:
-                self._root.quit()
-            except tk.TclError:
-                pass
+        if self._root is not None:
+            #try:
+            self._root.quit()
+            #self.root = None
+	        #except tk.TclError:
+	        #    pass
 
     def _rc_add_task(self, async_func, name):
         return super()._rc_add_task(async_func, name)
 
     def _rc_call_later(self, delay, callback):
-        if self._root is None:
-            return
-        try:
-            self._root.after(max(0, round(delay * 1000)), callback)
-        except tk.TclError:
-            pass
+        self._root.after(int(max(delay * 1000, 0)), callback)
 
     def _rc_call_soon_threadsafe(self, callback):
-        self._thread_callbacks.put(callback)
-
-    def _drain_thread_callbacks(self):
-        try:
-            while True:
-                try:
-                    callback = self._thread_callbacks.get_nowait()
-                except queue.Empty:
-                    break
-                callback()
-        finally:
-            if self._root is not None:
-                try:
-                    self._root.after(10, self._drain_thread_callbacks)
-                except tk.TclError:
-                    self._polling_callbacks = False
+        if self._root is None: return
+        self._root.after(0, callback)
 
 
 loop = TkLoop()
@@ -325,9 +308,6 @@ class TkRenderWidget(BaseRenderCanvas, tk.Canvas):
         except tk.TclError:
             self._is_closed = True
 
-    def _rc_get_closed(self):
-        return self._is_closed
-
     def _rc_set_title(self, title):
         if getattr(self.master, "_is_tk_rendercanvas", False):
             self.master.title(title)
@@ -455,19 +435,26 @@ class TkRenderWidget(BaseRenderCanvas, tk.Canvas):
     def _on_key_up(self, event):
         self._key_event("key_up", event)
 
-
-class TkRenderCanvas(WrapperRenderCanvas, tk.Toplevel):
-    """A standalone Tkinter window containing a :class:`TkRenderWidget`."""
+class TkRenderCanvas(WrapperRenderCanvas):
+    """A standalone Tkinter window containing a TkRenderWidget."""
 
     def __init__(self, master=None, **kwargs):
-        loop._rc_init()
-        super().__init__(master or loop._root)
-        self._is_tk_rendercanvas = True
-        self._subwidget = TkRenderWidget(self, **kwargs)
+
+        self._window = tk.Toplevel(master or loop._root)
+        self._window._is_tk_rendercanvas = True
+
+        self._subwidget = TkRenderWidget(self._window, **kwargs)
         self._subwidget.pack(fill="both", expand=True)
-        self.protocol("WM_DELETE_WINDOW", self._subwidget.close)
-        self._final_canvas_init()
+
+        window_ref = weakref.ref(self._window)
+
+        def close():
+            if window_ref := widget_ref():
+                window_ref.close()
+
+        self._window.protocol("WM_DELETE_WINDOW", close)
 
 
+# Make available under a name that is the same for all gui backends
 RenderWidget = TkRenderWidget
 RenderCanvas = TkRenderCanvas

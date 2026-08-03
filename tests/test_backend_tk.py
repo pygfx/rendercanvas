@@ -9,13 +9,13 @@ import tkinter as tk
 
 import pytest
 from testutils import run_tests
-from testutils_backends import BACKEND_TEST_FUNCS
+from testutils_backends import BACKEND_TEST_FUNCS, NativeHelper
 
 if not (__name__ == "__main__" or any(__name__ in arg for arg in sys.argv)):
     pytest.skip(f"Skipping backend specific tests {__name__}", allow_module_level=True)
 
 from rendercanvas.base import BaseRenderCanvas, WrapperRenderCanvas
-from rendercanvas.tk import RenderCanvas, RenderWidget
+from rendercanvas.tk import RenderCanvas, RenderWidget, loop
 from rendercanvas.tk import TkRenderCanvas, TkRenderWidget
 
 
@@ -23,12 +23,11 @@ def test_is_canvas_classes():
     assert TkRenderCanvas is RenderCanvas
     assert TkRenderWidget is RenderWidget
 
-    assert issubclass(RenderWidget, BaseRenderCanvas)
     assert issubclass(RenderCanvas, BaseRenderCanvas)
     assert issubclass(RenderCanvas, WrapperRenderCanvas)
 
+    assert issubclass(RenderWidget, BaseRenderCanvas)
     assert issubclass(RenderWidget, tk.Canvas)
-    assert issubclass(RenderCanvas, tk.Toplevel)
 
 def test_present_bitmap():
     root = tk.Tk()
@@ -59,10 +58,14 @@ def test_present_bitmap():
     finally:
         root.destroy()
 
-@pytest.mark.parametrize("backend", ["tk"])
+
+class TkHelper(NativeHelper):
+    def close_canvas(self, canvas):
+        canvas.close()
+
 @pytest.mark.parametrize("func", BACKEND_TEST_FUNCS)
-def test_backend_generic(func, backend):
-    func(backend)
+def test_backend_generic(func):
+    func(RenderCanvas, loop, TkHelper())
 
 
 if __name__ == "__main__":
