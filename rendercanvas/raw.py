@@ -25,14 +25,23 @@ class RawLoop(BaseLoop):
         self._should_stop = False
 
     def _rc_run(self):
+        self._rc_init()
+
+        # If no canvases, we flush the current queue and then stop
+        if not self.get_canvases():
+            self._queue.put(self.stop)
+
         while not self._should_stop:
             callback = self._queue.get(True, None)
             try:
                 callback()
             except Exception as err:
                 logger.error(f"Error in RawLoop callback: {err}")
-        # Note that the queue may still contain pending callbacks, but these will
-        # mostly be task.step() for finished tasks (coro already deleted), so its ok.
+
+        # Clear queue
+        # NOTE: there could be call laters underway!
+        while not self._queue.empty():
+            self._queue.get_nowait()
 
     async def _rc_run_async(self):
         raise NotImplementedError()

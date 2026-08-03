@@ -31,7 +31,6 @@ class StubContext:
 
 class RealRenderCanvas(BaseRenderCanvas):
     _rc_canvas_group = CanvasGroup(asyncio_loop)
-    _is_closed = False
 
     def __init__(self):
         super().__init__()
@@ -40,11 +39,7 @@ class RealRenderCanvas(BaseRenderCanvas):
         self._canvas_context = StubContext()
 
     def _rc_close(self):
-        self._is_closed = True
         self.submit_event({"event_type": "close"})
-
-    def _rc_get_closed(self):
-        return self._is_closed
 
 
 def get_sniffio_name():

@@ -77,11 +77,13 @@ from rendercanvas.auto import RenderCanvas, loop
 canvas = RenderCanvas(update_mode="continuous")
 context = canvas.get_bitmap_context()
 
+
 @canvas.request_draw
 def animate():
     w, h = canvas.get_logical_size()
     bitmap = np.random.uniform(0, 255, (h, w)).astype(np.uint8)
     context.set_bitmap(bitmap)
+
 
 loop.run()
 ```
@@ -106,8 +108,8 @@ Embed in a Qt application:
 from PySide6 import QtWidgets
 from rendercanvas.qt import QRenderWidget
 
-class Main(QtWidgets.QWidget):
 
+class Main(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
 
@@ -148,6 +150,7 @@ See the [contribution guide](CONTRIBUTING.md).
 * Use `ruff check` to check for linting errors.
 * Use `pytest tests` to run the tests.
 * Use `pytest examples` to run a subset of the examples.
+* Use `pytest tests/test_backend_xx.py` to run backend-specific tests, e.g. for `glfw`, `qt`, `wx`.
 
 ### Code of Conduct
 

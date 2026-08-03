@@ -17,7 +17,13 @@ class StubContext:
         return {"method": "skip"}
 
 
-class CanvasThatRaisesErrorsDuringDrawing(rendercanvas.BaseRenderCanvas):
+class SomeCanvasGroup(rendercanvas.base.BaseCanvasGroup):
+    pass
+
+
+class CanvasThatRaisesErrorsDuringDrawing(rendercanvas.base.BaseRenderCanvas):
+    _rc_canvas_group = SomeCanvasGroup(None)
+
     def __init__(self):
         super().__init__()
         self._count = 0

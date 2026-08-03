@@ -171,7 +171,6 @@ class TerminalRenderCanvas(BaseRenderCanvas):
 
         self._pixel_ratio = pixel_ratio
 
-        self._closed = False
         self._title = ""
         self._term_size = 0, 0
         self._pointer_pos = (0, 0)
@@ -435,10 +434,7 @@ class TerminalRenderCanvas(BaseRenderCanvas):
         pass  # we ignore setting the size, we simply take the full size of the window
 
     def _rc_close(self):
-        self._closed = True
-
-    def _rc_get_closed(self):
-        return self._closed
+        pass  # we rely on the loop closing to exit the secondary screen etc.
 
     def _rc_set_title(self, title):
         self._title = title

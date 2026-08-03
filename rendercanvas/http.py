@@ -315,7 +315,6 @@ class HttpRenderCanvas(BaseRenderCanvas):
         # Note: we assume there is only a single canvas on the page
         asgi._event_callback = self._on_event
 
-        self._is_closed = False
         self._draw_requested = False
         self._pending_maybe_draw = False
 
@@ -582,10 +581,6 @@ class HttpRenderCanvas(BaseRenderCanvas):
 
     def _rc_close(self):
         asgi.close()
-        self._is_closed = True
-
-    def _rc_get_closed(self):
-        return self._is_closed
 
     def _rc_set_title(self, title):
         asgi.send_all({"type": "title", "value": title})
