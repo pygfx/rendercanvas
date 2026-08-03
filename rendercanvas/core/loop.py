@@ -439,7 +439,7 @@ class BaseLoop:
             else:
                 # Setting the signal can raise ValueError if this is not the main thread/interpreter
                 try:
-                    prev_handlers[sig] = signal.signal(signal.SIGINT, on_interrupt)
+                    prev_handlers[sig] = signal.signal(sig, on_interrupt)
                 except ValueError:
                     break
         return prev_handlers
