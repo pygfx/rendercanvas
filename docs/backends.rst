@@ -197,6 +197,13 @@ Alternatively, you can select the specific qt library to use, making it easy to 
     loop.run()  # calls app.exec_()
 
 
+For Linux users with Wayland: Qt can run on Wayland natively. For
+``present_method="screen"`` rendercanvas needs the ``wl_display`` that Qt is connected to,
+because a Wayland surface can only be used with the display-connection that created it.
+Qt libs that cannot provide it (which depends on the Qt library and version) are put on
+XWayland instead, by setting the env var ``QT_QPA_PLATFORM`` to 'xcb'. To force either
+mode, set ``QT_QPA_PLATFORM`` to 'xcb' or 'wayland' yourself.
+
 It is technically possible to e.g. use a ``glfw`` canvas with the Qt loop. However, this is not recommended because Qt gets confused in the presence of other windows and may hang or segfault.
 But the other way around, running a Qt canvas in e.g. the trio loop, works fine:
 
