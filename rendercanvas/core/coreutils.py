@@ -14,6 +14,8 @@ import ctypes.util
 from contextlib import contextmanager
 from collections import namedtuple
 
+from ..utils import asyncadapter
+
 
 # %% Constants
 
@@ -325,8 +327,12 @@ def close_agen(agen):
     """Try to sync-close an async generator."""
     closer = agen.aclose()
     try:
-        # If the next thing is a yield, this will raise RuntimeError which we allow to propagate
-        closer.send(None)
+        # We're closing synchronously, so this is not part of the task that we
+        # may be called from; that way our own sleep() and Event() become no-ops
+        # (when no other async lib is active), and the agen can be closed.
+        with asyncadapter.detached():
+            # If the next thing is a yield, this will raise RuntimeError which we allow to propagate
+            closer.send(None)
     except StopIteration:
         pass
     else:
