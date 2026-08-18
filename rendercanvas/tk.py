@@ -21,6 +21,7 @@ __all__ = [
 import queue
 import sys
 import tkinter as tk
+import numpy as np
 import weakref
 
 from .base import BaseCanvasGroup, BaseLoop, BaseRenderCanvas, WrapperRenderCanvas
@@ -108,10 +109,13 @@ class TkLoop(BaseLoop):
         self._root = None
 
     def _rc_init(self):
+        if self._root is not None: return
+    
         root = tk._default_root
         if root is None:
             root = tk.Tk()
             root.withdraw()
+
         self._root = root
 
     def _rc_run(self):
@@ -122,10 +126,7 @@ class TkLoop(BaseLoop):
         # BaseLoop expects one iteration even without canvases, so pending
         # tasks can run before the loop transitions back to "off".
         if not self.get_canvases():
-            self._root.update()
-            self.stop()
-            self._root = None
-            return
+            self._root.after(0, self.stop)
         
         self._root.mainloop()
         self._root = None
@@ -135,11 +136,7 @@ class TkLoop(BaseLoop):
 
     def _rc_stop(self):
         if self._root is not None:
-            #try:
             self._root.quit()
-            #self.root = None
-	        #except tk.TclError:
-	        #    pass
 
     def _rc_add_task(self, async_func, name):
         return super()._rc_add_task(async_func, name)
@@ -198,9 +195,7 @@ class TkRenderWidget(BaseRenderCanvas, tk.Canvas):
 
     def _rc_gui_poll(self):
         try:
-            self.update_idletasks()
-            if not isinstance(self._rc_canvas_group.get_loop(), TkLoop):
-                self.update()
+            self.update()
         except tk.TclError:
             pass
 
@@ -244,7 +239,9 @@ class TkRenderWidget(BaseRenderCanvas, tk.Canvas):
             return
         self._paint_pending = True
         try:
-            self.after_idle(self._paint)
+            (self._rc_canvas_group
+                .get_loop()
+            )._rc_call_soon_threadsafe(self._paint)
         except tk.TclError:
             self._paint_pending = False
 
@@ -264,49 +261,42 @@ class TkRenderWidget(BaseRenderCanvas, tk.Canvas):
             raise ValueError(f"Unsupported bitmap format {format!r}")
 
         try:
-            rgba = memoryview(data)
-        except TypeError as err:
+            rgba = np.asarray(memoryview(data))
+        except (TypeError, ValueError) as err:
             raise ValueError("Expected an HxWx4 uint8 bitmap") from err
 
-        if rgba.ndim != 3 or rgba.shape[2] != 4 or rgba.itemsize != 1:
+        if rgba.ndim != 3 or rgba.shape[2] != 4 or rgba.dtype != np.uint8:
             raise ValueError("Expected an HxWx4 uint8 bitmap")
 
         height, width = rgba.shape[:2]
-        flat = rgba.cast("B") if rgba.c_contiguous else memoryview(rgba.tobytes())
 
-        rgb = bytearray(width * height * 3)
-        rgb[0::3] = flat[0::4]
-        rgb[1::3] = flat[1::4]
-        rgb[2::3] = flat[2::4]
+        preamble = f"P6\n{width} {height}\n255\n".encode()
+        ppm = np.empty(len(preamble) + width * height * 3, dtype=np.uint8)
 
-        ppm = f"P6\n{width} {height}\n255\n".encode() + rgb
-        photo = tk.PhotoImage(master=self, data=ppm, format="PPM")
+        ppm[:len(preamble)] = np.frombuffer(preamble, dtype=np.uint8)
+        ppm[len(preamble):].reshape(height, width, 3)[:] = rgba[:, :, :3]
+
+        photo = tk.PhotoImage(master=self, data=ppm.tobytes(), format="PPM")
 
         self._photo = photo
-
         if self._image_item is None:
-            self._image_item = self.create_image( 0, 0, anchor="nw", image=photo )
+            self._image_item = self.create_image(0, 0, anchor="nw", image=photo)
         else:
             self.itemconfigure(self._image_item, image=photo)
 
     def _rc_set_logical_size(self, width, height):
         width, height = max(1, round(width)), max(1, round(height))
-        if getattr(self.master, "_is_tk_rendercanvas", False):
+        if isinstance(self.master, _RenderToplevel):
             self.master.geometry(f"{width}x{height}")
         else:
             self.configure(width=width, height=height)
-        self._size_info.set_physical_size(width, height, 1.0)
 
     def _rc_close(self):
-        widget = self.master if getattr(self.master, "_is_tk_rendercanvas", False) else self
+        widget = self.master or self
         try:
             widget.destroy()
         except tk.TclError:
             pass
-
-    def _rc_set_title(self, title):
-        if getattr(self.master, "_is_tk_rendercanvas", False):
-            self.master.title(title)
 
     def _rc_set_cursor(self, cursor):
         try:
@@ -315,17 +305,20 @@ class TkRenderWidget(BaseRenderCanvas, tk.Canvas):
             self.configure(cursor="")
 
     def _on_resize(self, event):
-        self._size_info.set_physical_size(max(0, event.width), max(0, event.height), 1.0)
+    	# needs a magic number to give the right values....
+    	#pixel_ratio = self.winfo_fpixels("1i") / 96.04726735598227
+        pixel_ratio = 1.0
+        self._size_info.set_physical_size(
+            max(0, event.width),
+            max(0, event.height),
+            pixel_ratio,
+        )
         self.request_draw()
 
     def _on_destroy(self, event):
         if event.widget is not self:
             return
         self._photo = None
-        self.submit_event({"event_type": "close"})
-        current_loop = self._rc_canvas_group.get_loop()
-        if current_loop is not None and not current_loop.get_canvases():
-            current_loop.stop(force=True)
 
     def _pointer_event(self, event_type, event, *, touches=True):
         self._pointer_pos = event.x, event.y
@@ -390,13 +383,11 @@ class TkRenderWidget(BaseRenderCanvas, tk.Canvas):
             unit = 120 if sys.platform == "win32" else 1
             delta = -100 * event.delta / unit
 
-        # horizontal scroll if shift modifier is pressed
-        horizontal = bool(event.state & 0x0001)
         self.submit_event(
             {
                 "event_type": "wheel",
-                "dx": delta if horizontal else 0,
-                "dy": 0 if horizontal else delta,
+                "dx": 0,
+                "dy": delta,
                 "x": event.x,
                 "y": event.y,
                 "modifiers": _modifiers(event.state),
@@ -405,7 +396,6 @@ class TkRenderWidget(BaseRenderCanvas, tk.Canvas):
 
     def _key_event(self, event_type, event):
         key = _KEY_MAP.get(event.keysym, event.char or event.keysym)
-        print(key)
         self.submit_event(
             {
                 "event_type": event_type,
@@ -430,25 +420,34 @@ class TkRenderWidget(BaseRenderCanvas, tk.Canvas):
     def _on_key_up(self, event):
         self._key_event("key_up", event)
 
+class _RenderToplevel(tk.Toplevel): pass
+
 class TkRenderCanvas(WrapperRenderCanvas):
     """A standalone Tkinter window containing a TkRenderWidget."""
 
     def __init__(self, master=None, **kwargs):
+        loop._rc_init()
+        master = master or loop._root
 
-        self._window = tk.Toplevel(master or loop._root)
-        self._window._is_tk_rendercanvas = True
+        self.root = _RenderToplevel(master)
 
-        self._subwidget = TkRenderWidget(self._window, **kwargs)
+        self._subwidget = TkRenderWidget(self.root, **kwargs)
         self._subwidget.pack(fill="both", expand=True)
 
-        window_ref = weakref.ref(self._window)
+        canvas_ref = weakref.ref(self)
 
         def close():
-            if window_ref := widget_ref():
-                window_ref.close()
+            if self := canvas_ref():
+                self.close()
 
-        self._window.protocol("WM_DELETE_WINDOW", close)
+        self.root.protocol("WM_DELETE_WINDOW", close)
 
+    # behave like a tk widget
+    def __getattr__(self, name: str):
+        return getattr(self.root, name)
+
+    def set_title(self, title: str) -> None:
+        self.root.title(title)
 
 # Make available under a name that is the same for all gui backends
 RenderWidget = TkRenderWidget

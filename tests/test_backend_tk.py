@@ -61,7 +61,8 @@ def test_present_bitmap():
 
 class TkHelper(NativeHelper):
     def close_canvas(self, canvas):
-        canvas.close()
+        cmd = canvas.protocol("WM_DELETE_WINDOW")
+        canvas.tk.call(cmd)
 
 @pytest.mark.parametrize("func", BACKEND_TEST_FUNCS)
 def test_backend_generic(func):
