@@ -169,7 +169,6 @@ class TkRenderWidget(BaseRenderCanvas, tk.Canvas):
         kwargs.setdefault("takefocus", True)
         super().__init__(master, **kwargs)
 
-        self._is_closed = False
         self._paint_pending = False
         self._buttons = set()
         self._pointer_pos = (0, 0)
@@ -241,7 +240,7 @@ class TkRenderWidget(BaseRenderCanvas, tk.Canvas):
         self._time_to_draw()
 
     def _rc_request_paint(self):
-        if self._paint_pending or self._is_closed:
+        if self._paint_pending:
             return
         self._paint_pending = True
         try:
@@ -251,8 +250,7 @@ class TkRenderWidget(BaseRenderCanvas, tk.Canvas):
 
     def _paint(self):
         self._paint_pending = False
-        if not self._is_closed:
-            self._time_to_paint()
+        self._time_to_paint()
 
     def _rc_force_paint(self):
         self._time_to_paint()
@@ -300,13 +298,11 @@ class TkRenderWidget(BaseRenderCanvas, tk.Canvas):
         self._size_info.set_physical_size(width, height, 1.0)
 
     def _rc_close(self):
-        if self._is_closed:
-            return
         widget = self.master if getattr(self.master, "_is_tk_rendercanvas", False) else self
         try:
             widget.destroy()
         except tk.TclError:
-            self._is_closed = True
+            pass
 
     def _rc_set_title(self, title):
         if getattr(self.master, "_is_tk_rendercanvas", False):
@@ -323,9 +319,8 @@ class TkRenderWidget(BaseRenderCanvas, tk.Canvas):
         self.request_draw()
 
     def _on_destroy(self, event):
-        if event.widget is not self or self._is_closed:
+        if event.widget is not self:
             return
-        self._is_closed = True
         self._photo = None
         self.submit_event({"event_type": "close"})
         current_loop = self._rc_canvas_group.get_loop()
