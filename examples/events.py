@@ -2,7 +2,7 @@
 Events
 ------
 
-A simple example to demonstrate events. Events are printed to stdout and shown in the canvas.
+An example that display events. Events are printed to stdout and shown in the canvas.
 """
 
 import json
@@ -10,28 +10,39 @@ import json
 from rendercanvas.auto import RenderCanvas, loop
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
-# import aggdraw
 
 
 canvas = RenderCanvas(title="RenderCanvas events on $backend")
+ctx = canvas.get_bitmap_context()
 
 events_list = []
 event_count = 0
 
 
+# Create an event handler that gets all events ('*')
+
+
 @canvas.add_event_handler("*")
 def process_event(event):
     global event_count
-    if event["event_type"] not in ["before_draw"]:
-        event_count += 1
-        event_str = event_to_string(event)
-        print(event_str)
-        events_list.insert(0, event_str)
-        events_list[32:] = []
-        canvas.request_draw()
+
+    # Skip specific events
+    if event["event_type"] in ["before_draw"]:
+        return
+
+    # Just print the dict
+    print(event)
+
+    # Add to list for drawing in the canvas
+    event_count += 1
+    events_list.append(event_to_string(event))
+    events_list[:-32] = []  # limit to 32 entries
+
+    # Invoke a draw
+    canvas.request_draw()
 
 
-ctx = canvas.get_bitmap_context()
+# Draw the events in the canvas itself. A bit complex because of text padding etc.
 
 
 @canvas.request_draw
@@ -40,10 +51,11 @@ def draw():
     ratio = ctx.pixel_ratio
 
     img = Image.new("RGBA", (w, h), "#abc")
-    # draw = aggdraw.Draw(img)  # like ImageDraw.Draw(img), but with subpixel support
     draw = ImageDraw.Draw(img)
 
-    font = ImageFont.load_default(size=16 * ratio)
+    font_size = 16
+    line_height = font_size * 1.25
+    font = ImageFont.load_default(size=font_size * ratio)
 
     x = 10.0 * ratio
     y = 0.0
@@ -52,8 +64,8 @@ def draw():
     y += 10 * ratio
 
     a = 1
-    for event_str in events_list:
-        y += 20 * ratio
+    for event_str in reversed(events_list):
+        y += line_height * ratio
         if y > h:
             break
         a = max(0, a - 0.04)
@@ -68,10 +80,9 @@ def draw():
     ctx.set_bitmap(np.asarray(img))
 
 
-float_keys = ["x", "y", "dx", "dy", "timestamp"]
-
-
 def event_to_string(event):
+    """Function to turn an event dict into a string, with consistent space for float values."""
+    float_keys = ["x", "y", "dx", "dy", "timestamp"]
     s = "{ "
     for key, value in event.items():
         v = json.dumps(value)

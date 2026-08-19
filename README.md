@@ -77,11 +77,13 @@ from rendercanvas.auto import RenderCanvas, loop
 canvas = RenderCanvas(update_mode="continuous")
 context = canvas.get_bitmap_context()
 
+
 @canvas.request_draw
 def animate():
     w, h = canvas.get_logical_size()
     bitmap = np.random.uniform(0, 255, (h, w)).astype(np.uint8)
     context.set_bitmap(bitmap)
+
 
 loop.run()
 ```
@@ -106,8 +108,8 @@ Embed in a Qt application:
 from PySide6 import QtWidgets
 from rendercanvas.qt import QRenderWidget
 
-class Main(QtWidgets.QWidget):
 
+class Main(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
 
