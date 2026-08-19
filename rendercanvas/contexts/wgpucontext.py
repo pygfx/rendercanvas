@@ -583,6 +583,11 @@ class AsyncImageDownloadAction:
             # Make a copy of the strided data, and create a view on that.
             data = data.copy()[:, : plain_shape[1], :]
 
+        elif submethod == "callback":
+            data = present_params["copy_bitmap"](
+                mapped_data, dtype, plain_shape, array_stride, nchannels
+            )
+
         elif submethod == "jpeg":
             # For now just a stub, activate in the upcoming Anywidget backend
 
