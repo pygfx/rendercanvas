@@ -296,5 +296,51 @@ def test_wgpu_context_hdr():
     assert np.all(result * 255 == bitmap)
 
 
+@pytest.mark.skipif(not can_use_wgpu_lib, reason="Needs wgpu lib")
+def test_wgpu_context_view_formats():
+    # A format passed to configure() must reach the present texture, or a view
+    # in that format cannot be created and the argument silently does nothing.
+    import wgpu
+
+    device = wgpu.utils.get_default_device()
+    usage = wgpu.TextureUsage.RENDER_ATTACHMENT | wgpu.TextureUsage.TEXTURE_BINDING
+
+    canvas = ManualOffscreenRenderCanvas()
+    context = canvas.get_context("wgpu")
+    context.configure(
+        device=device,
+        format=wgpu.TextureFormat.rgba8unorm_srgb,
+        usage=usage,
+        view_formats=[wgpu.TextureFormat.rgba8unorm],
+    )
+
+    try:
+        texture = context.get_current_texture()
+    except NotImplementedError:
+        # create_texture() itself refuses view_formats: that is pygfx/wgpu-py#832,
+        # which is not in a wgpu release yet. Fail rather than skip -- a skip
+        # would leave this pass-through unverified while CI stayed green, and
+        # this test is the thing that tells us when the release lands.
+        pytest.fail(
+            f"wgpu {wgpu.__version__} does not implement create_texture(view_formats=..),"
+            " which this needs; see pygfx/wgpu-py#832"
+        )
+
+    assert texture.format == wgpu.TextureFormat.rgba8unorm_srgb
+    # The declared format is viewable: this is what the parameter is for.
+    assert texture.create_view(format=wgpu.TextureFormat.rgba8unorm) is not None
+
+    # Without it, the same view is rejected -- so the assertion above is
+    # testing the plumbing rather than something the backend allows anyway.
+    canvas2 = ManualOffscreenRenderCanvas()
+    context2 = canvas2.get_context("wgpu")
+    context2.configure(
+        device=device, format=wgpu.TextureFormat.rgba8unorm_srgb, usage=usage
+    )
+    texture2 = context2.get_current_texture()
+    with pytest.raises(wgpu.GPUValidationError, match="view format"):
+        texture2.create_view(format=wgpu.TextureFormat.rgba8unorm)
+
+
 if __name__ == "__main__":
     run_tests(globals())

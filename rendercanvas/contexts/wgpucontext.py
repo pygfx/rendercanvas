@@ -330,6 +330,7 @@ class WgpuContextToBitmap(WgpuContext):
                 size=need_texture_size,
                 format=self._config["format"],
                 usage=self._config["usage"] | self._context_texture_usage,
+                view_formats=self._config["view_formats"],
             )
 
         return self._texture
