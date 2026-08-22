@@ -27,7 +27,7 @@ def _inject_js_and_css():
     js = ""
     for fname in ["renderview.js", "renderview-pyodide.js"]:
         js_path = resource_files("rendercanvas.core").joinpath(fname)
-        js += js_path.read_text()
+        js += js_path.read_text(encoding="utf-8")
     js = "(function () {\n{JS}\n})();".replace("JS", js)  # wrap in IIFE module
     script_el = document.createElement("script")
     script_el.textContent = js
@@ -35,7 +35,7 @@ def _inject_js_and_css():
 
     css_path = resource_files("rendercanvas.core").joinpath("renderview.css")
     style_el = document.createElement("style")
-    style_el.textContent = css_path.read_text()
+    style_el.textContent = css_path.read_text(encoding="utf-8")
     document.head.appendChild(style_el)
 
 
