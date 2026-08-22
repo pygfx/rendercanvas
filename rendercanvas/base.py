@@ -975,3 +975,7 @@ class WrapperRenderCanvas(BaseRenderCanvas):
 
     def get_closed(self) -> bool:
         return self._subwidget.get_closed()
+
+    # needed, see backend_sizing test
+    def _rc_gui_poll(self):
+        return self._subwidget._rc_gui_poll()
