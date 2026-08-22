@@ -29,6 +29,7 @@ def test_is_canvas_classes():
     assert issubclass(RenderWidget, BaseRenderCanvas)
     assert issubclass(RenderWidget, tk.Canvas)
 
+
 def test_present_bitmap():
     root = tk.Tk()
     root.withdraw()
@@ -38,10 +39,22 @@ def test_present_bitmap():
 
         rgba = bytearray(
             [
-                255, 0, 0, 255,
-                0, 255, 0, 128,
-                0, 0, 255, 64,
-                255, 255, 0, 0,
+                255,
+                0,
+                0,
+                255,
+                0,
+                255,
+                0,
+                128,
+                0,
+                0,
+                255,
+                64,
+                255,
+                255,
+                0,
+                0,
             ]
         )
         bitmap = memoryview(rgba).cast("B", (2, 2, 4))
@@ -63,6 +76,7 @@ class TkHelper(NativeHelper):
     def close_canvas(self, canvas):
         cmd = canvas.protocol("WM_DELETE_WINDOW")
         canvas.tk.call(cmd)
+
 
 @pytest.mark.parametrize("func", BACKEND_TEST_FUNCS)
 def test_backend_generic(func):

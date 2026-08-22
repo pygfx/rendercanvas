@@ -18,18 +18,17 @@ __all__ = [
     "loop",
 ]
 
-import queue
 import sys
 import tkinter as tk
 import numpy as np
 import weakref
 
 from .base import BaseCanvasGroup, BaseLoop, BaseRenderCanvas, WrapperRenderCanvas
-from .core.coreutils import get_alt_x11_display, weakbind
+from .core.coreutils import get_alt_x11_display
 
 
 # mouse buttons
-# 1 = left   for Tk & rendercanvas  
+# 1 = left   for Tk & rendercanvas
 # 2 = middle for Tk, right  for rendercanvas
 # 3 = right  for Tk, middle for rendercanvas
 _MOUSE_BUTTON_MAP = {1: 1, 2: 3, 3: 2}
@@ -109,8 +108,9 @@ class TkLoop(BaseLoop):
         self._root = None
 
     def _rc_init(self):
-        if self._root is not None: return
-    
+        if self._root is not None:
+            return
+
         root = tk._default_root
         if root is None:
             root = tk.Tk()
@@ -121,13 +121,14 @@ class TkLoop(BaseLoop):
     def _rc_run(self):
         self._rc_init()
 
-        if self._root is None: return
-        
+        if self._root is None:
+            return
+
         # BaseLoop expects one iteration even without canvases, so pending
         # tasks can run before the loop transitions back to "off".
         if not self.get_canvases():
             self._root.after(0, self.stop)
-        
+
         self._root.mainloop()
         self._root = None
 
@@ -145,7 +146,8 @@ class TkLoop(BaseLoop):
         self._root.after(int(max(delay * 1000, 0)), callback)
 
     def _rc_call_soon_threadsafe(self, callback):
-        if self._root is None: return
+        if self._root is None:
+            return
         self._root.after(0, callback)
 
 
@@ -176,8 +178,12 @@ class TkRenderWidget(BaseRenderCanvas, tk.Canvas):
         self.bind("<Map>", lambda event: self._set_visible(True))
         self.bind("<Unmap>", lambda event: self._set_visible(False))
         self.bind("<Destroy>", self._on_destroy)
-        self.bind("<Enter>", lambda event: self.submit_event({"event_type": "pointer_enter"}))
-        self.bind("<Leave>", lambda event: self.submit_event({"event_type": "pointer_leave"}))
+        self.bind(
+            "<Enter>", lambda event: self.submit_event({"event_type": "pointer_enter"})
+        )
+        self.bind(
+            "<Leave>", lambda event: self.submit_event({"event_type": "pointer_leave"})
+        )
         self.bind("<Motion>", self._on_pointer_move)
         self.bind("<MouseWheel>", self._on_wheel)
         self.bind("<Button-4>", self._on_wheel)
@@ -239,9 +245,7 @@ class TkRenderWidget(BaseRenderCanvas, tk.Canvas):
             return
         self._paint_pending = True
         try:
-            (self._rc_canvas_group
-                .get_loop()
-            )._rc_call_soon_threadsafe(self._paint)
+            (self._rc_canvas_group.get_loop())._rc_call_soon_threadsafe(self._paint)
         except tk.TclError:
             self._paint_pending = False
 
@@ -261,7 +265,7 @@ class TkRenderWidget(BaseRenderCanvas, tk.Canvas):
             raise ValueError(f"Unsupported bitmap format {format!r}")
 
         try:
-            rgba = np.asarray(memoryview(data))
+            rgba = np.asarray(data)
         except (TypeError, ValueError) as err:
             raise ValueError("Expected an HxWx4 uint8 bitmap") from err
 
@@ -273,8 +277,8 @@ class TkRenderWidget(BaseRenderCanvas, tk.Canvas):
         preamble = f"P6\n{width} {height}\n255\n".encode()
         ppm = np.empty(len(preamble) + width * height * 3, dtype=np.uint8)
 
-        ppm[:len(preamble)] = np.frombuffer(preamble, dtype=np.uint8)
-        ppm[len(preamble):].reshape(height, width, 3)[:] = rgba[:, :, :3]
+        ppm[: len(preamble)] = np.frombuffer(preamble, dtype=np.uint8)
+        ppm[len(preamble) :].reshape(height, width, 3)[:] = rgba[:, :, :3]
 
         photo = tk.PhotoImage(master=self, data=ppm.tobytes(), format="PPM")
 
@@ -298,19 +302,33 @@ class TkRenderWidget(BaseRenderCanvas, tk.Canvas):
         except tk.TclError:
             pass
 
+    def _rc_set_title(self, title: str) -> None:
+        if isinstance(self, _RenderToplevel):
+            self.root.title(title)
+
     def _rc_set_cursor(self, cursor):
         try:
             self.configure(cursor=_CURSOR_MAP[cursor])
         except tk.TclError:
             self.configure(cursor="")
 
+    def _get_pixel_ratio(self):
+        if sys.platform == "win32":
+            # Tk scaling is relative to 72 DPI, Windows scaling to 96 DPI.
+            return round(float(self.tk.call("tk", "scaling")) * 72 / 96, 2)
+
+        elif sys.platform.startswith("linux"):
+            return self.winfo_fpixels("1i") / 96
+
+        else:
+            # Tk/macOS already works in device pixels for this purpose.
+            return 1.0
+
     def _on_resize(self, event):
-    	# needs a magic number to give the right values....
-    	#pixel_ratio = self.winfo_fpixels("1i") / 96.04726735598227
-        pixel_ratio = 1.0
+        pixel_ratio = self._get_pixel_ratio()
         self._size_info.set_physical_size(
-            max(0, event.width),
-            max(0, event.height),
+            max(0, event.width * pixel_ratio),
+            max(0, event.height * pixel_ratio),
             pixel_ratio,
         )
         self.request_draw()
@@ -420,7 +438,10 @@ class TkRenderWidget(BaseRenderCanvas, tk.Canvas):
     def _on_key_up(self, event):
         self._key_event("key_up", event)
 
-class _RenderToplevel(tk.Toplevel): pass
+
+class _RenderToplevel(tk.Toplevel):
+    pass
+
 
 class TkRenderCanvas(WrapperRenderCanvas):
     """A standalone Tkinter window containing a TkRenderWidget."""
@@ -446,8 +467,6 @@ class TkRenderCanvas(WrapperRenderCanvas):
     def __getattr__(self, name: str):
         return getattr(self.root, name)
 
-    def set_title(self, title: str) -> None:
-        self.root.title(title)
 
 # Make available under a name that is the same for all gui backends
 RenderWidget = TkRenderWidget

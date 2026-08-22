@@ -109,7 +109,8 @@ def setup_cube(canvas, mode, speed):
 
     return draw, reset
 
-dimensions = (1000,650)
+
+dimensions = (1000, 650)
 
 root = tk.Tk()
 root.title("rendercanvas + Tkinter widgets")
@@ -133,9 +134,7 @@ for label, value in (
     ("X + Y", "xy"),
     ("X + Y + Z", "xyz"),
 ):
-    ttk.Radiobutton(controls, text=label, variable=mode, value=value).pack(
-        anchor="w"
-    )
+    ttk.Radiobutton(controls, text=label, variable=mode, value=value).pack(anchor="w")
 
 ttk.Separator(controls).pack(fill="x", pady=12)
 ttk.Label(controls, text="Speed").pack(anchor="w")

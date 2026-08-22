@@ -5,7 +5,6 @@ tk minimal
 A minimal example of a Tkinter widget on top of a wgpu scene.
 """
 
-import tkinter as tk
 from tkinter import ttk
 
 from rendercanvas.tk import RenderCanvas
@@ -21,10 +20,13 @@ label = ttk.Label(controls, text="I feel empty...")
 label.pack()
 
 clicks = 0
+
+
 def on_click():
-	global clicks
-	clicks += 1
-	label.configure(text=f"Clicked {clicks} times")
+    global clicks
+    clicks += 1
+    label.configure(text=f"Clicked {clicks} times")
+
 
 button = ttk.Button(controls, text="Click me", command=on_click)
 button.pack(pady=5)

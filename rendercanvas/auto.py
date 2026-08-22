@@ -194,7 +194,7 @@ def backends_by_trying_in_order():
         "PySide2": "qt",
         "PyQt5": "qt",
         "wx": "wx",
-        "tkinter" : "tk",
+        "tkinter": "tk",
     }
 
     for libname, backend_name in lib_to_backend.items():
