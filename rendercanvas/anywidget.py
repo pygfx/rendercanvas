@@ -24,11 +24,11 @@ def _load_js_and_css():
     js = ""
     for fname in ["renderview.js", "renderview-afm.js"]:
         js_path = resource_files("rendercanvas.core").joinpath(fname)
-        js += js_path.read_text() + "\n\n"
+        js += js_path.read_text(encoding="utf-8") + "\n\n"
 
     css_path = resource_files("rendercanvas.core").joinpath("renderview.css")
 
-    return js, css_path.read_text()
+    return js, css_path.read_text(encoding="utf-8")
 
 
 JS, CSS = _load_js_and_css()
