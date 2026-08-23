@@ -6,6 +6,7 @@ Intended for internal use, but is fully standalone.
 import weakref
 import logging
 import threading
+from contextlib import contextmanager
 
 # Support sniffio for older wgpu releases, and for code that relies on sniffio.
 try:
@@ -15,6 +16,36 @@ except ImportError:
 
 
 logger = logging.getLogger("asyncadapter")
+
+
+# Thread-local that marks the task that is currently being stepped (if any).
+# This is the authoritative way to detect that a coroutine is driven by this
+# adapter; the global asyncgen hooks cannot be trusted for that, because another
+# (native) loop may have installed its own hooks. This happens e.g. in IPython
+# with '%gui qt', where the Qt loop runs inside asyncio's input-hook, so that the
+# hooks are asyncio's while our tasks are stepped from a Qt timer.
+_thread_local = threading.local()
+
+
+def get_current_task():
+    """Get the task that is currently being stepped in this thread, or None."""
+    return getattr(_thread_local, "current_task", None)
+
+
+@contextmanager
+def detached():
+    """Context manager that hides the task that is currently being stepped.
+
+    For code that runs synchronously from inside a task, but that must not be
+    considered part of it, like the sync-closing of async generators when the
+    loop stops.
+    """
+    old_task = getattr(_thread_local, "current_task", None)
+    _thread_local.current_task = None
+    try:
+        yield
+    finally:
+        _thread_local.current_task = old_task
 
 
 class Sleeper:
@@ -72,8 +103,9 @@ class CancelledError(BaseException):
 class Task:
     """Representation of task, executing a co-routine."""
 
-    def __init__(self, call_later_func, coro, name):
+    def __init__(self, call_later_func, coro, name, call_soon_threadsafe_func=None):
         self._call_later = call_later_func
+        self._call_soon_threadsafe = call_soon_threadsafe_func
         self._done_callbacks = []
         self.coro = coro
         self.name = name
@@ -113,7 +145,9 @@ class Task:
         stop = False
 
         old_name = getattr(sniffio_thread_local, "name", None)
+        old_task = getattr(_thread_local, "current_task", None)
         sniffio_thread_local.name = __name__
+        _thread_local.current_task = self
 
         self.running = True
         try:
@@ -134,6 +168,7 @@ class Task:
         finally:
             self.running = False
             sniffio_thread_local.name = old_name
+            _thread_local.current_task = old_task
 
         # Clean up to help gc
         if stop:

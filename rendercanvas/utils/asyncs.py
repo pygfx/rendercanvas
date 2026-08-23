@@ -13,6 +13,7 @@ To give an idea how to implement a generic async sleep function:
 import sys
 
 from ..core.coreutils import IS_WIN, IS_PYODIDE, call_later_from_thread
+from . import asyncadapter
 
 
 USE_THREADED_TIMER = IS_WIN
@@ -20,10 +21,21 @@ USE_THREADED_TIMER = IS_WIN
 
 # Below detection methods use ``sys.get_asyncgen_hooks()`` for fast and robust detection.
 # Compared to sniffio, this is faster and also  works when not inside a task.
+#
+# The one case that the hooks cannot cover is when we're inside a task of our own
+# asyncadapter, while another (native) loop owns the asyncgen hooks. This happens
+# when a native loop is nested inside an async loop, e.g. in IPython with
+# '%gui qt': the Qt loop runs inside asyncio's input-hook, so the hooks are
+# asyncio's, while our tasks are stepped from a Qt timer. So we check the
+# asyncadapter first; when it is stepping a coroutine, it *is* the async lib,
+# whatever the hooks say.
 
 
 def detect_current_async_lib():
     """Get the lib name of the currently active async lib, or None."""
+
+    if asyncadapter.get_current_task() is not None:
+        return "rendercanvas.utils.asyncadapter"
 
     if IS_PYODIDE:
         return "asyncio"
@@ -50,6 +62,11 @@ def detect_current_call_soon_threadsafe():
     # We could support Pyodide too, but this never gets called on Pyodide anyway (bc USE_THREADED_TIMER). Leaving commented for reference.
     # if IS_PYODIDE:
     #     return sys.modules["asyncio"].get_running_loop().call_soon_threadsafe
+
+    # If our asyncadapter is stepping a coro, use the loop that drives it (see note above).
+    task = asyncadapter.get_current_task()
+    if task is not None and task._call_soon_threadsafe is not None:
+        return task._call_soon_threadsafe
 
     # Get asyncgen hook func, return fast when no async loop active
     ob = sys.get_asyncgen_hooks()[0]

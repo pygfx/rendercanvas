@@ -532,7 +532,9 @@ class BaseLoop:
         * The subclass is responsible for cancelling remaining tasks in _rc_stop.
         * Return None.
         """
-        task = asyncadapter.Task(self._rc_call_later, async_func(), name)
+        task = asyncadapter.Task(
+            self._rc_call_later, async_func(), name, self.call_soon_threadsafe
+        )
         self.__tasks.add(task)
         task.add_done_callback(self.__tasks.discard)
 
