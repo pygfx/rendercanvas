@@ -337,6 +337,18 @@ def test_wx_module():
     assert loop_class.name == "WxLoop"
 
 
+def test_tk_module():
+    m = Module("tk")
+
+    canvas_class = m.get_canvas_class()
+    m.check_canvas(canvas_class)
+    assert canvas_class.name == "TkRenderWidget"
+
+    loop_class = m.get_loop_class()
+    m.check_loop(loop_class)
+    assert loop_class.name == "TkLoop"
+
+
 def test_terminal_module():
     m = Module("terminal")
 
