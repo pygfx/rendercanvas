@@ -20,7 +20,8 @@ if "pyodide" not in sys.modules:
     raise ImportError("This module is only for use with Pyodide in the browser.")
 
 from pyodide.ffi import create_proxy, to_js
-from js import window, document, ImageData, Uint8ClampedArray, OffscreenCanvas
+from pyodide.code import run_js
+from js import window, document, ImageData, Uint8ClampedArray, OffscreenCanvas, Promise
 
 
 def _inject_js_and_css():
@@ -133,7 +134,8 @@ class PyodideRenderCanvas(BaseRenderCanvas):
         self._time_to_draw()
 
     def _rc_request_paint(self):
-        window.requestAnimationFrame(create_proxy(lambda _: self._time_to_paint()))
+        js_promise = run_js("() => new Promise(resolve => requestAnimationFrame(resolve))")
+        js_promise().then(lambda _: self._time_to_paint())
 
     def _rc_force_paint(self):
         # Not very clean to do this, and not sure if it works in a browser;
