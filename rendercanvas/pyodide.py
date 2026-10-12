@@ -21,7 +21,7 @@ if "pyodide" not in sys.modules:
 
 from pyodide.ffi import create_proxy, to_js
 from pyodide.code import run_js
-from js import window, document, ImageData, Uint8ClampedArray, OffscreenCanvas, Promise
+from js import window, document, ImageData, Uint8ClampedArray, OffscreenCanvas
 
 
 def _inject_js_and_css():
