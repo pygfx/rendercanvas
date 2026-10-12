@@ -4,7 +4,7 @@
 <head>
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
     <title>RenderCanvas Pyodide example</title>
-    <script src="https://cdn.jsdelivr.net/pyodide314.0.7/full/pyodide.js"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.js"></script>
 </head>
 
 <body>
@@ -33,12 +33,14 @@
                 import numpy as np
                 from js import document
 
+                from pyodide.ffi import can_run_sync
+
                 # Select by name
-                canvas_red = RenderCanvas(canvas_element="canvas1", size=(320, 240), update_mode="ondemand")
+                canvas_red = RenderCanvas(canvas_element="canvas1", size=(320, 240), update_mode="ondemand", present_method="screen")
 
                 # Or by element
                 canvas2_el = document.getElementById("canvas2")
-                canvas_green = RenderCanvas(canvas_element=canvas2_el, size=(320, 240), update_mode="continuous")
+                canvas_green = RenderCanvas(canvas_element=canvas2_el, size=(320, 240), update_mode="ondemand", present_method="bitmap")
 
                 context_red = canvas_red.get_bitmap_context()
                 context_green = canvas_green.get_bitmap_context()
@@ -53,10 +55,12 @@
 
                 @canvas_red.request_draw
                 def animate_red():
+                    print("can run_sync in red(screen):", can_run_sync())
                     context_red.set_bitmap(red_data)
 
                 @canvas_green.request_draw
                 def animate_green():
+                    print("can run_sync in green(bitmap):", can_run_sync())
                     context_green.set_bitmap(green_data)
 
                 # The loop.run() is not required in Pyodide, but you can include it so that the code works on both desktop and Pyodide.
@@ -69,6 +73,7 @@
             await pyodide.loadPackage("micropip");
             const micropip = pyodide.pyimport("micropip");
             await micropip.install('numpy');
+            await micropip.install('https://wgpu-py--753.org.readthedocs.build/en/753/_static/wgpu-0.32.0-py3-none-any.whl') // just to try screen method
             await micropip.install("rendercanvas");
 
             // Run the Python code async
