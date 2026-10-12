@@ -134,7 +134,9 @@ class PyodideRenderCanvas(BaseRenderCanvas):
         self._time_to_draw()
 
     def _rc_request_paint(self):
-        js_promise = run_js("() => new Promise(resolve => requestAnimationFrame(resolve))")
+        js_promise = run_js(
+            "() => new Promise(resolve => requestAnimationFrame(resolve))"
+        )
         js_promise().then(lambda _: self._time_to_paint())
 
     def _rc_force_paint(self):
