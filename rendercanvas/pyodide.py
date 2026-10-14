@@ -73,6 +73,11 @@ class PyodideRenderCanvas(BaseRenderCanvas):
         # If size or title are not given, set them to None, so they are left as-is. This is usually preferred in html docs.
         kwargs["size"] = kwargs.get("size", None)
 
+        # instead of using the callback directly (which blocks stack switching), chain on the resolve. TODO: avoid the eval and implement it using pyodide ffi
+        self._next_frame_promise = run_js(
+            "() => new Promise(resolve => requestAnimationFrame(resolve))"
+        )()
+
         # Finalize init
         super().__init__(*args, **kwargs)
         self._final_canvas_init()
@@ -134,10 +139,7 @@ class PyodideRenderCanvas(BaseRenderCanvas):
         self._time_to_draw()
 
     def _rc_request_paint(self):
-        js_promise = run_js(
-            "() => new Promise(resolve => requestAnimationFrame(resolve))"
-        )
-        js_promise().then(lambda _: self._time_to_paint())
+        self._next_frame_promise.then(lambda _: self._time_to_paint())
 
     def _rc_force_paint(self):
         # Not very clean to do this, and not sure if it works in a browser;
