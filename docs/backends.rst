@@ -440,7 +440,7 @@ Similar as with PyScript, you can chose between a ``<canvas>``  and a ``<div cla
     <html>
     <head>
         <meta name="viewport" content="width=device-width,initial-scale=1.0">
-        <script src="https://cdn.jsdelivr.net/pyodide/v0.29.0/full/pyodide.js"></script>
+        <script src="https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.js"></script>
     </head>
     <body>
         <canvas id="canvas" width="640" height="480"></canvas>

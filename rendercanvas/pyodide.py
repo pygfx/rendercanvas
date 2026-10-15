@@ -20,6 +20,7 @@ if "pyodide" not in sys.modules:
     raise ImportError("This module is only for use with Pyodide in the browser.")
 
 from pyodide.ffi import create_proxy, to_js
+from pyodide.code import run_js
 from js import window, document, ImageData, Uint8ClampedArray, OffscreenCanvas
 
 
@@ -71,6 +72,11 @@ class PyodideRenderCanvas(BaseRenderCanvas):
 
         # If size or title are not given, set them to None, so they are left as-is. This is usually preferred in html docs.
         kwargs["size"] = kwargs.get("size", None)
+
+        # instead of using the callback directly (which blocks stack switching), chain on the resolve. TODO: avoid the eval and implement it using pyodide ffi
+        self._next_frame_promise = run_js(
+            "() => new Promise(resolve => requestAnimationFrame(resolve))"
+        )()
 
         # Finalize init
         super().__init__(*args, **kwargs)
@@ -133,7 +139,7 @@ class PyodideRenderCanvas(BaseRenderCanvas):
         self._time_to_draw()
 
     def _rc_request_paint(self):
-        window.requestAnimationFrame(create_proxy(lambda _: self._time_to_paint()))
+        self._next_frame_promise.then(lambda _: self._time_to_paint())
 
     def _rc_force_paint(self):
         # Not very clean to do this, and not sure if it works in a browser;
