@@ -226,7 +226,7 @@ def fall_back_to_xwayland_if_needed():
     code path can be used instead. Note that Qt selects the platform when the
     application is instantiated, so this must happen before that.
     """
-    if not (sys.platform.startswith("linux") and SYSTEM_IS_WAYLAND):
+    if not (sys.platform.startswith("linux", "freebsd") and SYSTEM_IS_WAYLAND):
         return
     if already_had_app_on_import:
         return  # too late, Qt has already selected a platform
