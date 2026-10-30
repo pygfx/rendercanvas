@@ -162,9 +162,9 @@ class BaseLoop:
         self.__is_initialized = True
         self._rc_init()
 
-        self._rc_add_task(self._loop_start_detection_task, "loop-start-detection-task")
+        self.call_soon(self._loop_start_detection_callback)
 
-    async def _loop_start_detection_task(self):
+    def _loop_start_detection_callback(self):
         if self.__state != LoopState.off:
             self.__start()
 
@@ -473,6 +473,8 @@ class BaseLoop:
                     break
         return prev_handlers
 
+    # Note: these hooks are implemented on the loop object, because wgpu checks them and is thereby able to detect call_soon_threadsafe.
+
     def _asyncgen_firstiter_hook(self, agen):
         self._asyncgens.add(agen)
 
@@ -529,39 +531,13 @@ class BaseLoop:
         raise NotImplementedError()
 
     def _rc_call_soon(self, callback):
-        # TODO: actually implement in all backends
-        # self._rc_call_soon_threadsafe(callback)
-        self._rc_call_later(0, callback)
+        """Bla bla"""
+        raise NotImplementedError()
 
-    def _rc_add_task(self, async_func, name):
-        """Add an async task to this loop.
-
-        True async loop-backends (like asyncio and trio) should implement this.
-        When they do, ``_rc_call_later`` is not used.
-
-        Other loop-backends can use the default implementation, which uses the
-        ``asyncadapter`` which runs coroutines using ``_rc_call_later``.
-
-        * If you implement this, make ``_rc_call_later()`` raise an exception.
-        * Schedule running the task defined by the given co-routine function.
-        * The name is for debugging purposes only.
-        * The subclass is responsible for cancelling remaining tasks in _rc_stop.
-        * Return None.
-        """
-        pass
-        # task = asyncadapter.Task(self._rc_call_later, async_func(), name)
-        # self.__tasks.add(task)
-        # task.add_done_callback(self.__tasks.discard)
 
     def _rc_call_later(self, delay, callback):
         """Method to call a callback in delay number of seconds.
 
-        Backends that implement ``_rc_add_task`` should not implement this.
-        Other backends can use the default implementation, which uses a
-        scheduler thread and ``_rc_call_soon_threadsafe``. But they can also
-        implement this using the loop-backend's own mechanics.
-
-        * If you implement this, make ``_rc_add_task()`` call ``super()._rc_add_task()``.
         * Take into account that on Windows, timers are usually inaccurate.
         * If delay is zero, this should behave like "call_soon".
         * No need to catch errors from the callback; that's dealt with

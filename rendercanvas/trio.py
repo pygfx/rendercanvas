@@ -5,9 +5,9 @@ Also supports a trio-friendly way to run or wait for the loop using ``run_async(
 
 __all__ = ["TrioLoop", "loop"]
 
-from .base import BaseLoop
-
 import trio
+
+from .base import BaseLoop
 from .utils.asyncs import detect_current_async_lib
 
 
@@ -48,12 +48,12 @@ class TrioLoop(BaseLoop):
             self._cancel_scope.cancel()
         self._token = None
 
-    def _rc_add_task(self, async_func, name):
-        self._send_channel.send_nowait((async_func, name))
-        return None
+    def _rc_call_soon(self, callback):
+        async def async_func():
+            callback()
 
-    def _rc_call_later(self, delay, callback):
-        raise NotImplementedError()  # we implement _rc_add_task() instead
+        self._send_channel.send_nowait((async_func, "callback"))
+        return None
 
     def _rc_call_soon_threadsafe(self, callback):
         self._token.run_sync_soon(callback)

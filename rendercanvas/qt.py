@@ -5,20 +5,18 @@ can be used as a standalone window or in a larger GUI.
 
 __all__ = ["QRenderCanvas", "QRenderWidget", "QtLoop", "RenderCanvas", "loop"]
 
-import os
-import sys
 import ctypes
 import importlib
+import os
+import sys
 
-
-from .base import WrapperRenderCanvas, BaseCanvasGroup, BaseRenderCanvas, BaseLoop
+from .base import BaseCanvasGroup, BaseLoop, BaseRenderCanvas, WrapperRenderCanvas
 from .core.coreutils import (
-    logger,
-    get_alt_x11_display,
-    select_qt_lib,
     SYSTEM_IS_WAYLAND,
+    get_alt_x11_display,
+    logger,
+    select_qt_lib,
 )
-
 
 # Select GUI toolkit
 libname, already_had_app_on_import = select_qt_lib()
@@ -308,7 +306,7 @@ class QtLoop(BaseLoop):
 
         # If no canvases, we only do a flush
         if not self.get_canvases():
-            self._rc_call_later(0, self.stop)
+            self.call_soon(self.stop)
 
         self._we_run_the_loop = True
         try:
@@ -325,16 +323,16 @@ class QtLoop(BaseLoop):
         if self._we_run_the_loop:
             self._app.quit()
 
-    def _rc_add_task(self, async_func, name):
-        # we use the async adapter with call_later
-        return super()._rc_add_task(async_func, name)
-
     def _rc_call_later(self, delay, callback):
         if delay <= 0:
             QtCore.QTimer.singleShot(0, callback)
             # or self._caller.call.emit(callback)
         else:
             QtCore.QTimer.singleShot(int(max(delay * 1000, 1)), callback)
+
+    def _rc_call_soon(self, callback):
+        QtCore.QTimer.singleShot(0, callback)
+        # or self._caller.call.emit(callback)
 
     def _rc_call_soon_threadsafe(self, callback):
         # Because this goes through a signal/slot, it's thread-safe
