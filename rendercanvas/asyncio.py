@@ -6,6 +6,7 @@ Also supports a asyncio-friendly way to run or wait for the loop using ``run_asy
 __all__ = ["AsyncioLoop", "loop"]
 
 from .base import BaseLoop
+from .core.coreutils import IS_PYODIDE
 from .utils.asyncs import detect_current_async_lib
 
 
@@ -18,6 +19,9 @@ class AsyncioLoop(BaseLoop):
         self._interactive_loop = None
         self._run_loop = None
         self._stop_event = None
+
+        if IS_PYODIDE:
+            self._rc_call_later = self._call_later_for_pyodide
 
     def _rc_init(self):
         # This gets called when the first canvas is created (possibly after having run and stopped before).
@@ -83,10 +87,7 @@ class AsyncioLoop(BaseLoop):
         self._run_loop = None
         # Note how we don't explicitly stop a loop, not the interactive loop, nor the running loop
 
-    def _rc_call_later(self, delay, callback):
-        raise NotImplementedError()
-
-    def _rc_call_soon(self, calback):
+    def _rc_call_soon(self, callback):
         loop = self._interactive_loop or self._run_loop
         if loop is None:
             self.__pending_call_soons.append(callback)
@@ -99,6 +100,13 @@ class AsyncioLoop(BaseLoop):
             self.__pending_call_soons.append(callback)
         else:
             loop.call_soon_threadsafe(callback)
+
+    def _call_later_for_pyodide(self, delay, callback):
+        loop = self._interactive_loop or self._run_loop
+        if loop is None:
+            self.__pending_call_soons.append(callback)
+        else:
+            loop.call_later(delay, callback)
 
 
 loop = AsyncioLoop()

@@ -186,15 +186,6 @@ class WxLoop(BaseLoop):
             except RuntimeError:
                 pass  # wrapped C/C++ object of type App has been deleted
 
-
-    def _rc_call_later(self, delay, callback):
-        if self._app is None:
-            pass
-        elif delay <= 0:
-            wx.CallAfter(callback)
-        else:
-            wx.CallLater(int(max(delay * 1000, 1)), callback)
-
     def _rc_call_soon(self, callback):
         wx.CallAfter(callback)
 

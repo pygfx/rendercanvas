@@ -51,14 +51,6 @@ class RawLoop(BaseLoop):
         self._should_stop = True
         self._queue.put(lambda: None)  # trigger an iter
 
-    def _rc_call_later(self, delay, callback):
-        if delay <= 0:
-            self._queue.put(callback)
-        else:
-            # Using call_later_from_thread keeps the loop super-simple.
-            # Note that its high-precision-on-Windows feature is not why we use it; precision is handled in asyns.py.
-            call_later_from_thread(delay, self._rc_call_soon_threadsafe, callback)
-
     def _rc_call_soon(self, callback):
         self._queue.put(callback)
 

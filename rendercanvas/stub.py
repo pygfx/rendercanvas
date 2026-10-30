@@ -30,15 +30,14 @@ class StubLoop(BaseLoop):
     def _rc_stop(self):
         raise NotImplementedError()
 
-    def _rc_call_later(self, delay, callback):
-        raise NotImplementedError()
-
     def _rc_call_soon(self, callback):
         raise NotImplementedError()
 
     def _rc_call_soon_threadsafe(self, callback):
         raise NotImplementedError()
 
+    def _rc_call_later(self, delay, callback):
+        return super()._rc_call_later(delay, callback)
 
 loop = StubLoop()
 

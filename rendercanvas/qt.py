@@ -323,13 +323,6 @@ class QtLoop(BaseLoop):
         if self._we_run_the_loop:
             self._app.quit()
 
-    def _rc_call_later(self, delay, callback):
-        if delay <= 0:
-            QtCore.QTimer.singleShot(0, callback)
-            # or self._caller.call.emit(callback)
-        else:
-            QtCore.QTimer.singleShot(int(max(delay * 1000, 1)), callback)
-
     def _rc_call_soon(self, callback):
         QtCore.QTimer.singleShot(0, callback)
         # or self._caller.call.emit(callback)

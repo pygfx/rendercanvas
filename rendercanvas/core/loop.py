@@ -260,7 +260,7 @@ class BaseLoop:
         # Create handle and dispatch it
         handle = CallbackHandle(self, callback, args)
         self.__callback_handles.add(handle)
-        call_later_from_thread(delay, self._rc_call_soon_threadsafe, handle._run)
+        self._rc_call_later(delay, handle._run)
 
         return handle
 
@@ -272,7 +272,7 @@ class BaseLoop:
         if delay <= 0:
             self._rc_call_soon(handle._run)
         else:
-            call_later_from_thread(delay, self._rc_call_soon_threadsafe, handle._run)
+            self._rc_call_later(delay, handle._run)
         return handle
 
     def run(self) -> None:
@@ -531,21 +531,11 @@ class BaseLoop:
         raise NotImplementedError()
 
     def _rc_call_soon(self, callback):
-        """Bla bla"""
-        raise NotImplementedError()
+        """Method to schedule a callback.
 
-
-    def _rc_call_later(self, delay, callback):
-        """Method to call a callback in delay number of seconds.
-
-        * Take into account that on Windows, timers are usually inaccurate.
-        * If delay is zero, this should behave like "call_soon".
-        * No need to catch errors from the callback; that's dealt with
-          internally.
-        * Return None.
+        Depending on the backend, it can sometimes use a faster/easier path than ``_rc_call_soon_threadsafe``.
         """
-        # Default that always works, subclasses probably want to do something different when delay <= 0
-        call_later_from_thread(delay, self._rc_call_soon_threadsafe, callback)
+        raise NotImplementedError()
 
     def _rc_call_soon_threadsafe(self, callback):
         """Method to schedule a callback in the loop's thread.
@@ -553,6 +543,19 @@ class BaseLoop:
         Must be thread-safe; this may be called from a different thread.
         """
         raise NotImplementedError()
+
+    def _rc_call_later(self, delay, callback):
+        """Method to call a callback in delay number of seconds.
+
+        * It's optional for backends to implement this method;
+          the default implementation uses ``call_later_from_thread`` and then ``_rc_call_soon_threadsafe``.
+        * When overloading this method, keep in mind the notorious inaccurate timers on Windows!
+        * No need to catch errors from the callback; that's dealt with internally.
+        * You can assume that ``delay > 0``; the base class will use ``_rc_call_soon`` when ``delay <= 0``.
+        * Return None.
+        """
+        # Default that is accurate on all platforms, but overloadable, e.g. Pyodide does not support threading.
+        call_later_from_thread(delay, self._rc_call_soon_threadsafe, callback)
 
 
 class CallbackHandle:
