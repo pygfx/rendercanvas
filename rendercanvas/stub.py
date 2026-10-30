@@ -39,6 +39,7 @@ class StubLoop(BaseLoop):
     def _rc_call_later(self, delay, callback):
         return super()._rc_call_later(delay, callback)
 
+
 loop = StubLoop()
 
 

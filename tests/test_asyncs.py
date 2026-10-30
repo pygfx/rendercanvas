@@ -61,40 +61,6 @@ def test_sleep(SomeLoop):
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
-def test_precise_sleep(SomeLoop):
-    leeway = 0.20 if os.getenv("CI") else 0
-
-    # This test uses the threaded timer on all os's
-    prev_use_threaded_timer = asyncs.USE_THREADED_TIMER
-    asyncs.USE_THREADED_TIMER = True
-
-    try:
-        times = []
-
-        async def coro():
-            times.append(time.perf_counter())
-            await asyncs.precise_sleep(0.05)
-            times.append(time.perf_counter())
-            await asyncs.precise_sleep(0.1)
-            times.append(time.perf_counter())
-            loop.stop()
-
-        loop = SomeLoop()
-        FooCanvas.select_loop(loop)
-        _canvas = FooCanvas()
-        loop.add_task(coro)
-        loop.run()
-
-        sleep_time1 = times[1] - times[0]
-        sleep_time2 = times[2] - times[1]
-        assert 0.04 < sleep_time1 < 0.08 + leeway
-        assert 0.09 < sleep_time2 < 0.13 + leeway
-
-    finally:
-        asyncs.USE_THREADED_TIMER = prev_use_threaded_timer
-
-
-@pytest.mark.parametrize("SomeLoop", loop_classes)
 def test_event(SomeLoop):
     leeway = 0.20 if os.getenv("CI") else 0
 

@@ -7,12 +7,10 @@ from __future__ import annotations
 import signal
 import sys
 import weakref
-from gc import collect
 from inspect import iscoroutinefunction
 from typing import TYPE_CHECKING
 
 from ..utils import asyncadapter
-from ..utils.asyncs import sleep
 from .coreutils import (
     call_later_from_thread,
     close_agen,
@@ -94,9 +92,9 @@ class BaseLoop:
         self.__should_stop = 0
         self.__state = LoopState.off
         self.__is_initialized = False
-        self.__hook_data = None
+        self.__interrupt_hook_data = None
         self.__callback_handles = set()
-        self._asyncgens = weakref.WeakSet()
+        self.__asyncgens = weakref.WeakSet()
         # self._setup_debug_thread()
 
     def _setup_debug_thread(self):
@@ -202,7 +200,8 @@ class BaseLoop:
         """Arrange for a callback to be called as soon as possible.
 
         The callback will be called in the next iteration of the event-loop, but
-        other pending events/callbacks may be handled first. Returns None.
+        other pending events/callbacks may be handled first. Returns a handle that
+        can be used to ``.cancel()`` the callback.
 
         Not thread-safe; use ``call_soon_threadsafe()`` for scheduling callbacks
         from another thread.
@@ -245,7 +244,11 @@ class BaseLoop:
     def call_later(
         self, delay: float, callback: CallbackFunction, *args: Any
     ) -> CallbackHandle:
-        """Arrange for a callback to be called after the given delay (in seconds)."""
+        """Arrange for a callback to be called after the given delay (in seconds).
+
+        Returns a handle that can be used to ``.cancel()`` the callback. In contrast to asyncio's
+        ``call_later()``, this method does not suffer from Window's notorious imprecision.
+        """
 
         if delay <= 0:
             return self.call_soon(callback, *args)
@@ -267,6 +270,7 @@ class BaseLoop:
     def _unchecked_call_later(
         self, delay: float, callback: CallbackFunction, *args: Any
     ) -> CallbackHandle:
+        """Call later without some checks for better performance, for the Task objects."""
         handle = CallbackHandle(self, callback, args)
         self.__callback_handles.add(handle)
         if delay <= 0:
@@ -303,7 +307,7 @@ class BaseLoop:
 
         self._ensure_initialized()
 
-        need_unregister = self.__setup_hooks()
+        need_unregister = self.__setup_interrupt_hooks()
 
         # Run. We could be in this loop for a long time. Or we can exit immediately if
         # the backend already has an (interactive) event loop and did not call _mark_as_interactive().
@@ -315,7 +319,7 @@ class BaseLoop:
             if self.__state == LoopState.running:
                 self.__state = LoopState.active
             if need_unregister:
-                self.__restore_hooks()
+                self.__restore_interrupt_hooks()
 
     async def run_async(self) -> None:
         """ "Alternative to ``run()``, to enter the mainloop from a running async framework.
@@ -376,18 +380,35 @@ class BaseLoop:
         if len(self.get_canvases()) == 0 or self.__should_stop >= 2:
             self.__stop()
 
-    def __setup_hooks(self):
+    def __setup_interrupt_hooks(self):
         """Setup asycgen hooks and interrupt hooks."""
-        if self.__hook_data is not None:
+        if self.__interrupt_hook_data is not None:
             return False
 
-        # Set interrupts
-        prev_interrupt_hooks = self.__setup_interrupt_hooks()
+        def on_interrupt(sig, _frame):
+            logger.warning(f"Received signal {signal.strsignal(sig)}")
+            self.stop()
 
-        self.__hook_data = (prev_interrupt_hooks,)
+        prev_handlers = {}
+
+        for sig in HANDLED_SIGNALS:
+            prev_handler = signal.getsignal(sig)
+            if prev_handler in (None, signal.SIG_IGN, signal.SIG_DFL):
+                # Only register if the old handler for SIGINT was not None,
+                # which means that a non-python handler was installed, i.e. in
+                # Julia, and not SIG_IGN which means we should ignore the interrupts.
+                pass
+            else:
+                # Setting the signal can raise ValueError if this is not the main thread/interpreter
+                try:
+                    prev_handlers[sig] = signal.signal(signal.SIGINT, on_interrupt)
+                except ValueError:
+                    break
+
+        self.__interrupt_hook_data = prev_handlers
         return True
 
-    def __restore_hooks(self):
+    def __restore_interrupt_hooks(self):
         """Unregister hooks."""
 
         # This is separated from stop(), so that a loop can be 'active' by repeated calls to ``run()``, but will only
@@ -395,11 +416,11 @@ class BaseLoop:
         # to organize for this special use-case, but it does make it more clean/elegant, and maybe someday we will want another
         # loop class that runs for short periods. This now works, even when another loop is running.
 
-        if self.__hook_data is None:
+        if self.__interrupt_hook_data is None:
             return
 
-        (prev_interrupt_hooks,) = self.__hook_data
-        self.__hook_data = None
+        prev_interrupt_hooks = self.__interrupt_hook_data
+        self.__interrupt_hook_data = None
 
         for sig, cb in prev_interrupt_hooks.items():
             signal.signal(sig, cb)
@@ -410,7 +431,7 @@ class BaseLoop:
         if self.__state in (LoopState.off, LoopState.ready):
             self.__state = LoopState.active
 
-        self.__setup_hooks()
+        self.__setup_interrupt_hooks()
 
     def __stop(self):
         """Move to the off-state."""
@@ -435,57 +456,33 @@ class BaseLoop:
                 if not task.running:  # not *this* task
                     task.step()
 
-        # Note that backends that do not use the asyncadapter are responsible
-        # for cancelling pending tasks.
-
+        # Cancel callbacks
         for handle in list(self.__callback_handles):
             handle.cancel()
 
+        # Close alive async generators
         self._asyncgen_cancel_agens()
 
-        self.__restore_hooks()
+        # Restore interrupt hooks
+        self.__restore_interrupt_hooks()
 
         # Tell the backend to stop the loop. This usually means it will stop
         # soon, but not *now*; remember that we're currently in a task as well.
         self._rc_stop()
 
-    def __setup_interrupt_hooks(self):
-        """Setup the interrupt handlers."""
-
-        def on_interrupt(sig, _frame):
-            logger.warning(f"Received signal {signal.strsignal(sig)}")
-            self.stop()
-
-        prev_handlers = {}
-
-        for sig in HANDLED_SIGNALS:
-            prev_handler = signal.getsignal(sig)
-            if prev_handler in (None, signal.SIG_IGN, signal.SIG_DFL):
-                # Only register if the old handler for SIGINT was not None,
-                # which means that a non-python handler was installed, i.e. in
-                # Julia, and not SIG_IGN which means we should ignore the interrupts.
-                pass
-            else:
-                # Setting the signal can raise ValueError if this is not the main thread/interpreter
-                try:
-                    prev_handlers[sig] = signal.signal(signal.SIGINT, on_interrupt)
-                except ValueError:
-                    break
-        return prev_handlers
-
     # Note: these hooks are implemented on the loop object, because wgpu checks them and is thereby able to detect call_soon_threadsafe.
 
     def _asyncgen_firstiter_hook(self, agen):
-        self._asyncgens.add(agen)
+        self.__asyncgens.add(agen)
 
     def _asyncgen_finalizer_hook(self, agen):
-        self._asyncgens.discard(agen)
+        self.__asyncgens.discard(agen)
         close_agen(agen)
 
     def _asyncgen_cancel_agens(self):
-        if len(self._asyncgens):
-            closing_agens = list(self._asyncgens)
-            self._asyncgens.clear()
+        if len(self.__asyncgens):
+            closing_agens = list(self.__asyncgens)
+            self.__asyncgens.clear()
             for agen in closing_agens:
                 close_agen(agen)
 
