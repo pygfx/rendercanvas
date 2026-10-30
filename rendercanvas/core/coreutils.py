@@ -2,18 +2,17 @@
 Core utilities that are loaded into the root namespace or used internally.
 """
 
+import ctypes.util
+import logging
 import os
+import queue
 import re
 import sys
-import time
-import queue
-import weakref
-import logging
 import threading
-import ctypes.util
-from contextlib import contextmanager
+import time
+import weakref
 from collections import namedtuple
-
+from contextlib import contextmanager
 
 # %% Constants
 
@@ -50,39 +49,43 @@ def log_exception(kind):
     try:
         yield
     except Exception as err:
-        # Store exc info for postmortem debugging
-        exc_info = list(sys.exc_info())
-        exc_info[2] = exc_info[2].tb_next  # type: ignore | skip *this* function
-        sys.last_type, sys.last_value, sys.last_traceback = exc_info
-        # Show traceback, or a one-line summary
-        msg = str(err)
-        msgh = error_message_hash(msg)
-        if msgh not in err_hashes:
-            # Prepare a short variant of the message for later use
-            short_msg = kind + ": " + msg.split("\n")[0].strip()
-            short_msg = short_msg if len(short_msg) <= 70 else short_msg[:69] + "…"
-            err_hashes[msgh] = [short_msg, 1, 0]
-            # Provide the exception, so the default logger prints a stacktrace.
-            # IDE's can get the exception from the root logger for PM debugging.
-            logger.error(kind, exc_info=err)
+        log_this_exception(kind, err)
+
+
+def log_this_exception(kind: str, err: Exception):
+    # Store exc info for postmortem debugging
+    exc_info = list(sys.exc_info())
+    exc_info[2] = exc_info[2].tb_next  # type: ignore | skip *this* function
+    sys.last_type, sys.last_value, sys.last_traceback = exc_info
+    # Show traceback, or a one-line summary
+    msg = str(err)
+    msgh = error_message_hash(msg)
+    if msgh not in err_hashes:
+        # Prepare a short variant of the message for later use
+        short_msg = kind + ": " + msg.split("\n")[0].strip()
+        short_msg = short_msg if len(short_msg) <= 70 else short_msg[:69] + "…"
+        err_hashes[msgh] = [short_msg, 1, 0]
+        # Provide the exception, so the default logger prints a stacktrace.
+        # IDE's can get the exception from the root logger for PM debugging.
+        logger.error(kind, exc_info=err)
+    else:
+        # We've seen this message before, return a one-liner instead.
+        short_count_tm = err_hashes[msgh]
+        short, count, tm = short_count_tm
+        short_count_tm[1] = count = count + 1
+        # Show the message now?
+        show_message = False
+        cur_time = time.perf_counter()
+        if count <= 5:
+            show_message = True
         else:
-            # We've seen this message before, return a one-liner instead.
-            short_count_tm = err_hashes[msgh]
-            short, count, tm = short_count_tm
-            short_count_tm[1] = count = count + 1
-            # Show the message now?
-            show_message = False
-            cur_time = time.perf_counter()
-            if count <= 5:
+            if cur_time > tm:
                 show_message = True
-            else:
-                if cur_time > tm:
-                    show_message = True
-            # Log the messages and schedule when to show it next.
-            # Next message is after 1-3 seconds (3 when count reaches 300).
-            if show_message:
-                short_count_tm[2] = cur_time + min(max(count / 100, 1), 3)
-                logger.error(f"{short} ({count})")
+        # Log the messages and schedule when to show it next.
+        # Next message is after 1-3 seconds (3 when count reaches 300).
+        if show_message:
+            short_count_tm[2] = cur_time + min(max(count / 100, 1), 3)
+            logger.error(f"{short} ({count})")
 
 
 # %% Weak bindings

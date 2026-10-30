@@ -15,6 +15,7 @@ class AsyncioLoop(BaseLoop):
         # Initialize, but don't even import asyncio yet
         self.__tasks = set()
         self.__pending_tasks = []
+        self.__pending_call_soons = []
         self._interactive_loop = None
         self._run_loop = None
         self._stop_event = None
@@ -61,10 +62,12 @@ class AsyncioLoop(BaseLoop):
         # Create tasks if necessary
         while self.__pending_tasks:
             self._rc_add_task(*self.__pending_tasks.pop(0))
+        while self.__pending_call_soons:
+            self._rc_call_soon_threadsafe(self.__pending_call_soons.pop(0))
 
         # Only do one cycle of processing tasks if there are no canvases.
         if not self.get_canvases():
-            self._run_loop.call_soon(self.stop)
+            self._run_loop.call_soon(self.stop)  # todo: no need to be threadsafe
 
         # Wait for loop to finish
         if self._stop_event is None:
@@ -97,7 +100,10 @@ class AsyncioLoop(BaseLoop):
 
     def _rc_call_soon_threadsafe(self, callback):
         loop = self._interactive_loop or self._run_loop
-        loop.call_soon_threadsafe(callback)
+        if loop is None:
+            self.__pending_call_soons.append(callback)
+        else:
+            loop.call_soon_threadsafe(callback)
 
 
 loop = AsyncioLoop()

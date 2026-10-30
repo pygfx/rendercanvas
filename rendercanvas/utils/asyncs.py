@@ -12,14 +12,21 @@ To give an idea how to implement a generic async sleep function:
 
 import sys
 
-from ..core.coreutils import IS_WIN, IS_PYODIDE, call_later_from_thread
+from ..core.coreutils import IS_PYODIDE, IS_WIN, call_later_from_thread
+from .asyncadapter import Event as _Event
+from .asyncadapter import sleep as _sleep
 
 
-USE_THREADED_TIMER = IS_WIN
+def check_current_async_lib():
+    ob = sys.get_asyncgen_hooks()[0]
+    libname = "no-lib-found"
+    if ob is not None:
+        try:
+            libname = ob.__module__.partition(".")[0]
+        except AttributeError:
+            return None
 
-
-# Below detection methods use ``sys.get_asyncgen_hooks()`` for fast and robust detection.
-# Compared to sniffio, this is faster and also  works when not inside a task.
+    assert libname == "rendercanvas", libname
 
 
 def detect_current_async_lib():
@@ -44,55 +51,55 @@ def detect_current_async_lib():
         return libname
 
 
-def detect_current_call_soon_threadsafe():
-    """Get the current applicable call_soon_threadsafe function, or None"""
-
-    # We could support Pyodide too, but this never gets called on Pyodide anyway (bc USE_THREADED_TIMER). Leaving commented for reference.
-    # if IS_PYODIDE:
-    #     return sys.modules["asyncio"].get_running_loop().call_soon_threadsafe
-
-    # Get asyncgen hook func, return fast when no async loop active
-    ob = sys.get_asyncgen_hooks()[0]
-    if ob is None:
-        return None
-
-    # Super-fast path that works for loop objects that have call_soon_threadsafe()
-    # and use sys.set_asyncgen_hooks() on a method of the same loop object.
-    # Works with asyncio, rendercanvas' asyncadapter, and also custom (direct) loops.
-    try:
-        return ob.__self__.call_soon_threadsafe
-    except AttributeError:
-        pass
-
-    # Otherwise, checkout the module name
-    try:
-        libname = ob.__module__.partition(".")[0]
-    except AttributeError:
-        return None
-
-    if libname == "trio":
-        # Still pretty fast for trio
-        trio = sys.modules[libname]
-        token = trio.lowlevel.current_trio_token()
-        return token.run_sync_soon
-    else:
-        # Ok, it looks like there is an async loop, try to get the func.
-        # This is also a fallback for asyncio (in case the ob.__self__ stops working)
-        # Note: we have a unit test for the asyncio fast-path, so we will know when we need to update,
-        # but the code below makes sure that it keeps working regardless (just a tiiiny bit slower).
-        if libname == "pyodide":
-            libname = "asyncio"
-        mod = sys.modules.get(libname, None)
-        if mod is None:
-            return None
-        try:
-            return mod.call_soon_threadsafe
-        except AttributeError:
-            pass
-        try:
-            return mod.get_running_loop().call_soon_threadsafe
-        except Exception:  # (RuntimeError, AttributeError) but accept any error
-            pass
+# def detect_current_call_soon_threadsafe():
+#     """Get the current applicable call_soon_threadsafe function, or None"""
+#
+#     # We could support Pyodide too, but this never gets called on Pyodide anyway (bc USE_THREADED_TIMER). Leaving commented for reference.
+#     # if IS_PYODIDE:
+#     #     return sys.modules["asyncio"].get_running_loop().call_soon_threadsafe
+#
+#     # Get asyncgen hook func, return fast when no async loop active
+#     ob = sys.get_asyncgen_hooks()[0]
+#     if ob is None:
+#         return None
+#
+#     # Super-fast path that works for loop objects that have call_soon_threadsafe()
+#     # and use sys.set_asyncgen_hooks() on a method of the same loop object.
+#     # Works with asyncio, rendercanvas' asyncadapter, and also custom (direct) loops.
+#     try:
+#         return ob.__self__.call_soon_threadsafe
+#     except AttributeError:
+#         pass
+#
+#     # Otherwise, checkout the module name
+#     try:
+#         libname = ob.__module__.partition(".")[0]
+#     except AttributeError:
+#         return None
+#
+#     if libname == "trio":
+#         # Still pretty fast for trio
+#         trio = sys.modules[libname]
+#         token = trio.lowlevel.current_trio_token()
+#         return token.run_sync_soon
+#     else:
+#         # Ok, it looks like there is an async loop, try to get the func.
+#         # This is also a fallback for asyncio (in case the ob.__self__ stops working)
+#         # Note: we have a unit test for the asyncio fast-path, so we will know when we need to update,
+#         # but the code below makes sure that it keeps working regardless (just a tiiiny bit slower).
+#         if libname == "pyodide":
+#             libname = "asyncio"
+#         mod = sys.modules.get(libname, None)
+#         if mod is None:
+#             return None
+#         try:
+#             return mod.call_soon_threadsafe
+#         except AttributeError:
+#             pass
+#         try:
+#             return mod.get_running_loop().call_soon_threadsafe
+#         except Exception:  # (RuntimeError, AttributeError) but accept any error
+#             pass
 
 
 async def sleep(delay):
@@ -101,11 +108,8 @@ async def sleep(delay):
     # via the asyncadapter, which would converge the async code paths more.
     # But we deliberately chose for the async bits to be 'real'; on asyncio
     # they are actual asyncio tasks using e.g. asyncio.Event.
-
-    libname = detect_current_async_lib()
-    if libname is not None:
-        sleep = sys.modules[libname].sleep
-        await sleep(delay)
+    check_current_async_lib()
+    await _sleep(delay)
 
 
 async def precise_sleep(delay):
@@ -114,6 +118,10 @@ async def precise_sleep(delay):
     On Windows, OS timers are notoriously imprecise, with a resolution of 15.625 ms (64 ticks per second).
     This function, when on Windows, uses a thread to sleep with a much better precision.
     """
+    check_current_async_lib()
+    await _sleep(delay)
+    return
+
     if delay > 0 and USE_THREADED_TIMER:
         call_soon_threadsafe = detect_current_call_soon_threadsafe()
         if call_soon_threadsafe:
@@ -143,12 +151,8 @@ class Event:
     """Generic async event object. Works with trio, asyncio and rendercanvas-native."""
 
     def __new__(cls):
-        libname = detect_current_async_lib()
-        if libname is None:
-            return object.__new__(cls)
-        else:
-            Event = sys.modules[libname].Event  # noqa
-            return Event()
+        check_current_async_lib()
+        return _Event()
 
     async def wait(self):
         return
