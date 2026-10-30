@@ -160,6 +160,9 @@ def backends_by_imported_modules():
     if has_qt_app:
         yield "qt", "Qt app is running"
 
+    if "tkinter" in sys.modules:
+        yield "tk", "tkinter is imported"
+
     # If there is an asyncio loop, we can nicely run glfw, if glfw is available.
     if has_asyncio_loop:
         try:
@@ -191,6 +194,7 @@ def backends_by_trying_in_order():
         "PySide2": "qt",
         "PyQt5": "qt",
         "wx": "wx",
+        "tkinter": "tk",
     }
 
     for libname, backend_name in lib_to_backend.items():
