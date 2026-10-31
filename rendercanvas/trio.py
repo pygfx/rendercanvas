@@ -56,7 +56,10 @@ class TrioLoop(BaseLoop):
         return None
 
     def _rc_call_soon_threadsafe(self, callback):
-        self._token.run_sync_soon(callback)
+        if self._token is not None:
+            self._token.run_sync_soon(callback)
+        else:
+            pass  # pending callback, but loop now close; ignore
 
 
 loop = TrioLoop()
