@@ -93,7 +93,7 @@ class BaseLoop:
         self.__state = LoopState.off
         self.__is_initialized = False
         self.__interrupt_hook_data = None
-        self.__callback_handles = set()
+        self.__callback_manager = CallbackManager(self)
         self.__asyncgens = weakref.WeakSet()
         # self._setup_debug_thread()
 
@@ -160,7 +160,11 @@ class BaseLoop:
         self.__is_initialized = True
         self._rc_init()
 
-        self.call_soon(self._loop_start_detection_callback)
+        # Avoid circular ref
+        loop_ref = weakref.ref(self)
+        self.call_soon(
+            lambda: (lop := loop_ref()) and lop._loop_start_detection_callback()
+        )
 
     def _loop_start_detection_callback(self):
         if self.__state != LoopState.off:
@@ -195,10 +199,6 @@ class BaseLoop:
         self.__tasks.add(task)
         task.add_done_callback(self.__tasks.discard)
 
-    def _unregister_callback_handle(self, handle: CallbackHandle):
-        """Let a CallbackHandle unregister itself when done or cancelled."""
-        self.__callback_handles.discard(handle)
-
     def call_soon(self, callback: CallbackFunction, *args: Any) -> CallbackHandle:
         """Arrange for a callback to be called as soon as possible.
 
@@ -219,8 +219,7 @@ class BaseLoop:
         self._ensure_initialized()
 
         # Create handle and dispatch it
-        handle = CallbackHandle("call_soon", self, callback, args)
-        self.__callback_handles.add(handle)
+        handle = self.__callback_manager.create_handle("call_soon", callback, args)
         self._rc_call_soon(handle._run)
 
         return handle
@@ -238,8 +237,9 @@ class BaseLoop:
         self._ensure_initialized()
 
         # Create handle and dispatch it
-        handle = CallbackHandle("call_soon_threadsafe", self, callback, args)
-        self.__callback_handles.add(handle)
+        handle = self.__callback_manager.create_handle(
+            "call_soon_threadsafe", callback, args
+        )
         self._rc_call_soon_threadsafe(handle._run)
 
         return handle
@@ -264,8 +264,7 @@ class BaseLoop:
         self._ensure_initialized()
 
         # Create handle and dispatch it
-        handle = CallbackHandle("call_later", self, callback, args)
-        self.__callback_handles.add(handle)
+        handle = self.__callback_manager.create_handle("call_later", callback, args)
         self._rc_call_later(delay, handle._run)
 
         return handle
@@ -274,8 +273,7 @@ class BaseLoop:
         self, delay: float, callback: CallbackFunction, *args: Any
     ) -> CallbackHandle:
         """Call later without some checks for better performance, for the Task objects."""
-        handle = CallbackHandle("task", self, callback, args)
-        self.__callback_handles.add(handle)
+        handle = self.__callback_manager.create_handle("task", callback, args)
         if delay <= 0:
             self._rc_call_soon(handle._run)
         else:
@@ -459,9 +457,8 @@ class BaseLoop:
                 if not task.running:  # not *this* task
                     task.step()
 
-        # Cancel callbacks
-        for handle in list(self.__callback_handles):
-            handle.cancel()
+        # Cancel pending callbacks
+        self.__callback_manager.clear()
 
         # Close alive async generators
         self._asyncgen_cancel_agens()
@@ -558,14 +555,52 @@ class BaseLoop:
         call_later_from_thread(delay, self._rc_call_soon_threadsafe, callback)
 
 
+class CallbackManager:
+    """Helper class to avoid that handles have a reference to the loop object.
+
+    This object has a weakref to the loop, which is only used to set asyncgen hooks, i.e. once for each callback.
+
+    It would be even easier to also implement the hooks (and collect asyncgens) on this class.
+    However, by calling set_asyncgen_hooks with a method of loop, just like asyncio does, downstream code
+    (*cough* wgpu-py) can very easily detect the current loop and e.g. get its call_soon_threadsafe method.
+    """
+
+    def __init__(self, loop: BaseLoop):
+        self._loop_ref = weakref.ref(loop)
+        self._handles = set()
+
+    def set_asyncgen_hooks(self):
+        loop = self._loop_ref()
+        if loop is not None:
+            sys.set_asyncgen_hooks(
+                loop._asyncgen_firstiter_hook, loop._asyncgen_finalizer_hook
+            )
+
+    def create_handle(
+        self, context: str, callback: Callable, args: tuple
+    ) -> CallbackHandle:
+        handle = CallbackHandle(self, context, callback, args)
+        self._handles.add(handle)
+        return handle
+
+    def unregister_callback_handle(self, handle: CallbackHandle):
+        self._handles.discard(handle)
+
+    def clear(self):
+        for handle in list(self._handles):
+            handle.cancel()
+
+
 class CallbackHandle:
     """A wrapper for a callback that is scheduled to run by the rendercanvas loop."""
 
     # Note that this is user-facing API
 
-    def __init__(self, context: str, loop: BaseLoop, func: Callable, args: tuple):
+    def __init__(
+        self, manager: CallbackManager, context: str, func: Callable, args: tuple
+    ):
+        self._manager = manager
         self._context = context  # just for debugging
-        self._loop = loop
         self._func = func
         self._args = args
         self._cancelled = False
@@ -576,7 +611,15 @@ class CallbackHandle:
             state = "cancelled"
         elif self._func is None:
             state = "done"
-        return f"<{self.__class__.__name__} {state} (via {self._context}) at {hex(id(self))}>"
+        funcname = ""
+        if self._func is not None:
+            try:
+                funcname = self._func.__name__
+            except AttributeError:
+                funcname = repr(self._func)
+        if funcname:
+            funcname = f" for '{funcname}' "
+        return f"<{self.__class__.__name__}{funcname}{state} (via {self._context}) at {hex(id(self))}>"
 
     def cancel(self):
         """Cancel the callback."""
@@ -590,17 +633,15 @@ class CallbackHandle:
     def _clear(self):
         self._func = None
         self._args = None
-        if self._loop is not None:
-            self._loop._unregister_callback_handle(self)
-            self._loop = None
+        if self._manager is not None:
+            self._manager.unregister_callback_handle(self)
+            self._manager = None
 
     def _run(self):
         if self._cancelled:
             return
         old_hooks = sys.get_asyncgen_hooks()
-        sys.set_asyncgen_hooks(
-            self._loop._asyncgen_firstiter_hook, self._loop._asyncgen_finalizer_hook
-        )
+        self._manager.set_asyncgen_hooks()
         try:
             self._func(*self._args)
         except Exception as err:

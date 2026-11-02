@@ -73,8 +73,9 @@ def backend_loop_deletion2(RenderCanvas: type, loop, helper: NativeHelper):
 
     loop_ref = weakref.ref(loop)
     del loop
+
     for i in range(5):
-        time.sleep(0.01 * i)
+        time.sleep(0.02)
         gc.collect()
 
     assert loop_ref() is None
@@ -99,7 +100,7 @@ def backend_loop_deletion3(RenderCanvas: type, loop, helper: NativeHelper):
 
     loop_ref = weakref.ref(loop)
     del loop
-    for _ in range(4):
+    for _ in range(5):
         time.sleep(0.02)
         gc.collect()
 
