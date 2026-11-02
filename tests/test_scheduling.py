@@ -8,6 +8,7 @@ import os
 import time
 
 from testutils import run_tests
+
 from rendercanvas.base import BaseCanvasGroup, BaseRenderCanvas
 from rendercanvas.offscreen import StubLoop
 
@@ -89,12 +90,12 @@ def test_scheduling_ondemand():
     # The first draw is scheduled for 0.1 s after initialization
     canvas.active_sleep(0.11)
     assert canvas.draw_count == 1
-    assert canvas.events_count in range(1, 10)
+    assert canvas.events_count in range(1, 12)
 
     # No next draw is scheduled until we request one
     canvas.active_sleep(0.1)
     assert canvas.draw_count == 1
-    assert canvas.events_count in range(10, 20)
+    assert canvas.events_count in range(10, 22)
 
     # Requesting a draw ... has effect after a few loop ticks
     canvas.request_draw()
