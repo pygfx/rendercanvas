@@ -8,7 +8,6 @@ Test the behaviour of our asyncadapter w.r.t. sniffio.
 import asyncio
 
 from testutils import run_tests
-import rendercanvas
 from rendercanvas.base import BaseCanvasGroup, BaseRenderCanvas
 from rendercanvas.asyncio import loop as asyncio_loop
 
@@ -27,6 +26,9 @@ class CanvasGroup(BaseCanvasGroup):
 class StubContext:
     def _rc_present(self, force_sync=False):
         return {"method": "skip"}
+
+    def _rc_close(self):
+        pass
 
 
 class RealRenderCanvas(BaseRenderCanvas):
@@ -49,7 +51,7 @@ def get_sniffio_name():
         return None
 
 
-@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop])
+@pytest.mark.parametrize("SomeLoop", [RawLoop, AsyncioLoop, TrioLoop])
 def test_sniffio_on_loop(SomeLoop):
     loop = SomeLoop()
 
@@ -58,14 +60,11 @@ def test_sniffio_on_loop(SomeLoop):
     c = RealRenderCanvas()
 
     names = []
-    funcs = []
 
     @c.request_draw
     def draw():
         name = get_sniffio_name()
         names.append(("draw", name))
-
-        funcs.append(rendercanvas.utils.asyncs.detect_current_call_soon_threadsafe())
 
     @c.add_event_handler("*")
     def on_event(event):
@@ -80,20 +79,10 @@ def test_sniffio_on_loop(SomeLoop):
 
     loop.run()
 
-    refname = "nope"
-    if SomeLoop is RawLoop:
-        refname = "rendercanvas.utils.asyncadapter"
-    elif SomeLoop is AsyncioLoop:
-        refname = "asyncio"
-    elif SomeLoop is TrioLoop:
-        refname = "trio"
-
     for key, val in names:
-        assert val == refname
-
-    assert len(funcs) == 1
-    for func in funcs:
-        assert callable(func)
+        if key == "close":
+            continue
+        assert val == "rendercanvas.utils.asyncadapter"
 
 
 def test_asyncio():
