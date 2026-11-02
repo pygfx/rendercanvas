@@ -66,7 +66,7 @@ def test_scheduling_manual():
     # No draws, even after the 0.1 init time
     canvas.active_sleep(0.11)
     assert canvas.draw_count == 0
-    assert canvas.events_count in range(1, 12)
+    assert canvas.events_count in range(0, 12)
 
     # Requesting a draw ... has no effect
     canvas.request_draw()

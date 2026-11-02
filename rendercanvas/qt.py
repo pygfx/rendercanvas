@@ -491,7 +491,10 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
 
     def _rc_request_paint(self):
         # Ask Qt to do a paint event
-        QtWidgets.QWidget.update(self)
+        try:
+            QtWidgets.QWidget.update(self)
+        except RuntimeError:
+            pass  # Internal C++ object (QRenderWidget) already deleted.
 
         # When running on another loop, schedule processing events asap
         loop = self._rc_canvas_group.get_loop()
