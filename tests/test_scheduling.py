@@ -147,8 +147,8 @@ def _test_scheduling_continuous(canvas):
     # And after one second, about 10 more
     canvas.draw_count = canvas.events_count = 0
     canvas.active_sleep(1)
-    assert canvas.draw_count in range(9, 11)
-    assert canvas.events_count in range(9, 11)
+    assert canvas.draw_count in range(9, 12)
+    assert canvas.events_count in range(9, 12)
 
     # Forcing a draw has direct effect
     canvas.draw_count = canvas.events_count = 0

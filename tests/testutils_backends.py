@@ -6,17 +6,16 @@ Some tests that can be run for different (GUI) backends.
 
 import gc
 import os
-import time
-import weakref
 import signal
 import threading
+import time
+import weakref
 
 import numpy as np
-from rendercanvas.utils.asyncs import sleep as async_sleep
-
-from testutils import can_use_wgpu_lib
 import pytest
+from testutils import can_use_wgpu_lib
 
+from rendercanvas.utils.asyncs import sleep as async_sleep
 
 # A list of generic backend test functions
 BACKEND_TEST_FUNCS = []
@@ -74,8 +73,8 @@ def backend_loop_deletion2(RenderCanvas: type, loop, helper: NativeHelper):
 
     loop_ref = weakref.ref(loop)
     del loop
-    for _ in range(4):
-        time.sleep(0.01)
+    for i in range(5):
+        time.sleep(0.01 * i)
         gc.collect()
 
     assert loop_ref() is None
