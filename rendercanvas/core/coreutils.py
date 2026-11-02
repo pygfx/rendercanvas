@@ -327,19 +327,23 @@ def name_asyncgen(agen) -> str:
 def close_agen(agen):
     """Try to sync-close an async generator."""
     closer = agen.aclose()
-    try:
-        # If the next thing is a yield, this will raise RuntimeError which we allow to propagate
-        closer.send(None)
-    except StopIteration:
-        pass
-    else:
-        # If the next thing is an await, we get here.
-        # Give a nicer error than the default "async generator ignored GeneratorExit"
-        agen_name = name_asyncgen(agen)
-        logger.warning(
-            f"Async generator {agen_name!r} awaited something during finalization, "
-            "so we could not clean it up. Wrap it in 'async with aclosing(...):'",
-        )
+    warned = False
+    for _ in range(16):
+        try:
+            # If the next thing is a yield, this will raise RuntimeError which we allow to propagate
+            closer.send(None)
+        except StopIteration:
+            return  # Cool, it stopped!
+        else:
+            # If the next thing is an await, we get here.
+            # Give a nicer error than the default "async generator ignored GeneratorExit"
+            if not warned:
+                warned = True
+                agen_name = name_asyncgen(agen)
+                logger.warning(
+                    f"Async generator {agen_name!r} awaited something during finalization, "
+                    "so we could not clean it up. Wrap it in 'async with aclosing(...):'",
+                )
 
 
 # %% Linux window managers

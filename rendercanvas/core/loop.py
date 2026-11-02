@@ -186,7 +186,7 @@ class BaseLoop:
         self._ensure_initialized()
 
         # Create and register task
-        task = asyncadapter.Task(self._unchecked_call_later, async_func(), name)
+        task = asyncadapter.Task(self._unchecked_call_later, async_func(*args), name)
         self.__tasks.add(task)
         task.add_done_callback(self.__tasks.discard)
         # TODO: use a different type of Handle, also to have the task name in the error messages?

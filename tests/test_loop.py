@@ -317,7 +317,7 @@ def test_loop_task_order(SomeLoop):
     loop.call_later(0.2, loop.stop)
     loop.run()
 
-    assert flag == ["loop-start-detect-task", "user-task1", "user-task2"], flag
+    assert flag == ["user-task1", "user-task2"], flag
 
     # Again
 
@@ -328,7 +328,7 @@ def test_loop_task_order(SomeLoop):
     loop.call_later(0.2, loop.stop)
     loop.run()
 
-    assert flag == ["loop-start-detect-task", "user-task1", "user-task2"], flag
+    assert flag == ["user-task1", "user-task2"], flag
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
@@ -427,6 +427,7 @@ async def a_generator(flag, *, await_in_finalizer=False):
         flag.append("finished")
     finally:
         if await_in_finalizer:
+            await async_sleep(0)
             await async_sleep(0)
         flag.append("closed")
 
@@ -579,18 +580,7 @@ def test_async_gens_cleanup_bad_agen(SomeLoop):
     loop.call_later(0.1, loop.stop)
     loop.run()
 
-    if SomeLoop is AsyncioLoop:
-        # Handled properly
-        ref_flag = ["started", "except GeneratorExit", "closed"]
-    elif SomeLoop is TrioLoop:
-        # Not handled correctly? It did at some point.
-        # Anyway, rather adversarial use-case, so I don't care too much.
-        ref_flag = ["started", "except GeneratorExit"]
-    else:
-        # Actually, our adapter also works, because the sleep and Event
-        # become no-ops once the loop is gone, and since there are no other things
-        # one can wait on with our asyncadapter, we're good!
-        ref_flag = ["started", "except GeneratorExit", "closed"]
+    ref_flag = ["started", "except GeneratorExit", "closed"]
 
     assert flag == ref_flag, flag
 
