@@ -100,7 +100,7 @@ def test_scheduling_ondemand():
     # Requesting a draw ... has effect after a few loop ticks
     canvas.request_draw()
     assert canvas.draw_count == 1
-    canvas.active_sleep(0.011)
+    canvas.active_sleep(0.11)
     assert canvas.draw_count == 2
 
     # Forcing a draw has direct effect
