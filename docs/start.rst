@@ -127,17 +127,17 @@ Async
 -----
 
 A render canvas can be used in a fully async setting using e.g. Asyncio or Trio, or in an event-drived framework like Qt.
-If you like callbacks, ``loop.call_later()`` always works. If you like async, use ``loop.add_task()``.
+If you like callbacks, use ``loop.call_soon()`` and ``loop.call_later()`` for cancellable callbacks (that works the same, independent of the used backend).
 
-If you make use of async functions (co-routines), and want to keep your code portable across
-different canvas backends, restrict your use of async features to ``sleep``  and ``Event``;
-these are the only features currently implemented in our async adapter utility.
-We recommend importing these from :doc:`rendercanvas.utils.asyncs <utils_asyncs>` if you want your code to be portable across different event loop backends.
+If you like async, use ``loop.add_task()`` to register a co-routine. Your toolbelt of async functions is limited to
+``sleep``  and ``Event`` from :doc:`rendercanvas.utils.asyncs <utils_asyncs>`. The good news
+is that code that uses it works on any rendercanvas backend. Rendercanvas implements its own micro async framework to support this.
 
-On the other hand, if you know your code always runs on the asyncio loop, you can fully make use of ``asyncio``. Ditto for Trio.
+If you need more async features and/or your code always runs asyncio anyway, start your tasks via asyncio's ``create_task``. Same story for Trio.
+That way it's also clear that your code relies on a specific async framework.
 
-If you use Qt and get nervous from async code, no worries, when running on Qt, ``asyncio`` is not even imported. You can regard most async functions
-as syntactic sugar for pieces of code chained with ``call_later``. That's more or less how our async adapter works :)
+If you use Qt and get nervous from async code, no worries: when running on Qt, ``asyncio`` is not even imported. You can regard most async functions
+as syntactic sugar for pieces of code chained with ``call_later`` (That's more or less how our micro async framework works.)
 
 
 Freezing apps

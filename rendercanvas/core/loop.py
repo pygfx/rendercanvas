@@ -175,7 +175,10 @@ class BaseLoop:
         """Run an async function in the event-loop.
 
         All tasks are stopped when the loop stops.
-        See :ref:`async` for the limitations of async code in rendercanvas.
+
+        Tasks created this way can only use ``sleep()`` and ``Event()`` from ``rendercanvas.utils.asyncs``,
+        but they work on any backend. If you want to use asyncio, use asyncio's ``create_task()`` instead.
+        See :ref:`async` for more details.
         """
 
         # Checks
@@ -247,7 +250,7 @@ class BaseLoop:
         """Arrange for a callback to be called after the given delay (in seconds).
 
         Returns a handle that can be used to ``.cancel()`` the callback. In contrast to asyncio's
-        ``call_later()``, this method does not suffer from Window's notorious imprecision.
+        ``call_later()``, this method does not suffer from Windows' notorious imprecision.
         """
 
         if delay <= 0:
