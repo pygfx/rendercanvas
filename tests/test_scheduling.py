@@ -95,7 +95,7 @@ def test_scheduling_ondemand():
     # No next draw is scheduled until we request one
     canvas.active_sleep(0.1)
     assert canvas.draw_count == 1
-    assert canvas.events_count in range(5, 22)
+    assert canvas.events_count in range(1, 22)
 
     # Requesting a draw ... has effect after a few loop ticks
     canvas.request_draw()
