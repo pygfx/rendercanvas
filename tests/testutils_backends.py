@@ -361,6 +361,38 @@ def backend_close_by_pressing_cross(RenderCanvas: type, loop, helper: NativeHelp
     assert loop._BaseLoop__state == "off"
 
 
+# ==================== Callbacks
+
+
+@add_test_func
+def backend_cancel_call_soon_and_call_later(
+    RenderCanvas: type, loop, helper: NativeHelper
+):
+    # Cancelled tasks are not run
+
+    canvas1 = RenderCanvas()
+
+    messages = []
+
+    def make_message(m):
+        messages.append(m)
+
+    h1 = loop.call_soon(make_message, 1)
+    _h2 = loop.call_soon(make_message, 2)
+
+    h3 = loop.call_later(0.05, make_message, 3)
+    _h4 = loop.call_later(0.05, make_message, 4)
+
+    loop.call_later(0.2, canvas1.close)
+
+    h1.cancel()
+    h3.cancel()
+
+    loop.run()
+
+    assert messages == [2, 4]
+
+
 # ==================== Resizing
 
 

@@ -189,8 +189,6 @@ class BaseLoop:
         task = asyncadapter.Task(self._unchecked_call_later, async_func(*args), name)
         self.__tasks.add(task)
         task.add_done_callback(self.__tasks.discard)
-        # TODO: use a different type of Handle, also to have the task name in the error messages?
-        # TODO: return Task object?
 
     def _unregister_callback_handle(self, handle: CallbackHandle):
         """Let a CallbackHandle unregister itself when done or cancelled."""

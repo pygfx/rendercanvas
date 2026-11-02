@@ -65,7 +65,7 @@ class AsyncioLoop(BaseLoop):
 
         # Only do one cycle of processing tasks if there are no canvases.
         if not self.get_canvases():
-            self._run_loop.call_soon(self.stop)  # todo: no need to be threadsafe
+            self._run_loop.call_soon(self.stop)
 
         # Wait for loop to finish
         if self._stop_event is None:
