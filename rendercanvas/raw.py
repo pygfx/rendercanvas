@@ -57,5 +57,8 @@ class RawLoop(BaseLoop):
     def _rc_call_soon_threadsafe(self, callback):
         self._queue.put(callback)
 
+    def _rc_call_later(self, delay, callback):
+        super()._rc_call_later(delay, callback)  # accurate method based on threading
+
 
 loop = RawLoop()

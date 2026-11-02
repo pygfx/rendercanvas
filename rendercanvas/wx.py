@@ -192,6 +192,9 @@ class WxLoop(BaseLoop):
     def _rc_call_soon_threadsafe(self, callback):
         wx.CallAfter(callback)
 
+    def _rc_call_later(self, delay, callback):
+        super()._rc_call_later(delay, callback)  # accurate method based on threading
+
     def process_wx_events(self):
         if self._app:
             # Not SafeYield, becaus then events would not get processed

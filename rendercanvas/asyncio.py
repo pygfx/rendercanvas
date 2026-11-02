@@ -14,14 +14,11 @@ class AsyncioLoop(BaseLoop):
     def __init__(self):
         super().__init__()
         # Initialize, but don't even import asyncio yet
-        self.__tasks = set()
         self.__pending_call_soons = []
         self._interactive_loop = None
         self._run_loop = None
         self._stop_event = None
-
-        if IS_PYODIDE:
-            self._rc_call_later = self._call_later_for_pyodide
+        self._use_asyncio_call_later = bool(IS_PYODIDE)  # attr is faster than global
 
     def _rc_init(self):
         # This gets called when the first canvas is created (possibly after having run and stopped before).
@@ -76,10 +73,6 @@ class AsyncioLoop(BaseLoop):
         await self._stop_event.wait()
 
     def _rc_stop(self):
-        # Clean up our tasks. This includes the loop-task and scheduler tasks.
-        while self.__tasks:
-            task = self.__tasks.pop()
-            task.cancel()  # is a no-op if the task is no longer running
         # Signal that we stopped
         if self._stop_event is not None:
             self._stop_event.set()
@@ -101,12 +94,17 @@ class AsyncioLoop(BaseLoop):
         else:
             loop.call_soon_threadsafe(callback)
 
-    def _call_later_for_pyodide(self, delay, callback):
-        loop = self._interactive_loop or self._run_loop
-        if loop is None:
-            self.__pending_call_soons.append(callback)
+    def _rc_call_later(self, delay, callback):
+        if self._use_asyncio_call_later:
+            # For Pyodide we cannot use the default implementation, because it uses threading.
+            loop = self._interactive_loop or self._run_loop
+            if loop is None:
+                self.__pending_call_soons.append(callback)
+            else:
+                loop.call_later(delay, callback)
         else:
-            loop.call_later(delay, callback)
+            # The default version has more accurate timing on Windows.
+            super()._rc_call_later(delay, callback)
 
 
 loop = AsyncioLoop()

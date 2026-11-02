@@ -37,7 +37,7 @@ class StubLoop(BaseLoop):
         raise NotImplementedError()
 
     def _rc_call_later(self, delay, callback):
-        return super()._rc_call_later(delay, callback)
+        super()._rc_call_later(delay, callback)  # accurate method based on threading
 
 
 loop = StubLoop()

@@ -331,6 +331,9 @@ class QtLoop(BaseLoop):
         # Because this goes through a signal/slot, it's thread-safe
         self._caller.call.emit(callback)
 
+    def _rc_call_later(self, delay, callback):
+        super()._rc_call_later(delay, callback)  # accurate method based on threading
+
 
 loop = QtLoop()
 

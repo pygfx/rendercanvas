@@ -61,5 +61,8 @@ class TrioLoop(BaseLoop):
         else:
             pass  # pending callback, but loop now close; ignore
 
+    def _rc_call_later(self, delay, callback):
+        super()._rc_call_later(delay, callback)  # accurate method based on threading
+
 
 loop = TrioLoop()
