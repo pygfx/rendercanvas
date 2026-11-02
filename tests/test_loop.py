@@ -335,6 +335,9 @@ def test_loop_task_call_soon(SomeLoop):
 
     assert messages == [2]
 
+    for h in h1, h2, h3:
+        assert "call_soon" in repr(h)
+
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
 def test_loop_task_call_later(SomeLoop):
@@ -373,6 +376,9 @@ def test_loop_task_call_later(SomeLoop):
     assert "cancelled" in repr(h6)
 
     assert messages == [5, 4]
+
+    for h in h4, h5, h6:
+        assert "call_later" in repr(h)
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)

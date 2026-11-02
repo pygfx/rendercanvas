@@ -186,7 +186,9 @@ class BaseLoop:
         self._ensure_initialized()
 
         # Create and register task
-        task = asyncadapter.Task(self._unchecked_call_later, async_func(*args), name)
+        task = asyncadapter.Task(
+            self._unchecked_call_later_for_tasks, async_func(*args), name
+        )
         self.__tasks.add(task)
         task.add_done_callback(self.__tasks.discard)
 
@@ -214,7 +216,7 @@ class BaseLoop:
         self._ensure_initialized()
 
         # Create handle and dispatch it
-        handle = CallbackHandle(self, callback, args)
+        handle = CallbackHandle("call_soon", self, callback, args)
         self.__callback_handles.add(handle)
         self._rc_call_soon(handle._run)
 
@@ -233,7 +235,7 @@ class BaseLoop:
         self._ensure_initialized()
 
         # Create handle and dispatch it
-        handle = CallbackHandle(self, callback, args)
+        handle = CallbackHandle("call_soon_threadsafe", self, callback, args)
         self.__callback_handles.add(handle)
         self._rc_call_soon_threadsafe(handle._run)
 
@@ -259,17 +261,17 @@ class BaseLoop:
         self._ensure_initialized()
 
         # Create handle and dispatch it
-        handle = CallbackHandle(self, callback, args)
+        handle = CallbackHandle("call_later", self, callback, args)
         self.__callback_handles.add(handle)
         self._rc_call_later(delay, handle._run)
 
         return handle
 
-    def _unchecked_call_later(
+    def _unchecked_call_later_for_tasks(
         self, delay: float, callback: CallbackFunction, *args: Any
     ) -> CallbackHandle:
         """Call later without some checks for better performance, for the Task objects."""
-        handle = CallbackHandle(self, callback, args)
+        handle = CallbackHandle("task", self, callback, args)
         self.__callback_handles.add(handle)
         if delay <= 0:
             self._rc_call_soon(handle._run)
@@ -558,7 +560,8 @@ class CallbackHandle:
 
     # Note that this is user-facing API
 
-    def __init__(self, loop: BaseLoop, func: Callable, args: tuple):
+    def __init__(self, context: str, loop: BaseLoop, func: Callable, args: tuple):
+        self._context = context  # just for debugging
         self._loop = loop
         self._func = func
         self._args = args
@@ -570,7 +573,7 @@ class CallbackHandle:
             state = "cancelled"
         elif self._func is None:
             state = "done"
-        return f"<{self.__class__.__name__} {state} at {hex(id(self))}>"
+        return f"<{self.__class__.__name__} {state} (via {self._context}) at {hex(id(self))}>"
 
     def cancel(self):
         """Cancel the callback."""
@@ -580,8 +583,6 @@ class CallbackHandle:
     def cancelled(self) -> bool:
         """Return whether the callback was cancelled."""
         return self._cancelled
-
-    # TODO: also add 'when' method to indicate when it will be run?
 
     def _clear(self):
         self._func = None
@@ -604,7 +605,9 @@ class CallbackHandle:
                 func_name = self._func.__name__
             except AttributeError:
                 func_name = repr(self._func)
-            log_this_exception(f"Callback error in {func_name}:", err)
+            log_this_exception(
+                f"Callback error in {func_name} (via {self._context}):", err
+            )
         finally:
             sys.set_asyncgen_hooks(*old_hooks)
             self._clear()
