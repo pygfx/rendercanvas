@@ -38,7 +38,7 @@ def events_is_closed(canvas):
         return canvas._events._closed
 
 
-def gc_until_ref_is_none(ref, max_time=0.3):
+def gc_until_ref_is_none(ref, max_time=0.25):
     max_i = int(max_time / 0.01)
     for i in range(max_i):
         time.sleep(0.01)
@@ -483,7 +483,7 @@ def backend_render_wgpu(RenderCanvas: type, loop, helper: NativeHelper):
     canvas_ref = weakref.ref(canvas)
     del canvas
 
-    gc_until_ref_is_none(canvas_ref)
+    gc_until_ref_is_none(canvas_ref, 0.75)
     assert canvas_ref() is None
     assert loop._BaseLoop__state == "off"
 

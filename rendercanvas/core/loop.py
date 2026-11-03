@@ -498,12 +498,16 @@ class BaseLoop:
         * If this loop supports some kind of interactive mode, activate it!
         * Optionally call ``_mark_as_interactive()``.
         * Make sure its ok if this is called a second time, after a run.
-        * Return None.
+        * Returns None.
         """
         pass
 
-    def _rc_run_async(self):
-        """Run async."""
+    async def _rc_run_async(self):
+        """Start running the event-loop in an async task.
+
+        This only applies to loop backends that represent an async framework such as Asyncio or Trio.
+        Other backends can ``raise NotImplementedError()``.
+        """
         raise NotImplementedError()
 
     def _rc_run(self):
@@ -514,23 +518,28 @@ class BaseLoop:
           in the GUI-native way (i.e. this method may not be called).
         * If the backend is in interactive mode (i.e. there already is
           an active native loop) this may return directly.
+        * Returns None.
         """
         raise NotImplementedError()
 
     def _rc_stop(self):
         """Clean up the loop, going to the off-state.
 
-        * Cancel any remaining tasks.
         * Stop the running event-loop, if applicable.
         * Be ready for another call to ``_rc_init()`` in case the loop is reused.
-        * Return None.
+        * Returns None.
         """
         raise NotImplementedError()
 
     def _rc_call_soon(self, callback):
         """Method to schedule a callback.
 
-        Depending on the backend, it can sometimes use a faster/easier path than ``_rc_call_soon_threadsafe``.
+        Depending on the backend, this can sometimes use a faster/easier path than ``_rc_call_soon_threadsafe``.
+
+        * The callback should be fired as soon as possible, but in a new event-loop iteration (i.e. not *now*).
+        * The callbacks should be fired in the same order as they are scheduled (by calling this method).
+        * Don't catch errors from the callback; the base class deals with that.
+        * Returns None.
         """
         raise NotImplementedError()
 
@@ -544,12 +553,15 @@ class BaseLoop:
     def _rc_call_later(self, delay, callback):
         """Method to call a callback in delay number of seconds.
 
-        * It's optional for backends to implement this method;
-          the default implementation uses ``call_later_from_thread`` and then ``_rc_call_soon_threadsafe``.
-        * When overloading this method, keep in mind the notorious inaccurate timers on Windows!
-        * No need to catch errors from the callback; that's dealt with internally.
-        * You can assume that ``delay > 0``; the base class will use ``_rc_call_soon`` when ``delay <= 0``.
-        * Return None.
+        It's optional for backends to implement this method; the default implementation uses
+        ``call_later_from_thread`` and then ``_rc_call_soon_threadsafe``. When overloading this
+        method, keep in mind the notorious inaccurate timers on Windows!
+
+        * The callback should be fired in delay seconds.
+        * Multiple callbacks scheduled in quick succession with the same delay, should fire in the order they are scheduled.
+        * Don't catch errors from the callback; the base class deals with that.
+        * There's no need to check whether ``delay <= 0``; the base class deals with that.
+        * Returns None.
         """
         # Default that is accurate on all platforms, but overloadable, e.g. Pyodide does not support threading.
         call_later_from_thread(delay, self._rc_call_soon_threadsafe, callback)
