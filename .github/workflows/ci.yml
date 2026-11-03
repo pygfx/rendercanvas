@@ -70,7 +70,7 @@ jobs:
         pip install -U -e .[docs]
     - name: Check stub.py doc comments
       run: |
-          python tests/test_stub.py
+          python docs/update_stub.py
     - name: Build docs
       run: |
         cd docs
