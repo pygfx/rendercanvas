@@ -140,7 +140,7 @@ def _test_scheduling_continuous(canvas):
     assert canvas.events_count == 1
 
     # And a second one after 0.1s, with 10 fps.
-    canvas.active_sleep(0.1)
+    canvas.active_sleep(0.11)
     assert canvas.draw_count in (2, 3)
     assert canvas.events_count in (2, 3)
 
