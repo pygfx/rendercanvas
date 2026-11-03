@@ -116,7 +116,6 @@ class Scheduler:
         await sleep(0.02)
 
         while True:
-            now = time.perf_counter()
 
             # Determine delay
             if self._just_cancelled_a_frame:
@@ -131,14 +130,14 @@ class Scheduler:
                 delay = 0 if delay < 0 else delay  # 0 means cannot keep up
 
             # Determine amount of sleep
-            sleep_time = delay - (now - last_tick_time)
+            sleep_time = delay - (time.perf_counter() - last_tick_time)
 
             # Wait. Even if delay is zero, it gives control back to the loop,
             # allowing other tasks to do work.
             await sleep(max(0, sleep_time))
 
             # Below is the "tick"
-
+            now = time.perf_counter()
             last_tick_time = now
 
             # Determine whether to draw or not yet
