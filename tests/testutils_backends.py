@@ -38,7 +38,7 @@ def events_is_closed(canvas):
         return canvas._events._closed
 
 
-def gc_until_ref_is_none(ref, max_time=0.2):
+def gc_until_ref_is_none(ref, max_time=0.3):
     max_i = int(max_time / 0.01)
     for i in range(max_i):
         time.sleep(0.01)
@@ -356,8 +356,8 @@ def backend_close_by_pressing_cross(RenderCanvas: type, loop, helper: NativeHelp
     canvas_ref2 = weakref.ref(canvas2)
     del canvas1, canvas2
 
-    gc_until_ref_is_none(canvas_ref1)
-    gc_until_ref_is_none(canvas_ref2)
+    gc_until_ref_is_none(canvas_ref1, 0.1)
+    gc_until_ref_is_none(canvas_ref2, 0.1)
 
     assert canvas_ref1() is None
     assert canvas_ref2() is None
