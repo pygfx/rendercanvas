@@ -66,13 +66,13 @@ def test_scheduling_manual():
     # No draws, even after the 0.1 init time
     canvas.active_sleep(0.11)
     assert canvas.draw_count == 0
-    assert canvas.events_count in range(0, 12)
+    assert canvas.events_count in range(1, 10)
 
     # Requesting a draw ... has no effect
     canvas.request_draw()
     canvas.active_sleep(0.11)
     assert canvas.draw_count == 0
-    assert canvas.events_count in range(1, 32)
+    assert canvas.events_count in range(1, 30)
 
     # Only when we force one
     canvas.force_draw()
@@ -90,17 +90,17 @@ def test_scheduling_ondemand():
     # The first draw is scheduled for 0.1 s after initialization
     canvas.active_sleep(0.11)
     assert canvas.draw_count == 1
-    assert canvas.events_count in range(1, 12)
+    assert canvas.events_count in range(1, 10)
 
     # No next draw is scheduled until we request one
-    canvas.active_sleep(0.1)
+    canvas.active_sleep(0.11)
     assert canvas.draw_count == 1
-    assert canvas.events_count in range(1, 22)
+    assert canvas.events_count in range(10, 20)
 
     # Requesting a draw ... has effect after a few loop ticks
     canvas.request_draw()
     assert canvas.draw_count == 1
-    canvas.active_sleep(0.11)
+    canvas.active_sleep(0.011)
     assert canvas.draw_count == 2
 
     # Forcing a draw has direct effect
@@ -135,20 +135,20 @@ def _test_scheduling_continuous(canvas):
     assert canvas.events_count == 0
 
     # The first draw is scheduled for 0.1 s after initialization
-    canvas.active_sleep(0.12)
+    canvas.active_sleep(0.11)
     assert canvas.draw_count == 1
     assert canvas.events_count == 1
 
     # And a second one after 0.1s, with 10 fps.
-    canvas.active_sleep(0.12)
+    canvas.active_sleep(0.11)
     assert canvas.draw_count in (2, 3)
     assert canvas.events_count in (2, 3)
 
     # And after one second, about 10 more
     canvas.draw_count = canvas.events_count = 0
     canvas.active_sleep(1)
-    assert canvas.draw_count in range(5, 12)
-    assert canvas.events_count in range(5, 12)
+    assert canvas.draw_count in range(9, 11)
+    assert canvas.events_count in range(9, 11)
 
     # Forcing a draw has direct effect
     canvas.draw_count = canvas.events_count = 0
@@ -172,7 +172,7 @@ def test_scheduling_fastest():
 
     # And after 0.1 s we have a lot more draws. max_fps is ignored
     canvas.draw_count = canvas.events_count = 0
-    canvas.active_sleep(0.1)
+    canvas.active_sleep(0.11)
     assert canvas.draw_count > (5 if os.getenv("CI") else 15)
     assert canvas.events_count == canvas.draw_count
 

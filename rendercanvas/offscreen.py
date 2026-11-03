@@ -182,7 +182,8 @@ class StubLoop(BaseLoop):
         self._callbacks.append((0, callback))
 
     def _rc_call_later(self, delay, callback):
-        super()._rc_call_later(delay, callback)  # accurate method based on threading
+        self._callbacks.append((time.perf_counter() + delay, callback))
+        # Not using threading for this stub loop: super()._rc_call_later(delay, callback)
 
 
 loop = StubLoop()
