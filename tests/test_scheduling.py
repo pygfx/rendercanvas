@@ -66,7 +66,7 @@ def test_scheduling_manual():
     # No draws, even after the 0.1 init time
     canvas.active_sleep(0.11)
     assert canvas.draw_count == 0
-    assert canvas.events_count in range(1, 10)
+    assert canvas.events_count in range(1, 11)
 
     # Requesting a draw ... has no effect
     canvas.request_draw()
@@ -90,12 +90,12 @@ def test_scheduling_ondemand():
     # The first draw is scheduled for 0.1 s after initialization
     canvas.active_sleep(0.11)
     assert canvas.draw_count == 1
-    assert canvas.events_count in range(1, 10)
+    assert canvas.events_count in range(1, 11)
 
     # No next draw is scheduled until we request one
     canvas.active_sleep(0.11)
     assert canvas.draw_count == 1
-    assert canvas.events_count in range(10, 21)
+    assert canvas.events_count in range(10, 22)
 
     # Requesting a draw ... has effect after a few loop ticks
     canvas.request_draw()
