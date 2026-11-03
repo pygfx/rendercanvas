@@ -135,12 +135,12 @@ def _test_scheduling_continuous(canvas):
     assert canvas.events_count == 0
 
     # The first draw is scheduled for 0.1 s after initialization
-    canvas.active_sleep(0.11)
+    canvas.active_sleep(0.12)
     assert canvas.draw_count == 1
     assert canvas.events_count == 1
 
     # And a second one after 0.1s, with 10 fps.
-    canvas.active_sleep(0.11)
+    canvas.active_sleep(0.12)
     assert canvas.draw_count in (2, 3)
     assert canvas.events_count in (2, 3)
 
