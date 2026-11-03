@@ -3,6 +3,7 @@ Core utilities that are loaded into the root namespace or used internally.
 """
 
 import ctypes.util
+import heapq
 import logging
 import os
 import queue
@@ -182,10 +183,10 @@ class CallLaterThread(threading.Thread):
                         except Empty:
                             pass
 
-            # Put it in our priority queue
+            # Put it in our priority queue. The item's index field is unique and
+            # increasing, so heapq never has to compare the callbacks.
             if new_item is not None:
-                priority.append(new_item)
-                priority.sort(reverse=True)
+                heapq.heappush(priority, new_item)
 
             del new_item
 
@@ -195,7 +196,7 @@ class CallLaterThread(threading.Thread):
             while True:
                 # Get item that is up next
                 try:
-                    item = priority.pop(-1)
+                    item = heapq.heappop(priority)
                 except IndexError:
                     wait_until = None
                     break
@@ -203,7 +204,7 @@ class CallLaterThread(threading.Thread):
                 # If it's not yet time for the item, put it back, and go wait
                 item_time_threshold = item.time - leeway
                 if perf_counter() < item_time_threshold:
-                    priority.append(item)
+                    heapq.heappush(priority, item)
                     wait_until = item_time_threshold
                     break
 
@@ -224,6 +225,7 @@ class CallLaterThread(threading.Thread):
 
 
 _call_later_thread = None
+_call_later_thread_lock = threading.Lock()
 
 
 def call_later_from_thread(delay: float, callback: object, *args: object):
@@ -238,7 +240,10 @@ def call_later_from_thread(delay: float, callback: object, *args: object):
     """
     global _call_later_thread
     if _call_later_thread is None:
-        _call_later_thread = CallLaterThread()
+        # Double-checked locking: only one thread may create the global thread.
+        with _call_later_thread_lock:
+            if _call_later_thread is None:
+                _call_later_thread = CallLaterThread()
     return _call_later_thread.call_later_from_thread(delay, callback, *args)
 
 
