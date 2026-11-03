@@ -163,7 +163,7 @@ class EventEmitter:
                     self._pending_events.pop()  # remove last_event
                     # Update new event
                     for key in accum_keys:
-                        event[key] += last_event[key]
+                        event[key] += last_event.get(key, 0)
 
         self._pending_events.append(event)
 

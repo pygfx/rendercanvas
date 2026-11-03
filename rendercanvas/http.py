@@ -6,18 +6,17 @@ This module implements an ASGI web application, so it runs on any ASGI server. W
 
 __all__ = ["HttpRenderCanvas", "RenderCanvas", "asgi", "loop"]
 
+import asyncio
 import json
 import time
-import asyncio
 from importlib.resources import files as resource_files
-
-from .base import BaseCanvasGroup, BaseRenderCanvas, logger
-from .asyncio import AsyncioLoop
-from .core.encoders import encode_array, CAN_JPEG
-from .core.events import valid_event_types
 
 import numpy as np
 
+from .asyncio import AsyncioLoop
+from .base import BaseCanvasGroup, BaseRenderCanvas, logger
+from .core.encoders import CAN_JPEG, encode_array
+from .core.events import valid_event_types
 
 HTML = """<!DOCTYPE html>
 <html>
@@ -155,7 +154,7 @@ class Asgi:
                     loop.kickstart()
                     await send({"type": "lifespan.startup.complete"})
                 elif message["type"] == "lifespan.shutdown":
-                    ...  # Do some shutdown here!
+                    # Could do some more shutdown logic here
                     await send({"type": "lifespan.shutdown.complete"})
                     return
 

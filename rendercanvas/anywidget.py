@@ -207,8 +207,9 @@ class AnywidgetRenderCanvas(BaseRenderCanvas, anywidget.AnyWidget):
             handle.cancel()
 
     def _rfb_lossless_draw(self):
-        array, _ = self._rfb_lossless_draw_info
-        self._rfb_send_frame(array, True)
+        if self._lossless_draw_info is not None:
+            array, _ = self._rfb_lossless_draw_info
+            self._rfb_send_frame(array, True)
 
     def _rfb_send_frame(self, array, is_lossless_redraw=False):
         """Actually send a frame over to the client."""
