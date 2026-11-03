@@ -155,6 +155,7 @@ class TimerWithCallback(wx.Timer):
 
 class WxLoop(BaseLoop):
     _app = None
+    _use_call_later_via_thread = True
 
     def _rc_init(self):
         if self._app is None:
@@ -193,7 +194,12 @@ class WxLoop(BaseLoop):
         wx.CallAfter(callback)
 
     def _rc_call_later(self, delay, callback):
-        super()._rc_call_later(delay, callback)  # accurate method based on threading
+        if self._use_call_later_via_thread:
+            # The default accurate method based on threading.
+            super()._rc_call_later(delay, callback)
+        else:
+            # wx's own approach (which is not accurate on Windows)
+            wx.CallLater(int(max(delay * 1000, 1)), callback)
 
     def process_wx_events(self):
         if self._app:
