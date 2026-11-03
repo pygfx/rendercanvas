@@ -20,7 +20,10 @@ from rendercanvas.trio import TrioLoop
 from rendercanvas.raw import RawLoop
 
 
-from rendercanvas.utils.asyncs import detect_current_async_lib
+from rendercanvas.utils.asyncs import (
+    detect_current_async_lib,
+    detect_current_call_soon_threadsafe,
+)
 from rendercanvas.utils.asyncs import sleep as async_sleep
 from testutils import run_tests
 import trio
@@ -390,9 +393,11 @@ def test_loop_detection(SomeLoop):
     canvas = FooCanvas()
 
     names = []
+    methods = []
 
     def add_loop_name(when):
         names.append((when, detect_current_async_lib()))
+        methods.append((when, detect_current_call_soon_threadsafe()))
 
     @canvas.request_draw
     def draw():
@@ -416,6 +421,11 @@ def test_loop_detection(SomeLoop):
     for key, val in names:
         print(key, val)
         assert val == "rendercanvas.utils.asyncadapter"
+
+    for key, val in methods:
+        print(key, val)
+        assert val.__self__ is loop
+        assert val.__name__ == "call_soon_threadsafe"
 
 
 # ==================== Tasks
