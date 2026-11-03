@@ -57,6 +57,7 @@ class StubLoop(BaseLoop):
         # * Stop the running event-loop, if applicable.
         # * Be ready for another call to ``_rc_init()`` in case the loop is reused.
         # * Returns None.
+        # # meg
         raise NotImplementedError()
 
     def _rc_call_soon(self, callback):

@@ -5,6 +5,7 @@ This test checks that stub.py is up-to-date.
 To update, just run the test and commit the changes.
 """
 
+import sys
 from pathlib import Path
 
 from rendercanvas import stub
@@ -31,13 +32,19 @@ def test_that_stub_backend_comments_are_up_to_date():
 
 
 def copy_stub_backend_comments() -> bool:
+    if not STUB_BACKEND_FILE.name.endswith(".py"):
+        print("SKIPPED")
+        return
+
     code1 = STUB_BACKEND_FILE.read_text(encoding="utf-8")
     code2 = _copy_docstrings_as_comments(code1)
 
     if code1 != code2:
         STUB_BACKEND_FILE.write_text(code2, encoding="utf-8")
+        print("WROTE to", STUB_BACKEND_FILE)
         return True
     else:
+        print("up-to-date:", STUB_BACKEND_FILE)
         return False
 
 
@@ -71,7 +78,4 @@ def _copy_docstrings_as_comments(code: str) -> str:
 
 if __name__ == "__main__":
     wrote = copy_stub_backend_comments()
-    if wrote:
-        print("Updated stub.py comments")
-    else:
-        print("stub.py is up to date")
+    sys.exit(wrote)

@@ -38,6 +38,9 @@ jobs:
     - name: Ruff format
       run: |
           ruff format --check .
+    - name: Stub backend comments
+      run: |
+          python tests/test_stub.py
 
   jslint:
     name: JS Linting
