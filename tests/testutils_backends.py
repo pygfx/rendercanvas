@@ -479,11 +479,9 @@ def backend_render_wgpu(RenderCanvas: type, loop, helper: NativeHelper):
         nonlocal state_when_drawn
         state_when_drawn = loop._BaseLoop__state
         draw_frame1()
-        loop.call_later(0.1, canvas.close)
 
     canvas.request_draw(draw_frame2)
-
-    loop.call_later(2, canvas.close)  # failsafe
+    loop.call_later(1.0, canvas.close)
     loop.run()
 
     # Check state when the draw happened
