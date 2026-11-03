@@ -51,10 +51,10 @@ def _copy_docstrings_as_comments(code: str) -> str:
         line = lines[i]
         new_lines.append(line)
         if line.startswith("class "):
-            class_name = line.split("(")[1].split(")")[0]
+            class_name = line.split("(")[1].split(")")[0].strip()
             current_base_class = BASE_CLASSES.get(class_name, None)
-        if line.lstrip().startswith("def _rc_"):
-            method_name = line.strip().split(" ")[1].split("(")[0]
+        if line.lstrip().startswith(("def _rc_", "async def _rc_")):
+            method_name = line.strip().split("def")[1].split("(")[0].strip()
             method = getattr(current_base_class, method_name, None)
             le = line[len(line.rstrip()) :].strip(" ")
             if method:

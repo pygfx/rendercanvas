@@ -8,19 +8,18 @@ import sys
 import weakref
 from typing import TYPE_CHECKING
 
+from . import contexts
+from .core.coreutils import log_exception, logger  # noqa: F401
 from .core.enums import (
-    EventTypeEnum,
-    UpdateModeEnum,
     CursorShape,
     CursorShapeEnum,
+    EventTypeEnum,
+    UpdateModeEnum,
 )
-from . import contexts
-from .core.size import SizeInfo
 from .core.events import EventEmitter
 from .core.loop import BaseLoop
 from .core.scheduler import Scheduler
-from .core.coreutils import logger, log_exception  # noqa: F401
-
+from .core.size import SizeInfo
 
 if TYPE_CHECKING:
     from typing import Callable, Literal, Optional
@@ -773,7 +772,7 @@ class BaseRenderCanvas:
         """Process native events.
 
         This method is called by the base class before each draw to move
-        events into the rendercanvas event system.
+        GUI events into the rendercanvas event system.
 
         In some cases one can naturally assume that the 'native' backend is running
         and events are already processed. E.g. when in a notebook-like env.
@@ -830,6 +829,9 @@ class BaseRenderCanvas:
         instance, backends that implement 'remote' rendering can allow new
         frames based on the number of in-flight frames and downstream
         throughput.
+
+         Backends that render on the current machine should simply call
+         ``_time_to_draw()`` directly.
         """
         self._time_to_draw()  # Simple default
 
@@ -868,8 +870,9 @@ class BaseRenderCanvas:
         raise NotImplementedError()
 
     def _rc_set_logical_size(self, width: float, height: float):
-        """Set the logical size. May be ignored when it makes no sense.
+        """Set the size of the canvas in logical pixels.
 
+        May be ignored when it makes no sense.
         The default implementation does nothing.
         """
         pass
@@ -887,21 +890,23 @@ class BaseRenderCanvas:
         Note that if this is the last canvas to close, the loop is stopped immediately,
         and some backends need some explicit polling in this case. Also see wx and glfw backends.
 
-        Note that backends may also have a ``close()`` method, which is
-        overridden by the base class.
+        Note that if this backend class inherits both the native class and BaseRenderCanvas,
+        and the native class has a ``close()`` method, it is overridden by BaseRenderCanvas.
         """
         pass
 
     def _rc_set_title(self, title: str):
-        """Set the canvas title. May be ignored when it makes no sense.
+        """Set the canvas title.
 
+        May be ignored when it makes no sense.
         The default implementation does nothing.
         """
         pass
 
     def _rc_set_cursor(self, cursor: str):
-        """Set the cursor shape. May be ignored.
+        """Set the cursor shape.
 
+         May be ignored when it makes no sense.
         The default implementation does nothing.
         """
         pass
