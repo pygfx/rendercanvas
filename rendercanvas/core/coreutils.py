@@ -55,11 +55,14 @@ def log_exception(kind):
 def log_this_exception(kind: str, err: Exception):
     # Store exc info for postmortem debugging
     exc_info = list(sys.exc_info())
-    exc_info[2] = exc_info[2].tb_next  # type: ignore | skip *this* function
+    if exc_info[2] is not None:
+        exc_info[2] = exc_info[2].tb_next  # type: ignore | skip *this* function
     sys.last_type, sys.last_value, sys.last_traceback = exc_info
     # Show traceback, or a one-line summary
     msg = str(err)
     msgh = error_message_hash(msg)
+    if len(err_hashes) > 1e6:
+        err_hashes.clear()  # Avoid unbounded growing of this cache
     if msgh not in err_hashes:
         # Prepare a short variant of the message for later use
         short_msg = kind + ": " + msg.split("\n")[0].strip()

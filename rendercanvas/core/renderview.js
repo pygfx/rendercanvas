@@ -638,14 +638,24 @@ class BaseRenderView {
     )
 
     let pendingMoveEvent = null
+    let moveEventTimer = null
 
     const sendMoveEvent = () => {
+      moveEventTimer = null
       if (pendingMoveEvent !== null) {
         const event = pendingMoveEvent
         pendingMoveEvent = null
         this.onEvent(event)
       }
     }
+
+    // Clear a pending throttled event when the view is closed
+    signal.addEventListener('abort', () => {
+      if (moveEventTimer !== null) {
+        window.clearTimeout(moveEventTimer)
+        moveEventTimer = null
+      }
+    })
 
     viewElement.addEventListener('pointermove', (ev) => {
       // If this pointer is not down, but other pointers are, don't emit an event.
@@ -686,7 +696,7 @@ class BaseRenderView {
         if (this._moveThrottle > 0) {
           sendMoveEvent() // Send previous (if any)
           pendingMoveEvent = event
-          window.setTimeout(sendMoveEvent, this._moveThrottle)
+          moveEventTimer = window.setTimeout(sendMoveEvent, this._moveThrottle)
         } else {
           this.onEvent(event)
         }
@@ -813,14 +823,24 @@ class BaseRenderView {
     // ----- wheel ---------------
 
     let pendingWheelEvent = null
+    let wheelEventTimer = null
 
     const sendWheelEvent = () => {
+      wheelEventTimer = null
       if (pendingWheelEvent !== null) {
         const event = pendingWheelEvent
         pendingWheelEvent = null
         this.onEvent(event)
       }
     }
+
+    // Clear a pending throttled event when the view is closed
+    signal.addEventListener('abort', () => {
+      if (wheelEventTimer !== null) {
+        window.clearTimeout(wheelEventTimer)
+        wheelEventTimer = null
+      }
+    })
 
     viewElement.addEventListener('wheel', (ev) => {
       // Only scroll if we have focus
@@ -862,7 +882,7 @@ class BaseRenderView {
         if (this._wheelThrottle > 0) {
           sendWheelEvent() // Send previous (if any)
           pendingWheelEvent = event
-          window.setTimeout(sendWheelEvent, this._wheelThrottle)
+          wheelEventTimer = window.setTimeout(sendWheelEvent, this._wheelThrottle)
         } else {
           this.onEvent(event)
         }

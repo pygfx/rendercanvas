@@ -122,6 +122,7 @@ class EventEmitter:
             self._event_handlers[type].sort(key=lambda x: x[0])
             # Note: that sort is potentially expensive. I tried an approach with a custom dequeu to add the handler
             # at the correct position, but the overhead was apparently larger than the benefit of avoiding sort.
+            # TODO: bisect.insort could help
 
     def remove_handler(self, callback, *types):
         """Unregister an event handler.
