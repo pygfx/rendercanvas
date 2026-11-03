@@ -116,7 +116,6 @@ class Scheduler:
         await sleep(0.02)
 
         while True:
-
             # Determine delay
             if self._just_cancelled_a_frame:
                 self._just_cancelled_a_frame = False

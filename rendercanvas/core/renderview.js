@@ -519,7 +519,7 @@ class BaseRenderView {
 
       // Select entry matching our element
       const ourEntries = entries.filter(
-        (entry) => entry.target === viewElement,
+        (entry) => entry.target === viewElement
       )
       if (!ourEntries.length) {
         return
