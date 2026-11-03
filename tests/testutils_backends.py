@@ -493,7 +493,7 @@ def backend_render_wgpu(RenderCanvas: type, loop, helper: NativeHelper):
     assert canvas.get_closed()
     canvas_ref = weakref.ref(canvas)
     del canvas
-    gc_until_ref_is_none(canvas_ref)
+    gc_until_ref_is_none(canvas_ref, 1.0)
     assert canvas_ref() is None
 
     # Check state after the canvas is closed
