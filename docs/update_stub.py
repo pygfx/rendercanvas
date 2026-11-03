@@ -1,10 +1,11 @@
 """
 The _rc_xx methods are documented in the base classes.
 But when copying stub.py to create a new backend, its convenient to have the docs there too.
-This test checks that stub.py is up-to-date.
-To update, just run the test and commit the changes.
+This code update stub.py, just run it and commit the changes.
+It also contains a check to run on CI.
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -24,17 +25,7 @@ BASE_CLASSES = {
 }
 
 
-def test_that_stub_backend_comments_are_up_to_date():
-    wrote = copy_stub_backend_comments()
-    assert not wrote, (
-        "The comments in stub.py are not up-to-date, run test_stubs.py and commit the resulting changes."
-    )
-
-
 def copy_stub_backend_comments() -> bool:
-    if not STUB_BACKEND_FILE.name.endswith(".py"):
-        print("SKIPPED")
-        return
 
     code1 = STUB_BACKEND_FILE.read_text(encoding="utf-8")
     code2 = _copy_docstrings_as_comments(code1)
@@ -78,4 +69,9 @@ def _copy_docstrings_as_comments(code: str) -> str:
 
 if __name__ == "__main__":
     wrote = copy_stub_backend_comments()
-    sys.exit(wrote)
+    if wrote:
+        if os.environ.get("CI"):
+            print(
+                "The comments in stub.py are not up-to-date, run docs/update_stub.py and commit the resulting changes."
+            )
+            sys.exit(1)

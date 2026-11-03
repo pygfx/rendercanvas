@@ -483,7 +483,7 @@ def backend_render_wgpu(RenderCanvas: type, loop, helper: NativeHelper):
     canvas_ref = weakref.ref(canvas)
     del canvas
 
-    gc_until_ref_is_none(canvas_ref, 0.5)
+    gc_until_ref_is_none(canvas_ref, 0.75)
     assert canvas_ref() is None
     assert loop._BaseLoop__state == "off"
 
