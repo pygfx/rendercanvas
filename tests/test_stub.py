@@ -7,6 +7,7 @@ To update, just run the test and commit the changes.
 
 from pathlib import Path
 
+from rendercanvas import stub
 from rendercanvas.base import (
     BaseCanvasGroup,
     BaseLoop,
@@ -14,7 +15,7 @@ from rendercanvas.base import (
     WrapperRenderCanvas,
 )
 
-STUB_BACKEND_FILE = Path(__file__).absolute().parents[1] / "rendercanvas" / "stub.py"
+STUB_BACKEND_FILE = Path(stub.__file__).absolute()
 
 BASE_CLASSES = {
     cls.__name__: cls

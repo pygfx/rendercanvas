@@ -272,7 +272,7 @@ class StubRenderCanvas(BaseRenderCanvas):
     def _rc_set_cursor(self, cursor):
         # Set the cursor shape.
         #
-        #  May be ignored when it makes no sense.
+        # May be ignored when it makes no sense.
         # The default implementation does nothing.
         pass
 

@@ -906,7 +906,7 @@ class BaseRenderCanvas:
     def _rc_set_cursor(self, cursor: str):
         """Set the cursor shape.
 
-         May be ignored when it makes no sense.
+        May be ignored when it makes no sense.
         The default implementation does nothing.
         """
         pass
