@@ -133,7 +133,7 @@ class EventEmitter:
         """
         for type in types:
             self._event_handlers[type] = [
-                (o, cb) for o, cb in self._event_handlers[type] if cb is not callback
+                (o, cb) for o, cb in self._event_handlers[type] if cb != callback
             ]
 
     def submit(self, event):
