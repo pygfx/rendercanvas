@@ -38,6 +38,15 @@ def events_is_closed(canvas):
         return canvas._events._closed
 
 
+def gc_until_ref_is_none(ref, max_time=0.2):
+    max_i = int(max_time / 0.01)
+    for i in range(max_i):
+        time.sleep(0.01)
+        gc.collect()
+        if ref() is None:
+            break
+
+
 # ==================== loop deletion
 
 
@@ -53,9 +62,8 @@ def backend_loop_deletion1(RenderCanvas: type, loop, helper: NativeHelper):
 
     loop_ref = weakref.ref(loop)
     del loop
-    gc.collect()
-    gc.collect()
 
+    gc_until_ref_is_none(loop_ref)
     assert loop_ref() is None
 
 
@@ -74,10 +82,7 @@ def backend_loop_deletion2(RenderCanvas: type, loop, helper: NativeHelper):
     loop_ref = weakref.ref(loop)
     del loop
 
-    for i in range(5):
-        time.sleep(0.02)
-        gc.collect()
-
+    gc_until_ref_is_none(loop_ref)
     assert loop_ref() is None
 
 
@@ -100,10 +105,8 @@ def backend_loop_deletion3(RenderCanvas: type, loop, helper: NativeHelper):
 
     loop_ref = weakref.ref(loop)
     del loop
-    for _ in range(5):
-        time.sleep(0.02)
-        gc.collect()
 
+    gc_until_ref_is_none(loop_ref)
     assert loop_ref() is None
 
 
@@ -352,9 +355,9 @@ def backend_close_by_pressing_cross(RenderCanvas: type, loop, helper: NativeHelp
     canvas_ref1 = weakref.ref(canvas1)
     canvas_ref2 = weakref.ref(canvas2)
     del canvas1, canvas2
-    gc.collect()
-    time.sleep(0.02)
-    gc.collect()
+
+    gc_until_ref_is_none(canvas_ref1)
+    gc_until_ref_is_none(canvas_ref2)
 
     assert canvas_ref1() is None
     assert canvas_ref2() is None
@@ -452,10 +455,8 @@ def backend_render_bitmap(RenderCanvas: type, loop, helper: NativeHelper):
 
     canvas_ref = weakref.ref(canvas)
     del canvas
-    gc.collect()
-    time.sleep(0.02)
-    gc.collect()
 
+    gc_until_ref_is_none(canvas_ref)
     assert canvas_ref() is None
     assert loop._BaseLoop__state == "off"
 
@@ -481,10 +482,8 @@ def backend_render_wgpu(RenderCanvas: type, loop, helper: NativeHelper):
 
     canvas_ref = weakref.ref(canvas)
     del canvas
-    for i in range(5):
-        time.sleep(0.02)
-        gc.collect()
 
+    gc_until_ref_is_none(canvas_ref)
     assert canvas_ref() is None
     assert loop._BaseLoop__state == "off"
 
