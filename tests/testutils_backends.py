@@ -473,19 +473,29 @@ def backend_render_wgpu(RenderCanvas: type, loop, helper: NativeHelper):
     device = wgpu.gpu.request_adapter_sync().request_device_sync()
     draw_frame1 = _get_draw_function(device, canvas)
 
-    canvas.request_draw(draw_frame1)
+    state_when_drawn = "none"
 
-    loop.call_later(0.5, canvas.close)
+    def draw_frame2():
+        nonlocal state_when_drawn
+        state_when_drawn = loop._BaseLoop__state
+        draw_frame1()
+
+    canvas.request_draw(draw_frame2)
+    loop.call_later(1.0, canvas.close)
     loop.run()
 
-    assert canvas.get_closed()
+    # Check state when the draw happened
+    assert state_when_drawn == "running"
 
+    # Check that the canvas object cleans up nicely
+    assert canvas.get_closed()
     canvas_ref = weakref.ref(canvas)
     del canvas
-
-    gc_until_ref_is_none(canvas_ref, 0.75)
+    gc_until_ref_is_none(canvas_ref, 1.0)
     assert canvas_ref() is None
-    assert loop._BaseLoop__state == "off"
+
+    # Check state after the canvas is closed
+    assert loop._BaseLoop__state == "off", loop._BaseLoop__state
 
 
 def _get_draw_function(device, canvas):

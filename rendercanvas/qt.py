@@ -280,6 +280,7 @@ class CallerHelper(QtCore.QObject):
 class QtLoop(BaseLoop):
     _app = None
     _we_run_the_loop = False
+    _use_call_later_via_thread = True
 
     def _rc_init(self):
         if self._app is None:
@@ -332,10 +333,12 @@ class QtLoop(BaseLoop):
         self._caller.call.emit(callback)
 
     def _rc_call_later(self, delay, callback):
-        # We use the default accurate method based on threading.
-        # We could alternatively use Qt's precise timer here, but for now it uses
-        # the default mechanism so that it works the same as most other backends.
-        super()._rc_call_later(delay, callback)
+        if self._use_call_later_via_thread:
+            # The default accurate method based on threading.
+            super()._rc_call_later(delay, callback)
+        else:
+            # Qt's own approach (which is not accurate on Windows)
+            QtCore.QTimer.singleShot(int(max(delay * 1000, 1)), callback)
 
 
 loop = QtLoop()

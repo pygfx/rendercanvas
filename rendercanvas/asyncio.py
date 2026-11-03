@@ -11,6 +11,8 @@ from .utils.asyncs import detect_current_async_lib
 
 
 class AsyncioLoop(BaseLoop):
+    _use_call_later_via_thread = not bool(IS_PYODIDE)
+
     def __init__(self):
         super().__init__()
         # Initialize, but don't even import asyncio yet
@@ -18,7 +20,6 @@ class AsyncioLoop(BaseLoop):
         self._interactive_loop = None
         self._run_loop = None
         self._stop_event = None
-        self._use_asyncio_call_later = bool(IS_PYODIDE)  # attr is faster than global
 
     def _rc_init(self):
         # This gets called when the first canvas is created (possibly after having run and stopped before).
@@ -95,16 +96,16 @@ class AsyncioLoop(BaseLoop):
             loop.call_soon_threadsafe(callback)
 
     def _rc_call_later(self, delay, callback):
-        if self._use_asyncio_call_later:
+        if self._use_call_later_via_thread:
+            # The default version has more accurate timing on Windows.
+            super()._rc_call_later(delay, callback)
+        else:
             # For Pyodide we cannot use the default implementation, because it uses threading.
             loop = self._interactive_loop or self._run_loop
             if loop is None:
                 self.__pending_call_soons.append(callback)
             else:
                 loop.call_later(delay, callback)
-        else:
-            # The default version has more accurate timing on Windows.
-            super()._rc_call_later(delay, callback)
 
 
 loop = AsyncioLoop()
