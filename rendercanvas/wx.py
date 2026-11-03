@@ -12,26 +12,25 @@ __all__ = [
     "loop",
 ]
 
+import ctypes
 import sys
 import time
-import ctypes
 from typing import Optional
 
 import wx
 
-from .core.coreutils import (
-    logger,
-    weakbind,
-    get_alt_x11_display,
-    get_alt_wayland_display,
-)
 from .base import (
-    WrapperRenderCanvas,
-    BaseRenderCanvas,
     BaseCanvasGroup,
     BaseLoop,
+    BaseRenderCanvas,
+    WrapperRenderCanvas,
 )
-
+from .core.coreutils import (
+    get_alt_wayland_display,
+    get_alt_x11_display,
+    logger,
+    weakbind,
+)
 
 BUTTON_MAP = {
     wx.MOUSE_BTN_LEFT: 1,
@@ -187,20 +186,14 @@ class WxLoop(BaseLoop):
             except RuntimeError:
                 pass  # wrapped C/C++ object of type App has been deleted
 
-    def _rc_add_task(self, async_func, name):
-        # we use the async adapter with call_later
-        return super()._rc_add_task(async_func, name)
-
-    def _rc_call_later(self, delay, callback):
-        if self._app is None:
-            pass
-        elif delay <= 0:
-            wx.CallAfter(callback)
-        else:
-            wx.CallLater(int(max(delay * 1000, 1)), callback)
+    def _rc_call_soon(self, callback):
+        wx.CallAfter(callback)
 
     def _rc_call_soon_threadsafe(self, callback):
         wx.CallAfter(callback)
+
+    def _rc_call_later(self, delay, callback):
+        super()._rc_call_later(delay, callback)  # accurate method based on threading
 
     def process_wx_events(self):
         if self._app:

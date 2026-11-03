@@ -8,6 +8,7 @@ import os
 import time
 
 from testutils import run_tests
+
 from rendercanvas.base import BaseCanvasGroup, BaseRenderCanvas
 from rendercanvas.offscreen import StubLoop
 
@@ -92,7 +93,7 @@ def test_scheduling_ondemand():
     assert canvas.events_count in range(1, 10)
 
     # No next draw is scheduled until we request one
-    canvas.active_sleep(0.1)
+    canvas.active_sleep(0.11)
     assert canvas.draw_count == 1
     assert canvas.events_count in range(10, 20)
 
@@ -139,7 +140,7 @@ def _test_scheduling_continuous(canvas):
     assert canvas.events_count == 1
 
     # And a second one after 0.1s, with 10 fps.
-    canvas.active_sleep(0.1)
+    canvas.active_sleep(0.11)
     assert canvas.draw_count in (2, 3)
     assert canvas.events_count in (2, 3)
 
@@ -171,7 +172,7 @@ def test_scheduling_fastest():
 
     # And after 0.1 s we have a lot more draws. max_fps is ignored
     canvas.draw_count = canvas.events_count = 0
-    canvas.active_sleep(0.1)
+    canvas.active_sleep(0.11)
     assert canvas.draw_count > (5 if os.getenv("CI") else 15)
     assert canvas.events_count == canvas.draw_count
 

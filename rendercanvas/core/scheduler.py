@@ -5,8 +5,8 @@ The scheduler class/loop.
 import time
 import weakref
 
+from ..utils.asyncs import Event, sleep
 from .enums import UpdateMode
-from ..utils.asyncs import precise_sleep, Event
 
 
 class Scheduler:
@@ -111,7 +111,7 @@ class Scheduler:
         last_tick_time = 0
 
         # Little startup sleep
-        await precise_sleep(0.02)
+        await sleep(0.02)
 
         while True:
             # Determine delay
@@ -131,7 +131,7 @@ class Scheduler:
 
             # Wait. Even if delay is zero, it gives control back to the loop,
             # allowing other tasks to do work.
-            await precise_sleep(max(0, sleep_time))
+            await sleep(max(0, sleep_time))
 
             # Below is the "tick"
 

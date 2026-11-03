@@ -4,7 +4,7 @@ A stub backend for documentation purposes.
 
 __all__ = ["RenderCanvas", "StubLoop", "StubRenderCanvas", "loop"]
 
-from .base import BaseCanvasGroup, WrapperRenderCanvas, BaseRenderCanvas, BaseLoop
+from .base import BaseCanvasGroup, BaseLoop, BaseRenderCanvas, WrapperRenderCanvas
 
 
 class StubLoop(BaseLoop):
@@ -30,14 +30,14 @@ class StubLoop(BaseLoop):
     def _rc_stop(self):
         raise NotImplementedError()
 
-    def _rc_add_task(self, async_func, name):
-        raise NotImplementedError()
-
-    def _rc_call_later(self, delay, callback):
+    def _rc_call_soon(self, callback):
         raise NotImplementedError()
 
     def _rc_call_soon_threadsafe(self, callback):
         raise NotImplementedError()
+
+    def _rc_call_later(self, delay, callback):
+        super()._rc_call_later(delay, callback)  # accurate method based on threading
 
 
 loop = StubLoop()

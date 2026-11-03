@@ -4,19 +4,25 @@ The base loop implementation.
 
 from __future__ import annotations
 
-import sys
 import signal
+import sys
 import weakref
 from inspect import iscoroutinefunction
 from typing import TYPE_CHECKING
 
-from .enums import LoopState
-from .coreutils import logger, log_exception, call_later_from_thread, close_agen
-from ..utils.asyncs import sleep
 from ..utils import asyncadapter
+from .coreutils import (
+    call_later_from_thread,
+    close_agen,
+    log_exception,
+    log_this_exception,
+    logger,
+)
+from .enums import LoopState
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Coroutine
+
     from base import BaseRenderCanvas
 
     CallbackFunction = Callable[[], Any]
@@ -86,9 +92,9 @@ class BaseLoop:
         self.__should_stop = 0
         self.__state = LoopState.off
         self.__is_initialized = False
-        self.__hook_data = None
-        self.__using_adapter = False  # set to True if using our asyncadapter
-        self._asyncgens = weakref.WeakSet()
+        self.__interrupt_hook_data = None
+        self.__callback_manager = CallbackManager(self)
+        self.__asyncgens = weakref.WeakSet()
         # self._setup_debug_thread()
 
     def _setup_debug_thread(self):
@@ -154,10 +160,13 @@ class BaseLoop:
         self.__is_initialized = True
         self._rc_init()
 
-        self._rc_add_task(self._loop_start_detection_task, "loop-start-detection-task")
-        self.__using_adapter = len(self.__tasks) > 0
+        # Avoid circular ref
+        loop_ref = weakref.ref(self)
+        self.call_soon(
+            lambda: (lop := loop_ref()) and lop._loop_start_detection_callback()
+        )
 
-    async def _loop_start_detection_task(self):
+    def _loop_start_detection_callback(self):
         if self.__state != LoopState.off:
             self.__start()
 
@@ -170,74 +179,106 @@ class BaseLoop:
         """Run an async function in the event-loop.
 
         All tasks are stopped when the loop stops.
-        See :ref:`async` for the limitations of async code in rendercanvas.
+
+        Tasks created this way can only use ``sleep()`` and ``Event()`` from ``rendercanvas.utils.asyncs``,
+        but they work on any backend. If you want to use asyncio, use asyncio's ``create_task()`` instead.
+        See :ref:`async` for more details.
         """
+
+        # Checks
         if not (callable(async_func) and iscoroutinefunction(async_func)):
             raise TypeError("add_task() expects an async function.")
         if name is None:
             name = async_func.__name__
-
-        async def wrapper():
-            with log_exception(f"Error in {name} task:"):
-                await async_func(*args)
-
         self._ensure_initialized()
-        self._rc_add_task(wrapper, name)
 
-    def call_soon(self, callback: CallbackFunction, *args: Any) -> None:
+        # Create and register task
+        task = asyncadapter.Task(
+            self._unchecked_call_later_for_tasks, async_func(*args), name
+        )
+        self.__tasks.add(task)
+        task.add_done_callback(self.__tasks.discard)
+
+    def call_soon(self, callback: CallbackFunction, *args: Any) -> CallbackHandle:
         """Arrange for a callback to be called as soon as possible.
 
         The callback will be called in the next iteration of the event-loop, but
-        other pending events/callbacks may be handled first. Returns None.
+        other pending events/callbacks may be handled first. Returns a handle that
+        can be used to ``.cancel()`` the callback.
 
         Not thread-safe; use ``call_soon_threadsafe()`` for scheduling callbacks
         from another thread.
         """
+
+        # Checks
         if not callable(callback):
             raise TypeError("call_soon() expects a callable.")
         elif iscoroutinefunction(callback):
             raise TypeError("call_soon() expects a normal callable, not an async one.")
 
-        async def wrapper():
-            with log_exception("Callback error:"):
-                callback(*args)
-
         self._ensure_initialized()
-        self._rc_add_task(wrapper, "call_soon")
 
-    def call_soon_threadsafe(self, callback: CallbackFunction, *args: Any) -> None:
+        # Create handle and dispatch it
+        handle = self.__callback_manager.create_handle("call_soon", callback, args)
+        self._rc_call_soon(handle._run)
+
+        return handle
+
+    def call_soon_threadsafe(
+        self, callback: CallbackFunction, *args: Any
+    ) -> CallbackHandle:
         """A thread-safe variant of ``call_soon()``."""
 
+        # Checks
         if not callable(callback):
-            raise TypeError("call_soon_threadsafe() expects a callable.")
+            raise TypeError("call_soon() expects a callable.")
         elif iscoroutinefunction(callback):
-            raise TypeError(
-                "call_soon_threadsafe() expects a normal callable, not an async one."
-            )
+            raise TypeError("call_soon() expects a normal callable, not an async one.")
+        self._ensure_initialized()
 
-        def wrapper():
-            with log_exception("Callback error:"):
-                callback(*args)
+        # Create handle and dispatch it
+        handle = self.__callback_manager.create_handle(
+            "call_soon_threadsafe", callback, args
+        )
+        self._rc_call_soon_threadsafe(handle._run)
 
-        self._rc_call_soon_threadsafe(wrapper)
+        return handle
 
-    def call_later(self, delay: float, callback: CallbackFunction, *args: Any) -> None:
-        """Arrange for a callback to be called after the given delay (in seconds)."""
+    def call_later(
+        self, delay: float, callback: CallbackFunction, *args: Any
+    ) -> CallbackHandle:
+        """Arrange for a callback to be called after the given delay (in seconds).
+
+        Returns a handle that can be used to ``.cancel()`` the callback. In contrast to asyncio's
+        ``call_later()``, this method does not suffer from Windows' notorious imprecision.
+        """
+
         if delay <= 0:
             return self.call_soon(callback, *args)
 
+        # Checks
         if not callable(callback):
             raise TypeError("call_later() expects a callable.")
         elif iscoroutinefunction(callback):
             raise TypeError("call_later() expects a normal callable, not an async one.")
-
-        async def wrapper():
-            with log_exception("Callback error:"):
-                await sleep(delay)
-                callback(*args)
-
         self._ensure_initialized()
-        self._rc_add_task(wrapper, "call_later")
+
+        # Create handle and dispatch it
+        handle = self.__callback_manager.create_handle("call_later", callback, args)
+        self._rc_call_later(delay, handle._run)
+
+        return handle
+
+    def _unchecked_call_later_for_tasks(
+        self, delay: float, callback: CallbackFunction, *args: Any
+    ) -> CallbackHandle:
+        """Call later without some checks for better performance, for the Task objects."""
+        handle = self.__callback_manager.create_handle("task", callback, args)
+        if delay <= 0:
+            self._rc_call_soon(handle._run)
+        else:
+            self._rc_call_later(delay, handle._run)
+        return handle
 
     def run(self) -> None:
         """Enter the main loop.
@@ -267,7 +308,7 @@ class BaseLoop:
 
         self._ensure_initialized()
 
-        need_unregister = self.__setup_hooks()
+        need_unregister = self.__setup_interrupt_hooks()
 
         # Run. We could be in this loop for a long time. Or we can exit immediately if
         # the backend already has an (interactive) event loop and did not call _mark_as_interactive().
@@ -279,7 +320,7 @@ class BaseLoop:
             if self.__state == LoopState.running:
                 self.__state = LoopState.active
             if need_unregister:
-                self.__restore_hooks()
+                self.__restore_interrupt_hooks()
 
     async def run_async(self) -> None:
         """ "Alternative to ``run()``, to enter the mainloop from a running async framework.
@@ -340,21 +381,35 @@ class BaseLoop:
         if len(self.get_canvases()) == 0 or self.__should_stop >= 2:
             self.__stop()
 
-    def __setup_hooks(self):
+    def __setup_interrupt_hooks(self):
         """Setup asycgen hooks and interrupt hooks."""
-        if self.__hook_data is not None:
+        if self.__interrupt_hook_data is not None:
             return False
 
-        # Setup asyncgen hooks
-        prev_asyncgen_hooks = self.__setup_asyncgen_hooks()
+        def on_interrupt(sig, _frame):
+            logger.warning(f"Received signal {signal.strsignal(sig)}")
+            self.stop()
 
-        # Set interrupts
-        prev_interrupt_hooks = self.__setup_interrupt_hooks()
+        prev_handlers = {}
 
-        self.__hook_data = prev_asyncgen_hooks, prev_interrupt_hooks
+        for sig in HANDLED_SIGNALS:
+            prev_handler = signal.getsignal(sig)
+            if prev_handler in (None, signal.SIG_IGN, signal.SIG_DFL):
+                # Only register if the old handler for SIGINT was not None,
+                # which means that a non-python handler was installed, i.e. in
+                # Julia, and not SIG_IGN which means we should ignore the interrupts.
+                pass
+            else:
+                # Setting the signal can raise ValueError if this is not the main thread/interpreter
+                try:
+                    prev_handlers[sig] = signal.signal(signal.SIGINT, on_interrupt)
+                except ValueError:
+                    break
+
+        self.__interrupt_hook_data = prev_handlers
         return True
 
-    def __restore_hooks(self):
+    def __restore_interrupt_hooks(self):
         """Unregister hooks."""
 
         # This is separated from stop(), so that a loop can be 'active' by repeated calls to ``run()``, but will only
@@ -362,13 +417,11 @@ class BaseLoop:
         # to organize for this special use-case, but it does make it more clean/elegant, and maybe someday we will want another
         # loop class that runs for short periods. This now works, even when another loop is running.
 
-        if self.__hook_data is None:
+        if self.__interrupt_hook_data is None:
             return
 
-        prev_asyncgen_hooks, prev_interrupt_hooks = self.__hook_data
-        self.__hook_data = None
-        if prev_asyncgen_hooks is not None:
-            sys.set_asyncgen_hooks(*prev_asyncgen_hooks)
+        prev_interrupt_hooks = self.__interrupt_hook_data
+        self.__interrupt_hook_data = None
 
         for sig, cb in prev_interrupt_hooks.items():
             signal.signal(sig, cb)
@@ -379,7 +432,7 @@ class BaseLoop:
         if self.__state in (LoopState.off, LoopState.ready):
             self.__state = LoopState.active
 
-        self.__setup_hooks()
+        self.__setup_interrupt_hooks()
 
     def __stop(self):
         """Move to the off-state."""
@@ -404,77 +457,34 @@ class BaseLoop:
                 if not task.running:  # not *this* task
                     task.step()
 
-        # Note that backends that do not use the asyncadapter are responsible
-        # for cancelling pending tasks.
+        # Cancel pending callbacks
+        self.__callback_manager.clear()
 
-        self.__restore_hooks()
+        # Close alive async generators
+        self._asyncgen_cancel_agens()
 
-        # Cancel async gens
-        if len(self._asyncgens):
-            closing_agens = list(self._asyncgens)
-            self._asyncgens.clear()
-            for agen in closing_agens:
-                close_agen(agen)
+        # Restore interrupt hooks
+        self.__restore_interrupt_hooks()
 
         # Tell the backend to stop the loop. This usually means it will stop
         # soon, but not *now*; remember that we're currently in a task as well.
         self._rc_stop()
 
-    def __setup_interrupt_hooks(self):
-        """Setup the interrupt handlers."""
-
-        def on_interrupt(sig, _frame):
-            logger.warning(f"Received signal {signal.strsignal(sig)}")
-            self.stop()
-
-        prev_handlers = {}
-
-        for sig in HANDLED_SIGNALS:
-            prev_handler = signal.getsignal(sig)
-            if prev_handler in (None, signal.SIG_IGN, signal.SIG_DFL):
-                # Only register if the old handler for SIGINT was not None,
-                # which means that a non-python handler was installed, i.e. in
-                # Julia, and not SIG_IGN which means we should ignore the interrupts.
-                pass
-            else:
-                # Setting the signal can raise ValueError if this is not the main thread/interpreter
-                try:
-                    prev_handlers[sig] = signal.signal(signal.SIGINT, on_interrupt)
-                except ValueError:
-                    break
-        return prev_handlers
-
-    def __setup_asyncgen_hooks(self):
-        # We employ a simple strategy to deal with lingering async generators,
-        # in which we attempt to sync-close them. This fails (only) when the
-        # finalizer of the agen has an await in it. Technically this is allowed,
-        # but it's probably not a good idea, and it would make it hard for us,
-        # because we want to be able to stop synchronously. So when this happens
-        # we log an error with a hint on how to cleanly (asynchronously) close
-        # the generator in the user's code. Note that when a proper async
-        # framework (asyncio or trio) is used, all of this does not apply; only
-        # for the qt/wx/raw loop do we do this, an in these cases we don't
-        # expect fancy async stuff. Oh, and the sleep and Event actually become no-ops when the
-        # asyncgen hooks are restored, so that error message should in theory never happen anyway.
-
-        # Only register hooks if we use the asyncadapter; async frameworks install their own hooks.
-        if not self.__using_adapter:
-            return None
-
-        prev_asyncgen_hooks = sys.get_asyncgen_hooks()
-        sys.set_asyncgen_hooks(
-            firstiter=self._asyncgen_firstiter_hook,
-            finalizer=self._asyncgen_finalizer_hook,
-        )
-
-        return prev_asyncgen_hooks
+    # Note: these hooks are implemented on the loop object, because wgpu checks them and is thereby able to detect call_soon_threadsafe.
 
     def _asyncgen_firstiter_hook(self, agen):
-        self._asyncgens.add(agen)
+        self.__asyncgens.add(agen)
 
     def _asyncgen_finalizer_hook(self, agen):
-        self._asyncgens.discard(agen)
+        self.__asyncgens.discard(agen)
         close_agen(agen)
+
+    def _asyncgen_cancel_agens(self):
+        if len(self.__asyncgens):
+            closing_agens = list(self.__asyncgens)
+            self.__asyncgens.clear()
+            for agen in closing_agens:
+                close_agen(agen)
 
     def _rc_init(self):
         """Put the loop in a ready state.
@@ -517,42 +527,12 @@ class BaseLoop:
         """
         raise NotImplementedError()
 
-    def _rc_add_task(self, async_func, name):
-        """Add an async task to this loop.
+    def _rc_call_soon(self, callback):
+        """Method to schedule a callback.
 
-        True async loop-backends (like asyncio and trio) should implement this.
-        When they do, ``_rc_call_later`` is not used.
-
-        Other loop-backends can use the default implementation, which uses the
-        ``asyncadapter`` which runs coroutines using ``_rc_call_later``.
-
-        * If you implement this, make ``_rc_call_later()`` raise an exception.
-        * Schedule running the task defined by the given co-routine function.
-        * The name is for debugging purposes only.
-        * The subclass is responsible for cancelling remaining tasks in _rc_stop.
-        * Return None.
+        Depending on the backend, it can sometimes use a faster/easier path than ``_rc_call_soon_threadsafe``.
         """
-        task = asyncadapter.Task(self._rc_call_later, async_func(), name)
-        self.__tasks.add(task)
-        task.add_done_callback(self.__tasks.discard)
-
-    def _rc_call_later(self, delay, callback):
-        """Method to call a callback in delay number of seconds.
-
-        Backends that implement ``_rc_add_task`` should not implement this.
-        Other backends can use the default implementation, which uses a
-        scheduler thread and ``_rc_call_soon_threadsafe``. But they can also
-        implement this using the loop-backend's own mechanics.
-
-        * If you implement this, make ``_rc_add_task()`` call ``super()._rc_add_task()``.
-        * Take into account that on Windows, timers are usually inaccurate.
-        * If delay is zero, this should behave like "call_soon".
-        * No need to catch errors from the callback; that's dealt with
-          internally.
-        * Return None.
-        """
-        # Default that always works, subclasses probably want to do something different when delay <= 0
-        call_later_from_thread(delay, self._rc_call_soon_threadsafe, callback)
+        raise NotImplementedError()
 
     def _rc_call_soon_threadsafe(self, callback):
         """Method to schedule a callback in the loop's thread.
@@ -560,3 +540,118 @@ class BaseLoop:
         Must be thread-safe; this may be called from a different thread.
         """
         raise NotImplementedError()
+
+    def _rc_call_later(self, delay, callback):
+        """Method to call a callback in delay number of seconds.
+
+        * It's optional for backends to implement this method;
+          the default implementation uses ``call_later_from_thread`` and then ``_rc_call_soon_threadsafe``.
+        * When overloading this method, keep in mind the notorious inaccurate timers on Windows!
+        * No need to catch errors from the callback; that's dealt with internally.
+        * You can assume that ``delay > 0``; the base class will use ``_rc_call_soon`` when ``delay <= 0``.
+        * Return None.
+        """
+        # Default that is accurate on all platforms, but overloadable, e.g. Pyodide does not support threading.
+        call_later_from_thread(delay, self._rc_call_soon_threadsafe, callback)
+
+
+class CallbackManager:
+    """Helper class to avoid that handles have a reference to the loop object.
+
+    This object has a weakref to the loop, which is only used to set asyncgen hooks, i.e. once for each callback.
+
+    It would be even easier to also implement the hooks (and collect asyncgens) on this class.
+    However, by calling set_asyncgen_hooks with a method of loop, just like asyncio does, downstream code
+    (*cough* wgpu-py) can very easily detect the current loop and e.g. get its call_soon_threadsafe method.
+    """
+
+    def __init__(self, loop: BaseLoop):
+        self._loop_ref = weakref.ref(loop)
+        self._handles = set()
+
+    def set_asyncgen_hooks(self):
+        loop = self._loop_ref()
+        if loop is not None:
+            sys.set_asyncgen_hooks(
+                loop._asyncgen_firstiter_hook, loop._asyncgen_finalizer_hook
+            )
+
+    def create_handle(
+        self, context: str, callback: Callable, args: tuple
+    ) -> CallbackHandle:
+        handle = CallbackHandle(self, context, callback, args)
+        self._handles.add(handle)
+        return handle
+
+    def unregister_callback_handle(self, handle: CallbackHandle):
+        self._handles.discard(handle)
+
+    def clear(self):
+        for handle in list(self._handles):
+            handle.cancel()
+
+
+class CallbackHandle:
+    """A wrapper for a callback that is scheduled to run by the rendercanvas loop."""
+
+    # Note that this is user-facing API
+
+    def __init__(
+        self, manager: CallbackManager, context: str, func: Callable, args: tuple
+    ):
+        self._manager = manager
+        self._context = context  # just for debugging
+        self._func = func
+        self._args = args
+        self._cancelled = False
+
+    def __repr__(self):
+        state = "pending"
+        if self._cancelled:
+            state = "cancelled"
+        elif self._func is None:
+            state = "done"
+        funcname = ""
+        if self._func is not None:
+            try:
+                funcname = self._func.__name__
+            except AttributeError:
+                funcname = repr(self._func)
+        if funcname:
+            funcname = f" for '{funcname}' "
+        return f"<{self.__class__.__name__}{funcname}{state} (via {self._context}) at {hex(id(self))}>"
+
+    def cancel(self):
+        """Cancel the callback."""
+        self._cancelled = True
+        self._clear()
+
+    def cancelled(self) -> bool:
+        """Return whether the callback was cancelled."""
+        return self._cancelled
+
+    def _clear(self):
+        self._func = None
+        self._args = None
+        if self._manager is not None:
+            self._manager.unregister_callback_handle(self)
+            self._manager = None
+
+    def _run(self):
+        if self._cancelled:
+            return
+        old_hooks = sys.get_asyncgen_hooks()
+        self._manager.set_asyncgen_hooks()
+        try:
+            self._func(*self._args)
+        except Exception as err:
+            try:
+                func_name = self._func.__name__
+            except AttributeError:
+                func_name = repr(self._func)
+            log_this_exception(
+                f"Callback error in {func_name} (via {self._context}):", err
+            )
+        finally:
+            sys.set_asyncgen_hooks(*old_hooks)
+            self._clear()
