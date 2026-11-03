@@ -366,6 +366,8 @@ class BaseLoop:
         self.__should_stop += 2 if force else 1
 
         # Close all canvases
+        # Note that if canvas.close() raises, we don't get to close any other canvases,
+        # but that's by design; close() should not raise in the first place.
         canvases = self.get_canvases()
         for canvas in canvases:
             try:
@@ -402,7 +404,7 @@ class BaseLoop:
             else:
                 # Setting the signal can raise ValueError if this is not the main thread/interpreter
                 try:
-                    prev_handlers[sig] = signal.signal(signal.SIGINT, on_interrupt)
+                    prev_handlers[sig] = signal.signal(sig, on_interrupt)
                 except ValueError:
                     break
 
@@ -650,11 +652,13 @@ class CallbackHandle:
             self._manager = None
 
     def _run(self):
+        # It is an error for this method to be called more than once.
+        # When it does happen, it results in a logger error, so its detected (even if the message is a bit obscure) and can be fixed.
         if self._cancelled:
             return
         old_hooks = sys.get_asyncgen_hooks()
-        self._manager.set_asyncgen_hooks()
         try:
+            self._manager.set_asyncgen_hooks()
             self._func(*self._args)
         except Exception as err:
             try:

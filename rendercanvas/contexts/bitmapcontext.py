@@ -1,7 +1,6 @@
-from .basecontext import BaseContext
-
 import numpy as np
 
+from .basecontext import BaseContext
 
 __all__ = ["BitmapContext", "BitmapContextToBitmap", "BitmapContextToScreen"]
 
@@ -57,7 +56,7 @@ class BitmapContext(BaseContext):
             dtype = "u8"
         else:
             raise ValueError(
-                "Unsupported bitmap dtype '{arr.dtype}', expecting unsigned bytes."
+                f"Unsupported bitmap dtype '{arr.dtype}', expecting unsigned bytes."
             )
 
         # Get color format
@@ -132,6 +131,7 @@ class BitmapContextToScreen(BitmapContext):
 
         # Init wgpu
         import wgpu
+
         from ._fullscreen import FullscreenTexture
 
         adapter = wgpu.gpu.request_adapter_sync(power_preference="high-performance")

@@ -3,9 +3,8 @@ from typing import Sequence
 
 import numpy as np
 
+from ..core.coreutils import log_exception, logger
 from .basecontext import BaseContext
-from ..core.coreutils import logger, log_exception
-
 
 __all__ = ["WgpuContext", "WgpuContextToBitmap", "WgpuContextToScreen"]
 
@@ -32,7 +31,7 @@ class WgpuContext(BaseContext):
         elif present_method == "bitmap":
             return super().__new__(WgpuContextToBitmap)
         else:
-            raise TypeError("Unexpected present_method {present_method!r}")
+            raise TypeError(f"Unexpected present_method {present_method!r}")
 
     def __init__(self, present_info: dict):
         super().__init__(present_info)
@@ -227,7 +226,6 @@ class WgpuContextToBitmap(WgpuContext):
                 f"The version of wgpu {wgpu.__version__!r} is too old to support bitmap-present of the current version of rendercanvas. Please update wgpu-py."
             )
         if wgpu.version_info < (0, 29):
-            breakpoint()
             logger.warning(
                 f"The version of wgpu is {wgpu.__version__!r}, you probably want to upgrade to at least 0.29 to benefit from performance upgrades for async-bitmap-present."
             )

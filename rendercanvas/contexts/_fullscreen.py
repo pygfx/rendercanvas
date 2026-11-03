@@ -47,7 +47,7 @@ class FullscreenTexture:
             dtype = "u8"
         else:
             raise ValueError(
-                "Unsupported bitmap dtype/format '{m.format}', expecting unsigned bytes ('B')."
+                f"Unsupported bitmap dtype/format '{m.format}', expecting unsigned bytes ('B')."
             )
 
         # Get color format

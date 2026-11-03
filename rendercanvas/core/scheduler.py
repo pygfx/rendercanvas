@@ -95,9 +95,11 @@ class Scheduler:
             self._max_fps = max(1, float(max_fps))
 
     def set_enabled(self, enabled: bool):
-        if not self._enabled:
-            self._enabled = bool(enabled)
-            self._draw_requested = True
+        enabled = bool(enabled)
+        if enabled != self._enabled:
+            self._enabled = enabled
+            if enabled:
+                self._draw_requested = True
 
     def request_draw(self):
         """Request a new draw to be done. Only affects the 'ondemand' mode."""
@@ -134,8 +136,8 @@ class Scheduler:
             await sleep(max(0, sleep_time))
 
             # Below is the "tick"
-
-            last_tick_time = time.perf_counter()
+            now = time.perf_counter()
+            last_tick_time = now
 
             # Determine whether to draw or not yet
 
@@ -154,10 +156,7 @@ class Scheduler:
                 # Aim for max_fps when drawing is needed, otherwise min_fps.
                 if self._draw_requested:
                     do_draw = True
-                elif (
-                    self._min_fps > 0
-                    and time.perf_counter() - last_draw_time > 1 / self._min_fps
-                ):
+                elif self._min_fps > 0 and now - last_draw_time > 1 / self._min_fps:
                     do_draw = True
             elif self._mode == "manual":
                 pass
@@ -195,7 +194,7 @@ class Scheduler:
                 # terms of user-experience, the cost of this delay is probably
                 # larger than the benefit of the potential fps increase.
 
-                last_draw_time = time.perf_counter()
+                last_draw_time = now
                 self._ready_for_present = Event()
                 canvas._rc_request_draw()
                 del canvas
