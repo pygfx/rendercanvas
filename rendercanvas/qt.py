@@ -332,7 +332,10 @@ class QtLoop(BaseLoop):
         self._caller.call.emit(callback)
 
     def _rc_call_later(self, delay, callback):
-        super()._rc_call_later(delay, callback)  # accurate method based on threading
+        # We use the default accurate method based on threading.
+        # We could alternatively use Qt's precise timer here, but for now it uses
+        # the default mechanism so that it works the same as most other backends.
+        super()._rc_call_later(delay, callback)
 
 
 loop = QtLoop()
