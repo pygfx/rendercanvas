@@ -95,9 +95,11 @@ class Scheduler:
             self._max_fps = max(1, float(max_fps))
 
     def set_enabled(self, enabled: bool):
-        if not self._enabled:
-            self._enabled = bool(enabled)
-            self._draw_requested = True
+        enabled = bool(enabled)
+        if enabled != self._enabled:
+            self._enabled = enabled
+            if enabled:
+                self._draw_requested = True
 
     def request_draw(self):
         """Request a new draw to be done. Only affects the 'ondemand' mode."""

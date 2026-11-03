@@ -4,18 +4,18 @@ Automatic backend selection.
 
 __all__ = ["RenderCanvas", "loop"]
 
+import importlib
 import os
 import sys
-import importlib
 from typing import cast
 
+from .base import BaseLoop, BaseRenderCanvas
 from .core.coreutils import (
-    logger,
     QT_MODULE_NAMES,
-    get_imported_qt_lib,
     asyncio_is_running,
+    get_imported_qt_lib,
+    logger,
 )
-from .base import BaseRenderCanvas, BaseLoop
 
 
 def _load_backend(backend_name):
@@ -142,7 +142,7 @@ def backends_by_notebook():
         gui_module_name = app.__class__.__module__.split(".")[0]
         if gui_module_name in QT_MODULE_NAMES:
             yield "qt", "running on Jupyter with qt gui"
-        elif "wx" in app.__class__.__name__.lower() == "wx":
+        elif "wx" in app.__class__.__name__.lower():
             yield "wx", "running on Jupyter with wx gui"
 
     yield "anywidget", "running on Jupyter"

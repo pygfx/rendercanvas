@@ -120,7 +120,7 @@ class BaseRenderCanvas:
         group = cls._rc_canvas_group
         if group is None:
             raise NotImplementedError(
-                "The {cls.__name__} does not have a canvas group, thus no loop."
+                f"The {cls.__name__} does not have a canvas group, thus no loop."
             )
         group.select_loop(loop)
 

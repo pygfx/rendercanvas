@@ -4,20 +4,20 @@ A backend based on anywidget, supporting canvases inside a large variety of note
 
 __all__ = ["AnywidgetRenderCanvas", "RenderCanvas", "loop"]
 
-import time
 import asyncio
+import time
 from base64 import encodebytes
 from importlib.resources import files as resource_files
 
-from .base import BaseCanvasGroup, BaseRenderCanvas, logger
-from .asyncio import loop
-from .core.encoders import encode_array, CAN_JPEG
-from .core.events import valid_event_types
-
-import numpy as np
 import anywidget
-from IPython.display import display, HTML
+import numpy as np
+from IPython.display import HTML, display
 from traitlets import Bool, Dict, Int, Unicode
+
+from .asyncio import loop
+from .base import BaseCanvasGroup, BaseRenderCanvas, logger
+from .core.encoders import CAN_JPEG, encode_array
+from .core.events import valid_event_types
 
 
 def _load_js_and_css():
@@ -107,7 +107,7 @@ class AnywidgetRenderCanvas(BaseRenderCanvas, anywidget.AnyWidget):
         if self._rfb_last_resize_event is None:
             w, h = self._last_set_logical_size
             r = float(pixel_ratio) if pixel_ratio is not None else 1.0
-            pw, ph = int(w * r), (h * r)
+            pw, ph = int(w * r), int(h * r)
             event = {
                 "type": "resize",
                 "width": pw / r,
@@ -150,7 +150,7 @@ class AnywidgetRenderCanvas(BaseRenderCanvas, anywidget.AnyWidget):
             event = content
 
             if event_type == "resize":
-                self._last_event = event
+                self._rfb_last_resize_event = event
                 self._size_info.set_physical_size(
                     event["pwidth"], event["pheight"], event["ratio"]
                 )

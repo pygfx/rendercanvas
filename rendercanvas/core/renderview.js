@@ -518,7 +518,9 @@ class BaseRenderView {
       // from the physical size and the pixel ratio.
 
       // Select entry matching our element
-      const ourEntries = entries.filter((entry) => entry.target.id === viewElement.id)
+      const ourEntries = entries.filter(
+        (entry) => entry.target === viewElement,
+      )
       if (!ourEntries.length) {
         return
       }

@@ -101,7 +101,7 @@ class Websocket:
 
     def _on_receive(self, text_or_bytes: str | bytes):
         if isinstance(text_or_bytes, bytes):
-            logger.warning("Unexpectedly received bytes ({len(msg}).")
+            logger.warning(f"Unexpectedly received bytes ({len(text_or_bytes)}).")
         else:
             text = text_or_bytes
             try:
@@ -120,7 +120,7 @@ class Websocket:
         elif isinstance(data, bytes):
             data = data
         else:
-            RuntimeError("ws.send expects dict or bytes")
+            raise RuntimeError("ws.send expects dict or bytes")
         asyncio.create_task(self._send_queue.put(data))  # noqa: RUF006
 
     def close(self):
@@ -228,7 +228,7 @@ class Asgi:
         for ws in self._websockets.values():
             ws.send(msg)
 
-    def send_to(self, msg: dict, buffers: list[bytes], id=int):
+    def send_to(self, msg: dict, buffers: list[bytes], id: int):
         if len(buffers) > 0:
             assert msg["nbuffers"] == len(buffers)
         ws = self._websockets.get(id, None)
@@ -533,8 +533,8 @@ class HttpRenderCanvas(BaseRenderCanvas):
             "encoded_frames": d["encoded_frames"],
             "sent_frames": d["sent_frames"],
             "confirmed_frames": d["confirmed_frames"],
-            "encoding": d["encoding_sum"] / d["encoded_frames"],
-            "roundtrip": d["roundtrip_sum"] / d["confirmed_frames"],
+            "encoding": d["encoding_sum"] / (d["encoded_frames"] or 1),
+            "roundtrip": d["roundtrip_sum"] / (d["confirmed_frames"] or 1),
             "fps": d["confirmed_frames"] / fps_div,
         }
 

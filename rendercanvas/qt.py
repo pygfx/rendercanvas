@@ -372,7 +372,7 @@ class QRenderWidget(BaseRenderCanvas, QtWidgets.QWidget):
             if event.type() == WinIdChange and self._last_winid is not None:
                 winid = int(self.winId())
                 if winid != self._last_winid:
-                    logger.warning(f"WinId changed from {self._last_winid} {winid}.")
+                    logger.warning(f"WinId changed from {self._last_winid} to {winid}.")
                     self._last_winid = winid
         return super().event(event)
 

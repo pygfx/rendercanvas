@@ -30,7 +30,7 @@ logger.setLevel(logging.WARNING)
 
 err_hashes = {}  # hash -> [short-message, count, next-time]
 
-_re_wgpu_ob = re.compile(r"`<[a-z|A-Z]+-\([0-9]+, [0-9]+, [a-z|A-Z]+\)>`")
+_re_wgpu_ob = re.compile(r"`<[a-zA-Z]+-\([0-9]+, [0-9]+, [a-zA-Z]+\)>`")
 
 
 def error_message_hash(message):
