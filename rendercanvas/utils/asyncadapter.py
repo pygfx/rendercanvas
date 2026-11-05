@@ -3,11 +3,13 @@ A micro async framework that only support ``sleep()`` and ``Event``. Behaves wel
 Intended for internal use, but is fully standalone.
 """
 
-import weakref
 import logging
 import threading
+import weakref
 
-# Support sniffio for older wgpu releases, and for code that relies on sniffio.
+# Support sniffio, play nice.
+# Note that in rendercanvas we recommend using sys.get_asyncgen_hooks to detect the current loop object,
+# because that is faster and also works for events and call-later's.
 try:
     from sniffio import thread_local as sniffio_thread_local
 except ImportError:

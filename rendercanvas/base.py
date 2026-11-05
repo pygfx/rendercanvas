@@ -8,19 +8,18 @@ import sys
 import weakref
 from typing import TYPE_CHECKING
 
+from . import contexts
+from .core.coreutils import log_exception, logger  # noqa: F401
 from .core.enums import (
-    EventTypeEnum,
-    UpdateModeEnum,
     CursorShape,
     CursorShapeEnum,
+    EventTypeEnum,
+    UpdateModeEnum,
 )
-from . import contexts
-from .core.size import SizeInfo
 from .core.events import EventEmitter
 from .core.loop import BaseLoop
 from .core.scheduler import Scheduler
-from .core.coreutils import logger, log_exception
-
+from .core.size import SizeInfo
 
 if TYPE_CHECKING:
     from typing import Callable, Literal, Optional
@@ -46,7 +45,7 @@ __all__ = ["BaseLoop", "BaseRenderCanvas", "WrapperRenderCanvas"]
 class BaseCanvasGroup:
     """Represents a group of canvas objects from the same class, that share a loop."""
 
-    def __init__(self, default_loop: BaseLoop):
+    def __init__(self, default_loop: BaseLoop | None):
         self._canvases = weakref.WeakSet()
         self._loop = None
         self.select_loop(default_loop)
@@ -59,7 +58,11 @@ class BaseCanvasGroup:
             loop._register_canvas_group(self)
             loop.add_task(task, name="scheduler-task")
 
-    def select_loop(self, loop: BaseLoop) -> None:
+    def _unregister_canvas(self, canvas):
+        """Used by the canvas to unregister itself when closed."""
+        self._canvases.discard(canvas)
+
+    def select_loop(self, loop: BaseLoop | None) -> None:
         """Select the loop to use for this group of canvases."""
         if not (loop is None or isinstance(loop, BaseLoop)):
             raise TypeError("select_loop() requires a loop instance or None.")
@@ -76,17 +79,8 @@ class BaseCanvasGroup:
         """Get the currently associated loop (can be None for canvases that don't run a scheduler)."""
         return self._loop
 
-    def get_canvases(self, *, close_closed=False) -> list[BaseRenderCanvas]:
-        if close_closed:
-            closed_canvases = [
-                canvas for canvas in self._canvases if canvas.get_closed()
-            ]
-            for canvas in closed_canvases:
-                canvas.close()
-                self._canvases.discard(canvas)
-            return self._canvases
-        else:
-            return [canvas for canvas in self._canvases if not canvas.get_closed()]
+    def get_canvases(self) -> list[BaseRenderCanvas]:
+        return [canvas for canvas in self._canvases]
 
 
 class BaseRenderCanvas:
@@ -113,7 +107,7 @@ class BaseRenderCanvas:
 
     """
 
-    _rc_canvas_group = None
+    _rc_canvas_group: BaseCanvasGroup | None = None
     """Class attribute that refers to the ``CanvasGroup`` instance to use for canvases of this class.
     It specifies what loop is used, and enables users to changing the used loop.
     """
@@ -126,7 +120,7 @@ class BaseRenderCanvas:
         group = cls._rc_canvas_group
         if group is None:
             raise NotImplementedError(
-                "The {cls.__name__} does not have a canvas group, thus no loop."
+                f"The {cls.__name__} does not have a canvas group, thus no loop."
             )
         group.select_loop(loop)
 
@@ -177,15 +171,14 @@ class BaseRenderCanvas:
         self._present_to_screen: bool | None = None  # set in .get_context()
 
         # Variables and flags used internally
+        self.__is_closed = False
         self.__is_drawing = False
         self.__title_info = {
             "raw": "",
             "fps": "?",
             "ms": "?",
             "backend": self.__class__.__name__,
-            "loop": self._rc_canvas_group.get_loop().__class__.__name__
-            if (self._rc_canvas_group and self._rc_canvas_group.get_loop())
-            else "no-loop",
+            "loop": "no-loop",  # set below in most cases
         }
         self._size_info = SizeInfo()
 
@@ -198,6 +191,9 @@ class BaseRenderCanvas:
             # Group, but no loop: no scheduling
             self._rc_canvas_group._register_canvas(self, None)
         else:
+            self.__title_info["loop"] = (
+                self._rc_canvas_group.get_loop().__class__.__name__
+            )
             self.__scheduler = Scheduler(
                 self,
                 self._events,
@@ -571,7 +567,7 @@ class BaseRenderCanvas:
                 size_is_nill
                 or context is None
                 or self._draw_frame is None
-                or self._rc_get_closed()
+                or self.__is_closed
             ):
                 if scheduler is not None:
                     scheduler.on_cancel_draw()
@@ -681,28 +677,44 @@ class BaseRenderCanvas:
 
     def close(self) -> None:
         """Close the canvas."""
+        # Note that this function may be called multiple times, and may even be re-entered.
+        if self.__is_closed:
+            return
+        self.__is_closed = True
+        errors = []
+        # Unregister
+        loop = None
+        if self._rc_canvas_group is not None:
+            loop = self._rc_canvas_group.get_loop()
+            self._rc_canvas_group._unregister_canvas(self)
+        # Close the native canvas
+        try:
+            self._rc_close()
+        except Exception as err:
+            errors.append(err)
         # Clear the draw-function, to avoid it holding onto e.g. wgpu objects.
         self._draw_frame = None  # type: ignore
         # Clear the canvas context too.
         try:
-            self._canvas_context._rc_close()  # type: ignore
-        except Exception:
-            pass
+            if self._canvas_context is not None:
+                self._canvas_context._rc_close()  # type: ignore
+        except Exception as err:
+            errors.append(err)
         self._canvas_context = None
-        # Clean events. Should already have happened in loop, but the loop may not be running.
+        # Close the event at least after get_closed() would return True
         self._events.close()
-        # Let the subclass clean up.
-        self._rc_close()
+        # Stop the loop if this was the last canvas. It's important to do now,
+        # because the native loop may stop right after, giving us no flow to properly close.
+        if loop is not None:
+            if not loop.get_canvases():
+                loop.stop()
+        # Errors
+        if errors:
+            raise errors[0]
 
     def get_closed(self) -> bool:
         """Get whether the window is closed."""
-        return self._rc_get_closed()
-
-    def is_closed(self):
-        logger.warning(
-            "canvas.is_closed() is deprecated, use canvas.get_closed() instead."
-        )
-        return self._rc_get_closed()
+        return self.__is_closed
 
     # %% Secondary canvas management methods
 
@@ -757,7 +769,18 @@ class BaseRenderCanvas:
     # %% Methods for the subclass to implement
 
     def _rc_gui_poll(self):
-        """Process native events."""
+        """Process native events.
+
+        This method is called by the base class before each draw to move
+        GUI events into the rendercanvas event system.
+
+        In some cases one can naturally assume that the 'native' backend is running
+        and events are already processed. E.g. when in a notebook-like env.
+
+        In cases where the backend comes with its own event loop that already processes
+        events, ``_rc_gui_poll``  only need to do a poll if the current loop is
+        *not* the backend's own loop. E.g. qt and wx.
+        """
         pass
 
     def _rc_get_present_info(self, present_methods: list[str]) -> dict | None:
@@ -806,6 +829,9 @@ class BaseRenderCanvas:
         instance, backends that implement 'remote' rendering can allow new
         frames based on the number of in-flight frames and downstream
         throughput.
+
+         Backends that render on the current machine should simply call
+         ``_time_to_draw()`` directly.
         """
         self._time_to_draw()  # Simple default
 
@@ -844,8 +870,9 @@ class BaseRenderCanvas:
         raise NotImplementedError()
 
     def _rc_set_logical_size(self, width: float, height: float):
-        """Set the logical size. May be ignored when it makes no sense.
+        """Set the size of the canvas in logical pixels.
 
+        May be ignored when it makes no sense.
         The default implementation does nothing.
         """
         pass
@@ -853,33 +880,33 @@ class BaseRenderCanvas:
     def _rc_close(self):
         """Close the canvas.
 
-        Note that ``BaseRenderCanvas`` implements the ``close()`` method, which is a
-        rather common name; it may be necessary to re-implement that too.
+        This is the place to delete the native widget. It is not necessary to
+        emit a close event, because the base class handles that.
 
-        Backends should probably not mark the canvas as closed yet, but wait until the
-        underlying system really closes the canvas. Otherwise the loop may end before a
-        canvas gets properly cleaned up.
+        In a backend, all flows that lead to a close must call ``.close()``, so
+        that ``BaseRenderCanvas`` has a clear place to handle closing. It calls
+        ``_rc_close()`` from there. The base class will call this method exactly once.
 
-        Backends can emit a closed event, either in this method, or when the real close
-        happens, but this is optional, since the loop detects canvases getting closed
-        and sends the close event if this has not happened yet.
+        Note that if this is the last canvas to close, the loop is stopped immediately,
+        and some backends need some explicit polling in this case. Also see wx and glfw backends.
+
+        Note that if this backend class inherits both the native class and BaseRenderCanvas,
+        and the native class has a ``close()`` method, it is overridden by BaseRenderCanvas.
         """
         pass
 
-    def _rc_get_closed(self) -> bool:
-        """Get whether the canvas is closed."""
-        return False
-
     def _rc_set_title(self, title: str):
-        """Set the canvas title. May be ignored when it makes no sense.
+        """Set the canvas title.
 
+        May be ignored when it makes no sense.
         The default implementation does nothing.
         """
         pass
 
     def _rc_set_cursor(self, cursor: str):
-        """Set the cursor shape. May be ignored.
+        """Set the cursor shape.
 
+        May be ignored when it makes no sense.
         The default implementation does nothing.
         """
         pass
@@ -953,6 +980,3 @@ class WrapperRenderCanvas(BaseRenderCanvas):
 
     def get_closed(self) -> bool:
         return self._subwidget.get_closed()
-
-    def is_closed(self):
-        return self._subwidget.is_closed()

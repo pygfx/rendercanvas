@@ -160,6 +160,21 @@ def test_events_two_handlers():
     assert values == [101, 201, 202]
 
 
+def test_events_remove_bound_method_handler():
+    ee = EventEmitter()
+    values = []
+
+    ee.add_handler(values.append, "key_down")
+    event = {"event_type": "key_down"}
+    ee.emit(event)
+    assert values == [event]
+    values.clear()
+
+    ee.remove_handler(values.append, "key_down")
+    ee.emit(event)
+    assert values == []
+
+
 def test_events_handler_order():
     ee = EventEmitter()
 

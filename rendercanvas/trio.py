@@ -5,9 +5,9 @@ Also supports a trio-friendly way to run or wait for the loop using ``run_async(
 
 __all__ = ["TrioLoop", "loop"]
 
-from .base import BaseLoop
-
 import trio
+
+from .base import BaseLoop
 from .utils.asyncs import detect_current_async_lib
 
 
@@ -28,6 +28,10 @@ class TrioLoop(BaseLoop):
         if libname != "trio":
             raise TypeError(f"Attempt to run TrioLoop with {libname}.")
 
+        # Only do one cycle of processing tasks if there are no canvases.
+        if not self.get_canvases():
+            self.call_soon(self.stop)
+
         self._token = trio.lowlevel.current_trio_token()
 
         with trio.CancelScope() as self._cancel_scope:
@@ -44,15 +48,21 @@ class TrioLoop(BaseLoop):
             self._cancel_scope.cancel()
         self._token = None
 
-    def _rc_add_task(self, async_func, name):
-        self._send_channel.send_nowait((async_func, name))
+    def _rc_call_soon(self, callback):
+        async def async_func():
+            callback()
+
+        self._send_channel.send_nowait((async_func, "callback"))
         return None
 
-    def _rc_call_later(self, delay, callback):
-        raise NotImplementedError()  # we implement _rc_add_task() instead
-
     def _rc_call_soon_threadsafe(self, callback):
-        self._token.run_sync_soon(callback)
+        if self._token is not None:
+            self._token.run_sync_soon(callback)
+        else:
+            pass  # pending callback, but loop now close; ignore
+
+    def _rc_call_later(self, delay, callback):
+        super()._rc_call_later(delay, callback)  # accurate method based on threading
 
 
 loop = TrioLoop()

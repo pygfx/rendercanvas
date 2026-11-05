@@ -103,5 +103,37 @@ def test_call_later_thread():
     assert times[2] - times[3] < 0.04 + leeway
 
 
+def test_call_later_thread_ordering():
+    # Many timers must fire in due-time order, and timers with equal delays in
+    # submission order. This validates the heap-based priority queue in
+    # CallLaterThread.run (heappush/heappop, ties broken by the unique index
+    # field of the item).
+    leeway = 0.05 if os.getenv("CI") else 0.0
+
+    t = rendercanvas.core.coreutils.CallLaterThread()
+    results = []
+
+    # The "late" wave is submitted first but due later; the "early" wave is
+    # submitted after it but due immediately. The 0.5s gap is much larger than
+    # the time it takes to schedule both waves, so due-order is unambiguous
+    # even on a slow/loaded machine.
+    n = 250
+    for i in range(n):
+        t.call_later_from_thread(0.5, results.append, ("late", i))
+    for i in range(n):
+        t.call_later_from_thread(0.0, results.append, ("early", i))
+
+    time.sleep(0.5 + 0.2 + leeway)
+
+    assert len(results) == 2 * n
+    # All "early" items fire before all "late" items ...
+    kinds = [k for k, i in results]
+    assert kinds == ["early"] * n + ["late"] * n
+    # ... and within each wave in submission order.
+    for kind in ("early", "late"):
+        idxs = [i for k, i in results if k == kind]
+        assert idxs == list(range(n))
+
+
 if __name__ == "__main__":
     run_tests(globals())

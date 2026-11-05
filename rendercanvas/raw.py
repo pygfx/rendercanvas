@@ -11,7 +11,7 @@ __all__ = ["RawLoop", "loop"]
 import queue
 
 from .base import BaseLoop
-from .core.coreutils import logger, call_later_from_thread
+from .core.coreutils import logger
 
 
 class RawLoop(BaseLoop):
@@ -25,14 +25,23 @@ class RawLoop(BaseLoop):
         self._should_stop = False
 
     def _rc_run(self):
+        self._rc_init()
+
+        # If no canvases, we flush the current queue and then stop
+        if not self.get_canvases():
+            self._queue.put(self.stop)
+
         while not self._should_stop:
             callback = self._queue.get(True, None)
             try:
                 callback()
             except Exception as err:
                 logger.error(f"Error in RawLoop callback: {err}")
-        # Note that the queue may still contain pending callbacks, but these will
-        # mostly be task.step() for finished tasks (coro already deleted), so its ok.
+
+        # Clear queue
+        # NOTE: there could be call laters underway!
+        while not self._queue.empty():
+            self._queue.get_nowait()
 
     async def _rc_run_async(self):
         raise NotImplementedError()
@@ -42,20 +51,14 @@ class RawLoop(BaseLoop):
         self._should_stop = True
         self._queue.put(lambda: None)  # trigger an iter
 
-    def _rc_add_task(self, async_func, name):
-        # we use the async adapter with call_later
-        return super()._rc_add_task(async_func, name)
-
-    def _rc_call_later(self, delay, callback):
-        if delay <= 0:
-            self._queue.put(callback)
-        else:
-            # Using call_later_from_thread keeps the loop super-simple.
-            # Note that its high-precision-on-Windows feature is not why we use it; precision is handled in asyns.py.
-            call_later_from_thread(delay, self._rc_call_soon_threadsafe, callback)
+    def _rc_call_soon(self, callback):
+        self._queue.put(callback)
 
     def _rc_call_soon_threadsafe(self, callback):
         self._queue.put(callback)
+
+    def _rc_call_later(self, delay, callback):
+        super()._rc_call_later(delay, callback)  # accurate method based on threading
 
 
 loop = RawLoop()

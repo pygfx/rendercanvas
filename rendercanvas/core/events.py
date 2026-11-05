@@ -3,13 +3,12 @@ The event system.
 """
 
 import time
-from inspect import iscoroutinefunction
 from collections import defaultdict, deque
+from inspect import iscoroutinefunction
 from typing import Callable
 
 from .coreutils import log_exception
 from .enums import EventType
-
 
 valid_event_types = set(EventType)
 
@@ -123,6 +122,7 @@ class EventEmitter:
             self._event_handlers[type].sort(key=lambda x: x[0])
             # Note: that sort is potentially expensive. I tried an approach with a custom dequeu to add the handler
             # at the correct position, but the overhead was apparently larger than the benefit of avoiding sort.
+            # TODO: bisect.insort could help
 
     def remove_handler(self, callback, *types):
         """Unregister an event handler.
@@ -133,7 +133,7 @@ class EventEmitter:
         """
         for type in types:
             self._event_handlers[type] = [
-                (o, cb) for o, cb in self._event_handlers[type] if cb is not callback
+                (o, cb) for o, cb in self._event_handlers[type] if cb != callback
             ]
 
     def submit(self, event):
@@ -164,7 +164,7 @@ class EventEmitter:
                     self._pending_events.pop()  # remove last_event
                     # Update new event
                     for key in accum_keys:
-                        event[key] += last_event[key]
+                        event[key] += last_event.get(key, 0)
 
         self._pending_events.append(event)
 
@@ -187,6 +187,9 @@ class EventEmitter:
         with the rest at a good time.
         """
         # Collect callbacks
+        # Note that the 'anytype' (*) handlers are always fired later. Fixing it would require sorting here, which I don't want to do for performance.
+        # A better solution is probably to simply add an entry for every type in add_handler, so self._event_handlers["*"] would not exist.
+        # For now leaving this 'bug' for what it is, maybe fix when we refactor events.
         event_type = event.get("event_type")
         callbacks = self._event_handlers[event_type] + self._event_handlers["*"]
         # Dispatch

@@ -3,9 +3,8 @@ from typing import Sequence
 
 import numpy as np
 
+from ..core.coreutils import log_exception, logger
 from .basecontext import BaseContext
-from ..core.coreutils import logger, log_exception
-
 
 __all__ = ["WgpuContext", "WgpuContextToBitmap", "WgpuContextToScreen"]
 
@@ -32,7 +31,7 @@ class WgpuContext(BaseContext):
         elif present_method == "bitmap":
             return super().__new__(WgpuContextToBitmap)
         else:
-            raise TypeError("Unexpected present_method {present_method!r}")
+            raise TypeError(f"Unexpected present_method {present_method!r}")
 
     def __init__(self, present_info: dict):
         super().__init__(present_info)
@@ -159,18 +158,31 @@ class WgpuContextToScreen(WgpuContext):
         self._wgpu_context.configure(**config)
 
     def _unconfigure(self) -> None:
-        self._wgpu_context.unconfigure()
+        if self._wgpu_context is not None:
+            self._wgpu_context.unconfigure()
 
     def _get_current_texture(self) -> object:
         return self._wgpu_context.get_current_texture()
 
     def _rc_present(self, *, force_sync: bool = False) -> dict:
+        if self._wgpu_context is None:
+            return {"method": "skip"}  # the canvas is closed
         self._wgpu_context.present()
         return {"method": "screen"}
 
     def _rc_close(self):
         if self._wgpu_context is not None:
-            self._wgpu_context.unconfigure()
+            wgpu_context, self._wgpu_context = self._wgpu_context, None
+            wgpu_context.unconfigure()
+            # Release the surface now, instead of leaving it to the garbage
+            # collector. The surface only makes sense as long as the window
+            # exists, and on Wayland it is owned by the display-connection of
+            # the toolkit, so releasing it after the toolkit has torn that
+            # connection down is a use-after-free. Dropping our reference (above)
+            # already does this, but only if no other references are left.
+            release = getattr(wgpu_context, "_release", None)  # private method
+            if release is not None:
+                release()
 
 
 class WgpuContextToBitmap(WgpuContext):
@@ -214,7 +226,6 @@ class WgpuContextToBitmap(WgpuContext):
                 f"The version of wgpu {wgpu.__version__!r} is too old to support bitmap-present of the current version of rendercanvas. Please update wgpu-py."
             )
         if wgpu.version_info < (0, 29):
-            breakpoint()
             logger.warning(
                 f"The version of wgpu is {wgpu.__version__!r}, you probably want to upgrade to at least 0.29 to benefit from performance upgrades for async-bitmap-present."
             )
@@ -569,6 +580,11 @@ class AsyncImageDownloadAction:
             )
             # Make a copy of the strided data, and create a view on that.
             data = data.copy()[:, : plain_shape[1], :]
+
+        elif submethod == "callback":
+            data = present_params["copy_bitmap"](
+                mapped_data, dtype, plain_shape, array_stride, nchannels
+            )
 
         elif submethod == "jpeg":
             # For now just a stub, activate in the upcoming Anywidget backend

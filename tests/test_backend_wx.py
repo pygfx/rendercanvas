@@ -9,7 +9,7 @@ import sys
 
 import pytest
 from testutils import run_tests
-from testutils_backends import BACKEND_TEST_FUNCS
+from testutils_backends import BACKEND_TEST_FUNCS, NativeHelper
 
 
 # Only run when running directly (through Python or pytest)
@@ -19,7 +19,7 @@ if not (__name__ == "__main__" or any(__name__ in a for a in sys.argv)):
 
 import wx
 from rendercanvas.base import BaseRenderCanvas, WrapperRenderCanvas
-from rendercanvas.wx import RenderCanvas, RenderWidget
+from rendercanvas.wx import RenderCanvas, RenderWidget, loop
 from rendercanvas.wx import WxRenderWidget, WxRenderCanvas
 
 
@@ -32,13 +32,17 @@ def test_is_canvas_classes():
     assert issubclass(RenderCanvas, WrapperRenderCanvas)
 
     assert issubclass(RenderWidget, wx.Window)
-    assert issubclass(RenderCanvas, wx.Frame)
+    # assert issubclass(RenderCanvas, wx.Frame)  # -> made gc really hard
 
 
-@pytest.mark.parametrize("backend", ["wx"])
+class WxHelper(NativeHelper):
+    def close_canvas(self, canvas):
+        canvas.frame.Close()
+
+
 @pytest.mark.parametrize("func", BACKEND_TEST_FUNCS)
-def test_backend_generic(func, backend):
-    func(backend)
+def test_backend_wx(func):
+    func(RenderCanvas, loop, WxHelper())
 
 
 if __name__ == "__main__":

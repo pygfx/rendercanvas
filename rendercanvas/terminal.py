@@ -25,12 +25,11 @@ import sys
 import time
 from contextlib import contextmanager
 
-from .base import BaseCanvasGroup, BaseRenderCanvas
-from .asyncio import AsyncioLoop
-
-import numpy as np
 import blessed
+import numpy as np
 
+from .asyncio import AsyncioLoop
+from .base import BaseCanvasGroup, BaseRenderCanvas
 
 # Store streams
 term_stream = sys.__stdout__
@@ -74,7 +73,7 @@ KEY_MAP = {
     "KEY_LEFT": "ArrowLeft",
     "KEY_RIGHT": "ArrowRight",
     "KEY_BACKSPACE": "Backspace",
-    "KEY_": "CapsLock",
+    "KEY_CAPS_LOCK": "CapsLock",
     "KEY_DELETE": "Delete",
     "KEY_END": "End",
     "KEY_ENTER": "Enter",  # aka return
@@ -171,7 +170,6 @@ class TerminalRenderCanvas(BaseRenderCanvas):
 
         self._pixel_ratio = pixel_ratio
 
-        self._closed = False
         self._title = ""
         self._term_size = 0, 0
         self._pointer_pos = (0, 0)
@@ -376,7 +374,7 @@ class TerminalRenderCanvas(BaseRenderCanvas):
         data_h, data_w = data.shape[:2]
 
         # Resize image if necessary, using nearest neighbor interpolation.
-        if term_w == data_w or term_h == data_h:
+        if term_w == data_w and term_h == data_h:
             img = data
         else:
             img = resize_nearest(data, term_h, term_w)
@@ -435,10 +433,7 @@ class TerminalRenderCanvas(BaseRenderCanvas):
         pass  # we ignore setting the size, we simply take the full size of the window
 
     def _rc_close(self):
-        self._closed = True
-
-    def _rc_get_closed(self):
-        return self._closed
+        pass  # we rely on the loop closing to exit the secondary screen etc.
 
     def _rc_set_title(self, title):
         self._title = title

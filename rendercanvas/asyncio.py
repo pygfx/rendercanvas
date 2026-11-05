@@ -6,15 +6,17 @@ Also supports a asyncio-friendly way to run or wait for the loop using ``run_asy
 __all__ = ["AsyncioLoop", "loop"]
 
 from .base import BaseLoop
+from .core.coreutils import IS_PYODIDE
 from .utils.asyncs import detect_current_async_lib
 
 
 class AsyncioLoop(BaseLoop):
+    _use_call_later_via_thread = not bool(IS_PYODIDE)
+
     def __init__(self):
         super().__init__()
         # Initialize, but don't even import asyncio yet
-        self.__tasks = set()
-        self.__pending_tasks = []
+        self.__pending_call_soons = []
         self._interactive_loop = None
         self._run_loop = None
         self._stop_event = None
@@ -58,9 +60,13 @@ class AsyncioLoop(BaseLoop):
                 "Attempt to run AsyncioLoop with a different asyncio-loop than the initialized loop."
             )
 
-        # Create tasks if necessary
-        while self.__pending_tasks:
-            self._rc_add_task(*self.__pending_tasks.pop(0))
+        # Call soon if necessary
+        while self.__pending_call_soons:
+            self._rc_call_soon_threadsafe(self.__pending_call_soons.pop(0))
+
+        # Only do one cycle of processing tasks if there are no canvases.
+        if not self.get_canvases():
+            self._run_loop.call_soon(self.stop)
 
         # Wait for loop to finish
         if self._stop_event is None:
@@ -68,10 +74,6 @@ class AsyncioLoop(BaseLoop):
         await self._stop_event.wait()
 
     def _rc_stop(self):
-        # Clean up our tasks. This includes the loop-task and scheduler tasks.
-        while self.__tasks:
-            task = self.__tasks.pop()
-            task.cancel()  # is a no-op if the task is no longer running
         # Signal that we stopped
         if self._stop_event is not None:
             self._stop_event.set()
@@ -79,21 +81,31 @@ class AsyncioLoop(BaseLoop):
         self._run_loop = None
         # Note how we don't explicitly stop a loop, not the interactive loop, nor the running loop
 
-    def _rc_add_task(self, func, name):
+    def _rc_call_soon(self, callback):
         loop = self._interactive_loop or self._run_loop
         if loop is None:
-            self.__pending_tasks.append((func, name))
+            self.__pending_call_soons.append(callback)
         else:
-            task = loop.create_task(func(), name=name)
-            self.__tasks.add(task)
-            task.add_done_callback(self.__tasks.discard)
-
-    def _rc_call_later(self, delay, callback):
-        raise NotImplementedError()  # we implement _rc_add_task instead
+            loop.call_soon(callback)
 
     def _rc_call_soon_threadsafe(self, callback):
         loop = self._interactive_loop or self._run_loop
-        loop.call_soon_threadsafe(callback)
+        if loop is None:
+            self.__pending_call_soons.append(callback)
+        else:
+            loop.call_soon_threadsafe(callback)
+
+    def _rc_call_later(self, delay, callback):
+        if self._use_call_later_via_thread:
+            # The default version has more accurate timing on Windows.
+            super()._rc_call_later(delay, callback)
+        else:
+            # For Pyodide we cannot use the default implementation, because it uses threading.
+            loop = self._interactive_loop or self._run_loop
+            if loop is None:
+                self.__pending_call_soons.append(callback)
+            else:
+                loop.call_later(delay, callback)
 
 
 loop = AsyncioLoop()

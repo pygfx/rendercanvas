@@ -15,10 +15,9 @@ import warnings
 
 import glfw
 
-from .base import BaseRenderCanvas, BaseCanvasGroup
 from .asyncio import loop
+from .base import BaseCanvasGroup, BaseRenderCanvas
 from .core.coreutils import weakbind
-
 
 # Make sure that glfw is new enough
 glfw_version_info = tuple(int(i) for i in glfw.__version__.split(".")[:2])
@@ -306,7 +305,7 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         psize = glfw.get_framebuffer_size(self._window)
 
         # Apply
-        screen_ratio = ssize[0] / psize[0]
+        screen_ratio = ssize[0] / (psize[0] or 1)
         glfw.set_window_size(
             self._window,
             int(new_logical_size[0] * pixel_ratio * screen_ratio),
@@ -364,9 +363,6 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         # But on some systems glfw needs a bit of time to properly close the window.
         if not self._rc_canvas_group.get_canvases():
             poll_glfw_briefly(0.05)
-
-    def _rc_get_closed(self):
-        return self._window is None
 
     def _rc_set_title(self, title):
         if self._window is not None:

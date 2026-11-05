@@ -81,6 +81,11 @@ class Module:
                     name = statement.targets[0].id
                     if name.startswith("_rc_"):
                         rc_methods.add(name)
+            elif isinstance(statement, ast.AnnAssign):
+                if isinstance(statement.target, ast.Name):
+                    name = statement.target.id
+                    if name.startswith("_rc_"):
+                        rc_methods.add(name)
         return rc_methods
 
     def check_rc_methods(self, rc_methods, ref_rc_methods):
