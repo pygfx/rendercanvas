@@ -25,12 +25,11 @@ import sys
 import time
 from contextlib import contextmanager
 
-from .base import BaseCanvasGroup, BaseRenderCanvas
-from .asyncio import AsyncioLoop
-
-import numpy as np
 import blessed
+import numpy as np
 
+from .asyncio import AsyncioLoop
+from .base import BaseCanvasGroup, BaseRenderCanvas
 
 # Store streams
 term_stream = sys.__stdout__
@@ -74,7 +73,7 @@ KEY_MAP = {
     "KEY_LEFT": "ArrowLeft",
     "KEY_RIGHT": "ArrowRight",
     "KEY_BACKSPACE": "Backspace",
-    "KEY_": "CapsLock",
+    "KEY_CAPS_LOCK": "CapsLock",
     "KEY_DELETE": "Delete",
     "KEY_END": "End",
     "KEY_ENTER": "Enter",  # aka return
@@ -375,7 +374,7 @@ class TerminalRenderCanvas(BaseRenderCanvas):
         data_h, data_w = data.shape[:2]
 
         # Resize image if necessary, using nearest neighbor interpolation.
-        if term_w == data_w or term_h == data_h:
+        if term_w == data_w and term_h == data_h:
             img = data
         else:
             img = resize_nearest(data, term_h, term_w)

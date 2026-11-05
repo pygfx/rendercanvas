@@ -39,6 +39,7 @@ class SizeInfo(dict):
         self["total_pixel_ratio"] = total_pixel_ratio
         self["logical_size"] = logical_size
 
+        # We mark as changed unconditionally; it's up to the backend to avoid unnecessary calls.
         self["changed"] = True
 
     def set_zoom(self, zoom: float):

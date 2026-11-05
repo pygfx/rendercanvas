@@ -6,17 +6,16 @@ Some tests that can be run for different (GUI) backends.
 
 import gc
 import os
-import time
-import weakref
 import signal
 import threading
+import time
+import weakref
 
 import numpy as np
-from rendercanvas.utils.asyncs import sleep as async_sleep
-
-from testutils import can_use_wgpu_lib
 import pytest
+from testutils import can_use_wgpu_lib
 
+from rendercanvas.utils.asyncs import sleep as async_sleep
 
 # A list of generic backend test functions
 BACKEND_TEST_FUNCS = []
@@ -39,6 +38,15 @@ def events_is_closed(canvas):
         return canvas._events._closed
 
 
+def gc_until_ref_is_none(ref, max_time=0.25):
+    max_i = int(max_time / 0.01)
+    for i in range(max_i):
+        time.sleep(0.01)
+        gc.collect()
+        if ref() is None:
+            break
+
+
 # ==================== loop deletion
 
 
@@ -54,9 +62,8 @@ def backend_loop_deletion1(RenderCanvas: type, loop, helper: NativeHelper):
 
     loop_ref = weakref.ref(loop)
     del loop
-    gc.collect()
-    gc.collect()
 
+    gc_until_ref_is_none(loop_ref)
     assert loop_ref() is None
 
 
@@ -74,10 +81,8 @@ def backend_loop_deletion2(RenderCanvas: type, loop, helper: NativeHelper):
 
     loop_ref = weakref.ref(loop)
     del loop
-    for _ in range(4):
-        time.sleep(0.01)
-        gc.collect()
 
+    gc_until_ref_is_none(loop_ref)
     assert loop_ref() is None
 
 
@@ -100,10 +105,8 @@ def backend_loop_deletion3(RenderCanvas: type, loop, helper: NativeHelper):
 
     loop_ref = weakref.ref(loop)
     del loop
-    for _ in range(4):
-        time.sleep(0.02)
-        gc.collect()
 
+    gc_until_ref_is_none(loop_ref)
     assert loop_ref() is None
 
 
@@ -352,13 +355,45 @@ def backend_close_by_pressing_cross(RenderCanvas: type, loop, helper: NativeHelp
     canvas_ref1 = weakref.ref(canvas1)
     canvas_ref2 = weakref.ref(canvas2)
     del canvas1, canvas2
-    gc.collect()
-    time.sleep(0.02)
-    gc.collect()
+
+    gc_until_ref_is_none(canvas_ref1, 0.1)
+    gc_until_ref_is_none(canvas_ref2, 0.1)
 
     assert canvas_ref1() is None
     assert canvas_ref2() is None
     assert loop._BaseLoop__state == "off"
+
+
+# ==================== Callbacks
+
+
+@add_test_func
+def backend_cancel_call_soon_and_call_later(
+    RenderCanvas: type, loop, helper: NativeHelper
+):
+    # Cancelled tasks are not run
+
+    canvas1 = RenderCanvas()
+
+    messages = []
+
+    def make_message(m):
+        messages.append(m)
+
+    h1 = loop.call_soon(make_message, 1)
+    _h2 = loop.call_soon(make_message, 2)
+
+    h3 = loop.call_later(0.05, make_message, 3)
+    _h4 = loop.call_later(0.05, make_message, 4)
+
+    loop.call_later(0.2, canvas1.close)
+
+    h1.cancel()
+    h3.cancel()
+
+    loop.run()
+
+    assert messages == [2, 4]
 
 
 # ==================== Resizing
@@ -420,10 +455,8 @@ def backend_render_bitmap(RenderCanvas: type, loop, helper: NativeHelper):
 
     canvas_ref = weakref.ref(canvas)
     del canvas
-    gc.collect()
-    time.sleep(0.02)
-    gc.collect()
 
+    gc_until_ref_is_none(canvas_ref)
     assert canvas_ref() is None
     assert loop._BaseLoop__state == "off"
 
@@ -440,21 +473,29 @@ def backend_render_wgpu(RenderCanvas: type, loop, helper: NativeHelper):
     device = wgpu.gpu.request_adapter_sync().request_device_sync()
     draw_frame1 = _get_draw_function(device, canvas)
 
-    canvas.request_draw(draw_frame1)
+    state_when_drawn = "none"
 
-    loop.call_later(0.5, canvas.close)
+    def draw_frame2():
+        nonlocal state_when_drawn
+        state_when_drawn = loop._BaseLoop__state
+        draw_frame1()
+
+    canvas.request_draw(draw_frame2)
+    loop.call_later(1.0, canvas.close)
     loop.run()
 
-    assert canvas.get_closed()
+    # Check state when the draw happened
+    assert state_when_drawn == "running"
 
+    # Check that the canvas object cleans up nicely
+    assert canvas.get_closed()
     canvas_ref = weakref.ref(canvas)
     del canvas
-    gc.collect()
-    time.sleep(0.02)
-    gc.collect()
-
+    gc_until_ref_is_none(canvas_ref, 1.0)
     assert canvas_ref() is None
-    assert loop._BaseLoop__state == "off"
+
+    # Check state after the canvas is closed
+    assert loop._BaseLoop__state == "off", loop._BaseLoop__state
 
 
 def _get_draw_function(device, canvas):

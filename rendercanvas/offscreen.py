@@ -6,7 +6,7 @@ __all__ = ["OffscreenRenderCanvas", "RenderCanvas", "loop"]
 
 import time
 
-from .base import BaseCanvasGroup, BaseRenderCanvas, BaseLoop
+from .base import BaseCanvasGroup, BaseLoop, BaseRenderCanvas
 
 
 class OffscreenCanvasGroup(BaseCanvasGroup):
@@ -175,14 +175,15 @@ class StubLoop(BaseLoop):
     def _rc_stop(self):
         self._callbacks.clear()
 
-    def _rc_add_task(self, async_func, name):
-        super()._rc_add_task(async_func, name)
-
-    def _rc_call_later(self, delay, callback):
-        self._callbacks.append((time.perf_counter() + delay, callback))
+    def _rc_call_soon(self, callback):
+        self._callbacks.append((0, callback))
 
     def _rc_call_soon_threadsafe(self, callback):
         self._callbacks.append((0, callback))
+
+    def _rc_call_later(self, delay, callback):
+        self._callbacks.append((time.perf_counter() + delay, callback))
+        # Not using threading for this stub loop: super()._rc_call_later(delay, callback)
 
 
 loop = StubLoop()

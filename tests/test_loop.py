@@ -20,6 +20,10 @@ from rendercanvas.trio import TrioLoop
 from rendercanvas.raw import RawLoop
 
 
+from rendercanvas.utils.asyncs import (
+    detect_current_async_lib,
+    detect_current_call_soon_threadsafe,
+)
 from rendercanvas.utils.asyncs import sleep as async_sleep
 from testutils import run_tests
 import trio
@@ -292,6 +296,138 @@ def test_loop_lifetime_interactive():
     assert (times[2] - times[1]) > 0.20
 
 
+# ==================== Callbacks
+
+
+@pytest.mark.parametrize("SomeLoop", loop_classes)
+def test_loop_task_call_soon(SomeLoop):
+
+    loop = SomeLoop()
+    FooCanvas.select_loop(loop)
+    _canvas = FooCanvas()
+
+    messages = []
+
+    def make_message(m):
+        messages.append(m)
+
+    h1 = loop.call_soon(make_message, 1)
+    h2 = loop.call_soon(make_message, 2)
+    h3 = loop.call_soon(make_message, 3)
+
+    loop.call_later(0.2, loop.stop)
+
+    h1.cancel()
+    h3.cancel()
+
+    assert h1.cancelled
+    assert "cancelled" in repr(h1)
+    assert not h2.cancelled()
+    assert "pending" in repr(h2)
+    assert h3.cancelled
+    assert "cancelled" in repr(h3)
+
+    loop.run()
+
+    assert h1.cancelled
+    assert "cancelled" in repr(h1)
+    assert not h2.cancelled()
+    assert "done" in repr(h2)
+    assert h3.cancelled()
+    assert "cancelled" in repr(h3)
+
+    assert messages == [2]
+
+    for h in h1, h2, h3:
+        assert "call_soon" in repr(h)
+
+
+@pytest.mark.parametrize("SomeLoop", loop_classes)
+def test_loop_task_call_later(SomeLoop):
+
+    loop = SomeLoop()
+    FooCanvas.select_loop(loop)
+    _canvas = FooCanvas()
+
+    messages = []
+
+    def make_message(m):
+        messages.append(m)
+
+    h4 = loop.call_later(0.05, make_message, 4)
+    h5 = loop.call_later(0.01, make_message, 5)
+    h6 = loop.call_later(0.02, make_message, 6)
+
+    loop.call_later(0.2, loop.stop)
+
+    h6.cancel()
+
+    assert not h4.cancelled()
+    assert "pending" in repr(h4)
+    assert not h5.cancelled()
+    assert "pending" in repr(h5)
+    assert h6.cancelled
+    assert "cancelled" in repr(h6)
+
+    loop.run()
+
+    assert not h4.cancelled()
+    assert "done" in repr(h4)
+    assert not h5.cancelled()
+    assert "done" in repr(h5)
+    assert h6.cancelled
+    assert "cancelled" in repr(h6)
+
+    assert messages == [5, 4]
+
+    for h in h4, h5, h6:
+        assert "call_later" in repr(h)
+
+
+@pytest.mark.parametrize("SomeLoop", loop_classes)
+def test_loop_detection(SomeLoop):
+    # Test that the loop is detectable via sys.get_asyncgen_hooks() in all kinds of cases
+
+    loop = SomeLoop()
+    FooCanvas.select_loop(loop)
+    canvas = FooCanvas()
+
+    names = []
+    methods = []
+
+    def add_loop_name(when):
+        names.append((when, detect_current_async_lib()))
+        methods.append((when, detect_current_call_soon_threadsafe()))
+
+    @canvas.request_draw
+    def draw():
+        add_loop_name("draw")
+
+    @canvas.add_event_handler("*")
+    def on_event(event):
+        add_loop_name(event["event_type"])
+
+    async def task():
+        add_loop_name("task")
+
+    loop.add_task(task)
+    loop.call_soon(add_loop_name, "call_soon")
+    loop.call_later(0.1, add_loop_name, "call_later")
+
+    loop.call_later(0.2, loop.stop)
+
+    loop.run()
+
+    for key, val in names:
+        print(key, val)
+        assert val == "rendercanvas.utils.asyncadapter"
+
+    for key, val in methods:
+        print(key, val)
+        assert val.__self__ is loop
+        assert val.__name__ == "call_soon_threadsafe"
+
+
 # ==================== Tasks
 
 
@@ -303,9 +439,9 @@ def test_loop_task_order(SomeLoop):
     flag = []
 
     class MyLoop(SomeLoop):
-        async def _loop_start_detection_task(self):
-            flag.append("loop-start-detect-task")
-            return await super()._loop_start_detection_task()
+        def _loop_start_detection_callback(self):
+            flag.append("loop-start-detected")
+            return super()._loop_start_detection_callback()
 
     async def user_task(id):
         flag.append(f"user-task{id}")
@@ -317,7 +453,7 @@ def test_loop_task_order(SomeLoop):
     loop.call_later(0.2, loop.stop)
     loop.run()
 
-    assert flag == ["loop-start-detect-task", "user-task1", "user-task2"], flag
+    assert flag == ["loop-start-detected", "user-task1", "user-task2"], flag
 
     # Again
 
@@ -328,7 +464,7 @@ def test_loop_task_order(SomeLoop):
     loop.call_later(0.2, loop.stop)
     loop.run()
 
-    assert flag == ["loop-start-detect-task", "user-task1", "user-task2"], flag
+    assert flag == ["loop-start-detected", "user-task1", "user-task2"], flag
 
 
 @pytest.mark.parametrize("SomeLoop", loop_classes)
@@ -427,6 +563,7 @@ async def a_generator(flag, *, await_in_finalizer=False):
         flag.append("finished")
     finally:
         if await_in_finalizer:
+            await async_sleep(0)
             await async_sleep(0)
         flag.append("closed")
 
@@ -579,18 +716,7 @@ def test_async_gens_cleanup_bad_agen(SomeLoop):
     loop.call_later(0.1, loop.stop)
     loop.run()
 
-    if SomeLoop is AsyncioLoop:
-        # Handled properly
-        ref_flag = ["started", "except GeneratorExit", "closed"]
-    elif SomeLoop is TrioLoop:
-        # Not handled correctly? It did at some point.
-        # Anyway, rather adversarial use-case, so I don't care too much.
-        ref_flag = ["started", "except GeneratorExit"]
-    else:
-        # Actually, our adapter also works, because the sleep and Event
-        # become no-ops once the loop is gone, and since there are no other things
-        # one can wait on with our asyncadapter, we're good!
-        ref_flag = ["started", "except GeneratorExit", "closed"]
+    ref_flag = ["started", "except GeneratorExit", "closed"]
 
     assert flag == ref_flag, flag
 
