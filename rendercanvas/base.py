@@ -522,6 +522,13 @@ class BaseRenderCanvas:
         # when the FPS is low on remote backends.
         self._process_events()
 
+        # Processing events may have closed the canvas (e.g. the user clicked the close button).
+        # Requesting a paint now would re-initialize the (just stopped) loop, see #267.
+        if self.__is_closed:
+            if self.__scheduler is not None:
+                self.__scheduler.on_cancel_draw()
+            return
+
         if self._present_to_screen:
             self._rc_request_paint()  # -> _time_to_paint() -> _draw_and_present()
         else:
