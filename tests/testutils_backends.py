@@ -364,6 +364,44 @@ def backend_close_by_pressing_cross(RenderCanvas: type, loop, helper: NativeHelp
     assert loop._BaseLoop__state == "off"
 
 
+@add_test_func
+def backend_close_by_pressing_cross_twice(
+    RenderCanvas: type, loop, helper: NativeHelper
+):
+    # Regression test for https://github.com/pygfx/rendercanvas/issues/267
+    if not can_use_wgpu_lib:
+        pytest.skip("Skipping tests that needs the wgpu lib")
+
+    def run():
+        canvas = RenderCanvas()
+
+        # We need to get the present context, otherwise a draw cancels
+        # and does not touch the code that causes the problem.
+        _present_context = canvas.get_context("wgpu")
+
+        def draw():
+            # requesting a new draw is important to reproduce this problem
+            canvas.request_draw()
+
+        loop.call_later(0.5, lambda: helper.close_canvas(canvas))
+
+        canvas.request_draw(draw)
+        loop.run()
+
+    try:
+        for i in range(2):
+            run()
+
+    finally:
+        # Prevent error from leaking into next tests
+        if getattr(loop, "_interactive_loop", None):
+            loop._interactive_loop = None
+            try:
+                loop.stop()
+            except Exception:
+                pass
+
+
 # ==================== Callbacks
 
 
