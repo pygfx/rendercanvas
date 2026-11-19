@@ -238,8 +238,7 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         self._key_modifiers = ()
         self._pointer_buttons = ()
         self._pointer_pos = 0, 0
-        self._pointer_inside = None
-        self._pointer_lock = False
+        self._pointer_inside: bool | None = None  # None means locked/pending
         self._double_click_state = {"clicks": 0}
         glfw.set_mouse_button_callback(self._window, weakbind(self._on_mouse_button))
         glfw.set_cursor_pos_callback(self._window, weakbind(self._on_cursor_pos))
@@ -265,6 +264,14 @@ class GlfwRenderCanvas(BaseRenderCanvas):
     def _on_iconify(self, window, iconified):
         self._is_minimized = bool(iconified)
         self._set_visible(not iconified)
+
+    def _is_pointer_inside(self):
+        # If _pointer_inside is None (i.e. pending) we see if we recover it when its inside.
+        # Note this means we can have an enter events with no leave event. Let's look at that when we revisit events.
+        if self._pointer_inside is None and self._window is not None:
+            if glfw.get_window_attrib(self._window, glfw.HOVERED):
+                self._on_cursor_enter(self._window, True)
+        return self._pointer_inside
 
     def _determine_size(self):
         if self._window is None:
@@ -401,6 +408,7 @@ class GlfwRenderCanvas(BaseRenderCanvas):
             self._changing_pixel_ratio = False
 
     def _on_size_change(self, *args):
+        self._pointer_inside = None  # re-establish by explicit check
         self._determine_size()
         # During a resize, the glfw.poll_events() function blocks, so
         # our event-loop is on pause. However, glfw still sends resize
@@ -426,15 +434,12 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         }
         button = button_map.get(but, 0)
 
-        # Handler pointer locking
-        if self._pointer_lock:
-            if action == glfw.RELEASE:
-                self._pointer_lock = False
-            return
-        elif not self._pointer_inside:
+        # Handle pointer locking
+        pointer_inside = self._is_pointer_inside()
+        if not pointer_inside:
             if action == glfw.PRESS:
                 # This press is to select the window (regaining focus)
-                self._pointer_lock = True
+                self._pointer_inside = None  # means 'locked'
                 return
 
         if action == glfw.PRESS:
@@ -471,7 +476,7 @@ class GlfwRenderCanvas(BaseRenderCanvas):
         # If a sequence of down-up-down-up is made in nearly the same
         # spot, and within a short time, we emit the double-click event.
 
-        if self._pointer_lock:
+        if self._pointer_inside is None:
             return
 
         x, y = self._pointer_pos[0], self._pointer_pos[1]
@@ -520,16 +525,12 @@ class GlfwRenderCanvas(BaseRenderCanvas):
             self.submit_event(ev)
 
     def _on_cursor_pos(self, window, x, y):
-        if self._pointer_lock:
+        pointer_inside = self._is_pointer_inside()
+        if pointer_inside is None:
             return
 
-        # Maybe trigger initial enter
-        if self._pointer_inside is None:
-            if glfw.get_window_attrib(window, glfw.HOVERED):
-                self._on_cursor_enter(window, True)
-
         # Only process move events if inside or if drag-tracking
-        if not (self._pointer_inside or self._pointer_buttons):
+        if not (pointer_inside or self._pointer_buttons):
             return
 
         # Store pointer position in logical coordinates
