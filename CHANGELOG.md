@@ -13,6 +13,23 @@ Possible sections in each release:
 * Security: in case of vulnerabilities.
 
 
+## [3.0.1](https://github.com/pygfx/rendercanvas/releases/tag/3.0.1) - 19-11-2026
+
+### Fixed
+
+* Fix that closing a glfw window from its title bar leaves AsyncioLoop bound to a closed asyncio loop by @maharshi-gor in https://github.com/pygfx/rendercanvas/pull/270
+* Pass the configured view_formats through to the present texture by @hmaarrfk in https://github.com/pygfx/rendercanvas/pull/254
+* GLFW: Fix that pointer becomes inresponsive after resizing via titlebar dblclick by @almarklein in https://github.com/pygfx/rendercanvas/pull/271
+
+### Other
+* Use re-usable flow for releasing by @almarklein in https://github.com/pygfx/rendercanvas/pull/269
+
+### New Contributors
+* @maharshi-gor made their first contribution in https://github.com/pygfx/rendercanvas/pull/270
+
+**Full Changelog**: https://github.com/pygfx/rendercanvas/compare/v3.0.0...3.0.1
+
+
 ## [v3.0.0](https://github.com/pygfx/rendercanvas/releases/tag/v3.0.0) - 06-11-2026
 
 ### Notable API changes
@@ -50,7 +67,6 @@ Possible sections in each release:
 
 ### What's Changed
 * Two fixes for VSCode by @almarklein in https://github.com/pygfx/rendercanvas/pull/235
-
 
 **Full Changelog**: https://github.com/pygfx/rendercanvas/compare/v2.7.0...v2.7.1
 
@@ -107,7 +123,6 @@ This release adds multiple new backends, and has many fixes and small improvemen
 * Fix drag example by @almarklein in https://github.com/pygfx/rendercanvas/pull/194
 * Fix wx scrolling by @tlambert03 in https://github.com/pygfx/rendercanvas/pull/190
 
-
 **Full Changelog**: https://github.com/pygfx/rendercanvas/compare/v2.6.2...v2.6.3
 
 
@@ -120,7 +135,6 @@ This release adds multiple new backends, and has many fixes and small improvemen
 * Add contribution guide by @almarklein in https://github.com/pygfx/rendercanvas/pull/187
 * Always request a draw on a resize & bump patch version by @almarklein in https://github.com/pygfx/rendercanvas/pull/188
 
-
 **Full Changelog**: https://github.com/pygfx/rendercanvas/compare/v2.6.1...v2.6.2
 
 
@@ -129,7 +143,6 @@ This release adds multiple new backends, and has many fixes and small improvemen
 ### What's Changed
 * Detect Pyodide to avoid get_asyncgen_hooks by @almarklein in https://github.com/pygfx/rendercanvas/pull/179
 * Update _version.py by @almarklein in https://github.com/pygfx/rendercanvas/pull/180
-
 
 **Full Changelog**: https://github.com/pygfx/rendercanvas/compare/v2.6.0...v2.6.1
 
@@ -148,7 +161,6 @@ This release focuses on present methods (bitmap vs screen). The bitmap present m
 * Qt and wx default to bitmap present by @almarklein in https://github.com/pygfx/rendercanvas/pull/175
 * Add docs on P3 behaviour of qt by @almarklein in https://github.com/pygfx/rendercanvas/pull/177
 
-
 **Full Changelog**: https://github.com/pygfx/rendercanvas/compare/v2.5.2...v2.6.0
 
 
@@ -159,7 +171,6 @@ This release focuses on present methods (bitmap vs screen). The bitmap present m
 * Streamline internal sleep and call_later by @almarklein in https://github.com/pygfx/rendercanvas/pull/162
 * Add more gui-specific tests and run on ci by @almarklein in https://github.com/pygfx/rendercanvas/pull/164
 * Fix several warnings in tests by @almarklein in https://github.com/pygfx/rendercanvas/pull/165
-
 
 **Full Changelog**: https://github.com/pygfx/rendercanvas/compare/v2.5.1...v2.5.2
 
@@ -183,7 +194,6 @@ This release focuses on present methods (bitmap vs screen). The bitmap present m
 * Improvements to loop lifecycle by @almarklein in https://github.com/pygfx/rendercanvas/pull/152
 * Run loop tests with more loop classes by @almarklein in https://github.com/pygfx/rendercanvas/pull/156
 * Drop sniffio and improved limetime by @almarklein in https://github.com/pygfx/rendercanvas/pull/157
-
 
 **Full Changelog**: https://github.com/pygfx/rendercanvas/compare/v2.4.2...v2.5.0
 
@@ -218,12 +228,10 @@ Additions:
 * Add notes on performance for Qt bitmap present by @almarklein in https://github.com/pygfx/rendercanvas/pull/139
 * Allow displaying frame-time in ms in title ($ms instead of $fps) by @almarklein in https://github.com/pygfx/rendercanvas/pull/140
 
-
 **Full Changelog**: https://github.com/pygfx/rendercanvas/compare/v2.4.0...v2.4.1
 
 
 ## [v2.4.0](https://github.com/pygfx/rendercanvas/releases/tag/v2.4.0) - 10-11-2025
-
 
 ### Summary
 
@@ -235,7 +243,6 @@ Support for Pyodide!! 🚀 And laying foundation for improved remote contexts, b
 * Implement own context classes by @almarklein in https://github.com/pygfx/rendercanvas/pull/127
 * Refactor internal _set_size_info() by @almarklein in https://github.com/pygfx/rendercanvas/pull/132
 * Small type tweaks by @almarklein in https://github.com/pygfx/rendercanvas/pull/133
-
 
 **Full Changelog**: https://github.com/pygfx/rendercanvas/compare/v2.3.0...v2.4.0
 
@@ -302,7 +309,6 @@ This release drops support for async event handlers, makes sure that the user-co
 ### What's Changed
 * Fix pointer up outside glfw window by @almarklein in https://github.com/pygfx/rendercanvas/pull/90
 
-
 **Full Changelog**: https://github.com/pygfx/rendercanvas/compare/v2.1.1...v2.1.2
 
 
@@ -310,7 +316,6 @@ This release drops support for async event handlers, makes sure that the user-co
 
 ### What's Changed
 * Fix that set_update_mode does not work for wrapper canvases by @almarklein in https://github.com/pygfx/rendercanvas/pull/87
-
 
 **Full Changelog**: https://github.com/pygfx/rendercanvas/compare/v2.1.0...v2.1.1
 
@@ -324,7 +329,6 @@ This release drops support for async event handlers, makes sure that the user-co
 * Add canvas.set_cursor() by @almarklein in https://github.com/pygfx/rendercanvas/pull/81
 * Add canvas.set_update_mode() by @almarklein in https://github.com/pygfx/rendercanvas/pull/83
 * Add type hints for the public API by @almarklein in https://github.com/pygfx/rendercanvas/pull/85
-
 
 **Full Changelog**: https://github.com/pygfx/rendercanvas/compare/v2.0.4...v2.1.0
 
@@ -361,7 +365,6 @@ This release drops support for async event handlers, makes sure that the user-co
 * Dont get winId in qt and wx with bitmap present-method by @almarklein in https://github.com/pygfx/rendercanvas/pull/60
 * Detect qt winid changes by @almarklein in https://github.com/pygfx/rendercanvas/pull/61
 
-
 **Full Changelog**: https://github.com/pygfx/rendercanvas/compare/v2.0.1...v2.0.2
 
 
@@ -395,7 +398,6 @@ Changes to the API:
 
 * Rename `is_closed()` to `get_closed()` by @almarklein in https://github.com/pygfx/rendercanvas/pull/26
 * Remove `run` function by @almarklein in https://github.com/pygfx/rendercanvas/pull/42
-
 
 **Full Changelog**: https://github.com/pygfx/rendercanvas/compare/v1.0.0...v2.0.0
 
