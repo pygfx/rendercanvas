@@ -314,6 +314,7 @@ class HttpRenderCanvas(BaseRenderCanvas):
         # Note: we assume there is only a single canvas on the page
         asgi._event_callback = self._on_event
 
+        self._pending_present_params = None
         self._draw_requested = False
         self._pending_maybe_draw = False
 
@@ -476,6 +477,32 @@ class HttpRenderCanvas(BaseRenderCanvas):
         # Send to clients that are ready
         self._send_last_frame_to_ready_clients()
 
+    def _encode_frame_already_jpeg(self, data):
+        timestamp = time.time()
+        mimetype = "image/jpeg"
+        buffers = [data]
+        # Stats
+        if True:
+            self._stats["encoded_frames"] += 1
+            if self._stats["start_time"] <= 0:  # Start measuring
+                self._stats["start_time"] = timestamp
+
+        # Compose message and send
+        msg = dict(
+            type="framebufferdata",
+            nbuffers=len(buffers),
+            mimetype=mimetype,
+            timestamp=timestamp,
+            index=0,
+        )
+
+        # Store this frame
+        self._last_frame = msg, buffers
+        self._ref_index += 1
+
+        # Send to clients that are ready
+        self._send_last_frame_to_ready_clients()
+
     def _send_last_frame_to_ready_clients(self):
         """Send the last frame to clients that are ready, and have not yet been sent it."""
         msg, buffers = self._last_frame
@@ -545,6 +572,7 @@ class HttpRenderCanvas(BaseRenderCanvas):
     def _rc_get_present_info(self, present_methods):
         # Only allow simple format for now. srgb is assumed.
         if "bitmap" in present_methods:
+            self._pending_present_params = {"submethod": "contiguous-array"}
             return {
                 "method": "bitmap",
                 "formats": ["rgba-u8"],
@@ -556,6 +584,9 @@ class HttpRenderCanvas(BaseRenderCanvas):
         # Technically, _maybe_draw() may not perform a draw if there are too
         # many frames in-flight. But in this case, we'll eventually get
         # new frame_feedback, which will then trigger a draw.
+        if self._pending_present_params:
+            self._canvas_context._rc_set_present_params(**self._pending_present_params)
+            self._pending_present_params = None
         if not self._draw_requested:
             self._draw_requested = True
             self._cancel_lossless_draw()
@@ -570,9 +601,12 @@ class HttpRenderCanvas(BaseRenderCanvas):
     def _rc_force_paint(self):
         pass  # works as-is via push_frame
 
-    def _rc_present_bitmap(self, *, data, format, **kwargs):
+    def _rc_present_bitmap(self, *, data, format, submethod, **kwargs):
         assert format == "rgba-u8"
-        self._encode_frame(np.asarray(data))
+        if submethod == "jpeg":
+            self._encode_frame_already_jpeg(data)
+        else:
+            self._encode_frame(np.asarray(data))
 
     def _rc_set_logical_size(self, width, height):
         asgi.send_all({"type": "css_width", "value": f"{width}px"})

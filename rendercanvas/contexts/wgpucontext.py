@@ -498,11 +498,12 @@ class AsyncImageDownloadAction:
             self._buffer = None
 
             try:
-                data = self._get_bitmap(buffer)
+                data, submethod = self._get_bitmap(buffer)
             finally:
                 buffer.unmap()
             result = {
                 "method": "bitmap",
+                "submethod": submethod,
                 "format": self._short_format,
                 "data": data,
             }
@@ -560,7 +561,6 @@ class AsyncImageDownloadAction:
         # Triage. AK: I implemented some stubs, primarily as an indication of
         # how I see this scaling out to more sophisticated methods. Here we can
         # add diff images, gpu-based pseudo-jpeg, etc.
-
         if submethod == "contiguous-array":
             # This is the default.
 
@@ -619,7 +619,7 @@ class AsyncImageDownloadAction:
         else:
             raise RuntimeError(f"Unknown present submethod {submethod!r}")
 
-        return data
+        return data, submethod
 
 
 FORMAT_CACHE = {}  # wgpu.TextureFormat -> (dtype, short-format, nchannels, bytes_per_pixel)

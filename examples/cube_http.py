@@ -19,7 +19,7 @@ import numpy as np
 
 
 canvas = RenderCanvas(
-    title="The wgpu cube example on $backend", update_mode="continuous"
+    title="The wgpu cube example on $backend $fps $ms", update_mode="continuous"
 )
 draw_frame = setup_drawing_sync(canvas)
 canvas.request_draw(draw_frame)
@@ -37,7 +37,7 @@ html = """<!DOCTYPE html>
 </head>
 <body style='margin:0'>
 
-    <div id='canvas' class='' style='display:block; width:100vw; height:min(100vh,80vw); --line-thickness:0'>
+    <div id='canvas' class='renderview-wrapper has-titlebar is-resizable' >
         Loading ...
     </div>
 
